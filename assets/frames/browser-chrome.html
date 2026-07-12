@@ -123,10 +123,16 @@
       var url = qs.get('url');
       var iframe = document.getElementById('screen');
       if (raw) {
-        var isAbsolute = /^[a-zA-Z][a-zA-Z\d+.\-]*:/.test(raw) || raw.charAt(0) === '/';
-        iframe.src = isAbsolute
-          ? raw
-          : new URL(raw, document.referrer || location.href).toString();
+        var projectRoot = new URL('../../', location.href);
+        var resolved = raw === 'about:blank' ? null : new URL(raw, projectRoot);
+        if (raw === 'about:blank') {
+          iframe.src = raw;
+        } else {
+          var relativePath = resolved.pathname.slice(projectRoot.pathname.length);
+          var decodedPath = decodeURIComponent(relativePath);
+          if (resolved.protocol !== projectRoot.protocol || resolved.host !== projectRoot.host || !resolved.pathname.startsWith(projectRoot.pathname) || !/^(pages|previews)\/.+\.html$/i.test(decodedPath)) throw new Error('screen 必须是安全的项目根相对路径');
+          iframe.src = resolved.toString();
+        }
       }
       if (url) document.getElementById('url-text').textContent = url;
     })();

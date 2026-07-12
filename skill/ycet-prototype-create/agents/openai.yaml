@@ -1,7 +1,0 @@
-interface:
-  display_name: "YCET Prototype Create"
-  short_description: "Create, edit, normalize, and demo product prototypes"
-  default_prompt: "Use $ycet-prototype-create and help me choose the correct prototype workflow."
-
-policy:
-  allow_implicit_invocation: true

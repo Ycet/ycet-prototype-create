@@ -1,59 +1,143 @@
-# 原型制作 Skill
+# YCET Prototype Create
 
-## 项目简介
+`ycet-prototype-create` 是一套面向 Codex、Claude Code 等 Agent 的产品原型制作 Skill，覆盖需求澄清、UI 方向确认、高保真静态原型、精准页面修改、多页面交互 Demo，以及已有原型接管与迁移。
 
-本项目维护 `ycet-prototype-create` skill，用于指导 Agent 从产品需求生成高保真原型、精准修改原型、生成可交互 demo，并接管已有 HTML 或图片原型进行规范化重构与编辑。
+## 当前版本
 
-## 当前状态
+- 版本：V2.1
+- 状态：开发完成，已通过结构校验与五类设备框架运行时验证
+- 交付目录：`outputs/skills/ycet-prototype-create/`
+- 基线目录：`skill/ycet-prototype-create/`
+- 对应提交：`8762a2e`（`[260712] V2.1开发完成`）
 
-测试中：原始版本保留在 `skill/ycet-prototype-create/`，本轮优化版本输出到 `outputs/skills/ycet-prototype-create/`。
+基线目录用于保留优化前的 Skill；后续使用、验证或安装时应以交付目录为准。
 
 ## 功能范围
 
-- 功能一：从产品需求到高保真静态原型页面。
-- 功能二：通过浏览器开发者工具信息精准修改原型元素。
-- 功能三：从高保真静态原型页面生成可交互原型 demo。
-- 功能四：HTML 或图片原型规范化重构与编辑。
+### 功能一：高保真静态原型
 
-暂不包含：
+- 对零散想法或不完整需求调用 `brainstorming-solo` 完善需求。
+- 发现当前 Agent 可访问的全部 UI 相关 Skill，展示名称、功能、来源、可调用状态和前置条件，再由用户选择一个主 Skill或不使用 Skill。
+- 未使用 UI Skill 时，依次确认参考产品或网站、设计风格、色彩方案和其他要求。
+- 生成设计方向、首页预览、独立页面和静态原型入口。
 
-- 自动发布 skill 到远程仓库。
-- 自动安装或替换 Claude Code / Codex 的全局 skill 引用。
+### 功能二：原型页面精准修改
+
+- 根据 CSS 选择器、HTML 片段和修改要求定位目标元素。
+- 只修改目标范围，并按共享日志规范记录变更。
+- V2.1 未改变该功能的业务流程。
+
+### 功能三：可交互原型 Demo
+
+- 从静态页面生成多页面交互 Demo。
+- 通过 `navigate`、`set-screen`、`screen-changed` 等消息完成双层 iframe 导航中继。
+- 支持按框架文件名或映射元数据识别设备，并保留旧框架兼容模式。
+
+### 功能四：已有原型接管与迁移
+
+- 审计已有 HTML 或图片原型的目录、画布、框架、系统 UI 和交互结构。
+- 按问题范围执行内容修复、结构修复或完整迁移。
+- 不改变原有业务流程，只处理新框架体系带来的兼容问题。
+
+## V2.1 核心变化
+
+- 使用 `brainstorming-solo` 替换原需求完善 Skill。
+- 阶段二改为动态发现并展示已安装的 UI 相关 Skill。
+- `design-direction.html` 将设备框架与首页效果合并为“首页预览”。
+- 引入 Manifest 驱动的设备框架体系，统一尺寸、安全区域、端口映射和消息协议。
+- 框架只负责状态栏、Home Indicator、Android 系统导航栏和浏览器/设备外壳。
+- `pages/*.html` 与 `previews/*.html` 只负责产品 UI；App 顶部导航、Tab Bar、微信胶囊按钮和网站导航仍由页面实现。
+- 功能三、功能四同步兼容新框架，同时保留旧项目识别能力。
+
+## 产品端口与设备框架
+
+| 产品端口 | 默认框架 |
+| --- | --- |
+| iOS、iPhone | `iphone-15-pro.html` |
+| Android | `android-pixel.html` |
+| iPad | `ipad-pro.html` |
+| 网页、网站 | `browser-chrome.html` |
+| 桌面端、Windows、macOS | `macbook.html` |
+| 微信小程序 | 默认 `iphone-15-pro.html`；明确指定 Android 宿主时使用 `android-pixel.html` |
+
+端口映射、逻辑画布、预览尺寸、安全区域和消息协议以 `assets/frames/manifest.json` 为唯一数据真源。
 
 ## 项目结构
 
 ```text
-skill/
-  ycet-prototype-create/
-outputs/
-  skills/
-    ycet-prototype-create/
-      SKILL.md
-      agents/
-      assets/frames/
-      docs/
-      evals/
-      scripts/
+.
+├─ skill/                              # 优化前的基线 Skill
+├─ outputs/skills/ycet-prototype-create/
+│  ├─ SKILL.md                         # V2.1 总入口与功能路由
+│  ├─ agents/openai.yaml               # Codex 展示与调用元数据
+│  ├─ assets/frames/                   # Manifest 和五类设备框架
+│  ├─ docs/                            # 四项功能流程与共享规范
+│  ├─ evals/evals.json                 # Agent 行为评估用例
+│  └─ scripts/                         # 静态与运行时校验脚本
+├─ assets/frames/                      # 本轮框架设计源文件
+├─ docs/brainstorms/                   # 已确认规格和执行计划
+├─ V1.0优化想法.txt
+└─ V1.1优化想法.txt
 ```
 
 ## 使用方式
 
-使用本轮优化结果时，将 `outputs/skills/ycet-prototype-create` 作为 Codex 或 Claude Code skill 目录。Agent 读取 `SKILL.md` 后，应先完成路由判断，再按需读取对应功能文档和共享规范文件。
+将以下目录作为 Skill 根目录：
 
-验证命令：
+```text
+outputs/skills/ycet-prototype-create
+```
+
+Agent 应先读取 `SKILL.md` 完成功能路由，再按需读取对应功能文档、共享规范及 `assets/frames/manifest.json`。生成的原型统一写入目标项目的 `prototype/` 目录，不得依赖本 Skill 的绝对安装路径。
+
+新原型中的设备框架按以下形式加载产品页面：
+
+```html
+<iframe
+  data-ycet-frame-id="iphone-15-pro"
+  src="assets/frames/iphone-15-pro.html?screen=pages/home.html"
+  title="首页"
+></iframe>
+```
+
+`screen` 只允许指向项目内的 `pages/*.html`、`previews/*.html` 或 `about:blank`，并始终相对于 `prototype/` 项目根解析。框架不依赖 `document.referrer`，因此本地 `file://`、静态服务器和移动目录场景使用同一契约。
+
+## 环境与验证
+
+基础要求：
+
+- Python 3
+- 运行浏览器验证时需要 Python Playwright 和 Chromium
+
+结构与规则校验：
 
 ```powershell
 python outputs\skills\ycet-prototype-create\scripts\validate_skill.py
+```
+
+五类框架运行时验证：
+
+```powershell
 python outputs\skills\ycet-prototype-create\scripts\test_frames_runtime.py
 ```
 
+运行时测试覆盖 HTTP 与 `file://` 页面加载、设计方向首页预览、逻辑视口尺寸、双层 iframe 消息中继、旧裸文件名兼容、中文/空格页面名、query/hash、编码遍历拦截，以及移动到带空格和中文目录后的可移植性。
+
 ## 文档索引
 
-- `outputs/skills/ycet-prototype-create/SKILL.md`：优化版总入口、路由规则和全局强制规则。
-- `outputs/skills/ycet-prototype-create/docs/`：功能文档与共享规范。
-- `outputs/skills/ycet-prototype-create/assets/frames/`：Manifest 与五类设备框架。
-- `outputs/skills/ycet-prototype-create/evals/evals.json`：技能行为评估用例。
+- `outputs/skills/ycet-prototype-create/SKILL.md`：总入口、功能路由和全局规则。
+- `outputs/skills/ycet-prototype-create/docs/function-1-static-prototype.md`：静态高保真原型流程。
+- `outputs/skills/ycet-prototype-create/docs/function-2-precision-edit.md`：页面精准修改流程。
+- `outputs/skills/ycet-prototype-create/docs/function-3-interactive-demo.md`：交互 Demo 流程和消息协议。
+- `outputs/skills/ycet-prototype-create/docs/function-4-existing-prototype-edit.md`：已有原型审计、接管和迁移流程。
+- `outputs/skills/ycet-prototype-create/docs/shared-prototype-standards.md`：目录、框架、画布和页面规范。
+- `outputs/skills/ycet-prototype-create/docs/shared-editlog-rules.md`：原型变更日志规则。
+- `outputs/skills/ycet-prototype-create/assets/frames/README.md`：设备框架使用说明。
+- `docs/brainstorms/specs/`：V2.1 已确认需求规格。
+- `docs/brainstorms/plan/`：V2.1 执行计划。
 
-## 已知限制
+## 已知限制与注意事项
 
-- 自动化脚本覆盖 Skill 结构、框架元数据和设备框架运行时行为；尚未自动执行完整的 Agent 对话评估。
+- 当前自动化脚本验证 Skill 结构、框架配置和浏览器运行时行为，尚未自动执行完整的 Agent 对话评估。
+- Skill 不会自动安装自身、替换全局 Skill、发布、部署、推送远程仓库或创建 PR。
+- 当前工作树中 `outputs/skills/ycet-prototype-create/evals/evals.json` 处于删除状态；该文件仍存在于 V2.1 提交 `8762a2e` 中。恢复前，`validate_skill.py` 会因缺少评估文件而报告失败。

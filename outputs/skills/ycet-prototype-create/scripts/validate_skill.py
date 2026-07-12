@@ -31,6 +31,13 @@ def main() -> int:
         fail("Manifest schemaVersion 必须为 1", failures)
     if manifest.get("screenQueryParameter") != "screen":
         fail("Manifest screenQueryParameter 必须为 screen", failures)
+    if manifest.get("screenPathBase") != "prototype-root":
+        fail("Manifest screenPathBase 必须为 prototype-root", failures)
+    if manifest.get("frameProjectRootRelativePath") != "../../":
+        fail("Manifest frameProjectRootRelativePath 必须为 ../../", failures)
+    allowed_prefixes = manifest.get("allowedScreenPrefixes")
+    if allowed_prefixes != ["pages/", "previews/"]:
+        fail("Manifest allowedScreenPrefixes 必须为 pages/ 与 previews/", failures)
 
     frames = manifest.get("frames")
     if not isinstance(frames, list) or not frames:
@@ -66,10 +73,18 @@ def main() -> int:
             'message.type === "set-screen"': "set-screen 协议",
             "screen-changed": "screen-changed 协议",
             "event.source === inner.contentWindow": "内部消息来源校验",
+            'const SCREEN_QUERY_PARAMETER = "screen"': "screen 查询参数常量",
+            'const FRAME_PROJECT_ROOT_RELATIVE_PATH = "../../"': "项目根相对路径常量",
+            'const ALLOWED_SCREEN_PREFIXES = ["pages/", "previews/"]': "页面路径白名单",
+            "new URL(FRAME_PROJECT_ROOT_RELATIVE_PATH, location.href)": "项目根解析",
+            "normalizeNavigationTarget": "旧导航路径规范化",
+            "new URL(screen, PROJECT_ROOT_URL)": "项目根页面解析",
         }
         for token, label in checks.items():
             if token not in html:
                 fail(f"{frame_id} 缺少{label}", failures)
+        if "document.referrer" in html:
+            fail(f"{frame_id} 仍依赖 document.referrer 解析页面路径", failures)
 
     routing = manifest.get("routing", {})
     for route, config in routing.items():
@@ -95,6 +110,29 @@ def main() -> int:
     for url in ("https://open-design.ai/zh/plugins/systems/", "https://ui-ux-pro-max-skill.com/zh/#styles"):
         if url not in function_one:
             fail(f"功能一缺少特殊 UI Skill 链接: {url}", failures)
+
+    shared_standards = (ROOT / "docs" / "shared-prototype-standards.md").read_text(encoding="utf-8")
+    for token in (
+        "## 路径与文件名契约",
+        "frameProjectRootRelativePath",
+        "allowedScreenPrefixes",
+        "navigate.targetPage",
+        "禁止依赖 `document.referrer`",
+    ):
+        if token not in shared_standards:
+            fail(f"共享规范缺少路径契约: {token}", failures)
+
+    function_three = (ROOT / "docs" / "function-3-interactive-demo.md").read_text(encoding="utf-8")
+    for token in ('targetPage: "pages/home.html"', "assets/frames/<frameFile>", "规范 pathname"):
+        if token not in function_three:
+            fail(f"功能三缺少规范路径说明: {token}", failures)
+    if "assets/frames/<frame-file>.html" in function_three:
+        fail("功能三仍可能对 frameFile 重复追加 .html", failures)
+
+    function_four = (ROOT / "docs" / "function-4-existing-prototype-edit.md").read_text(encoding="utf-8")
+    for token in ("CSS `url()` / `@import`", "模块 import", "pages/source-images/"):
+        if token not in function_four:
+            fail(f"功能四缺少迁移路径规则: {token}", failures)
 
     evals_path = ROOT / "evals" / "evals.json"
     try:

@@ -29,6 +29,17 @@ prototype/
     EditLog.md
 ```
 
+## 路径与文件名契约
+
+- `prototype/` 是所有运行时页面路径的唯一 URL 根；下文称“项目根”。
+- `screen`、`navigate.targetPage`、`set-screen.screen` 与 `screen-changed.screen` 均使用相对于项目根的规范路径，如 `pages/home.html` 或 `previews/home-preview.html`。
+- 新生成的 `pages/*.html` 与 `previews/*.html` 文件名使用小写 ASCII kebab-case。接管旧项目时允许保留安全的中文、空格等文件名，但消息中的路径必须由 URL 正规化并编码。
+- `screen` pathname 只允许位于 Manifest `allowedScreenPrefixes` 下并以 `.html` 结尾；允许保留 query/hash，但白名单与页面注册表先按解码后的 pathname 匹配，再把 query/hash 原样传给已登记页面。
+- `frameFile` 包含 `.html` 扩展名，是相对于 `prototype/assets/frames/` 的纯文件名；消费者不得再次追加扩展名。
+- 框架固定放在 `prototype/assets/frames/`，必须按 Manifest `frameProjectRootRelativePath` 从框架自身 URL 推导项目根；禁止依赖 `document.referrer`，以兼容 `file://`。
+- `navigate.targetPage` 的规范格式与 `screen` 相同。兼容旧页面发送的裸文件名（如 `home.html`）时，框架只可将其补全为 `pages/home.html` 后再中继；新页面不得继续生成裸文件名。
+- 禁止远程 URL、绝对路径、上级目录、控制字符和 `javascript:`。解析后目标必须仍位于项目根及允许目录内。
+
 ## 技术栈
 
 - CSS：Tailwind CSS CDN、Bootstrap 或项目已有样式体系。
@@ -73,6 +84,11 @@ prototype/
 - `preview`
 - `safeArea`
 - `screenQueryParameter`
+- `screenPathBase`
+- `frameProjectRootRelativePath`
+- `allowedScreenPrefixes`
+
+配置不是原样复制单个框架条目：`frameId` 取条目 `id`，`frameFile` 取条目 `file`，端口与宿主来自已确认 Spec，其余路径字段取 Manifest 顶层。生成时按上述字段构造快照，不得在 `file`/`frameFile` 之间混用名称。
 
 已交付项目不因 Skill Manifest 升级而静默变化；只有重新生成或明确迁移时更新快照。
 
@@ -101,7 +117,7 @@ prototype/
 
 上例中的 `414×868` 取自 Manifest / `frame-config.json` 的 `preview`，生成时必须替换为当前项目实际 preview 像素，不得照抄示例数字。
 
-- `screen` 进行 URL 编码，只指向 `pages/*.html`、`previews/*.html` 或 `about:blank`。
+- `screen` 按「路径与文件名契约」正规化和 URL 编码，只指向 `pages/*.html`、`previews/*.html` 或 `about:blank`，并始终相对于项目根解析。
 - 禁止远程 URL、绝对路径、上级目录和 `javascript:`。
 - **外层框架 iframe**（`index.html`、`design-direction.html` 中嵌入的设备框架）宽高必须等于当前项目 `preview.width` × `preview.height` 固定像素；属性与 CSS 一致，禁止用百分比、`max-width`、`height: auto` 或外层 `transform: scale()` 二次压缩。
 - **框架内部页面 iframe** 使用 `logicalViewport` 尺寸；缩放只允许发生在框架 HTML 内部（由 Manifest `preview.scale` 决定），外层不得再缩放。
@@ -345,6 +361,10 @@ index.html 阵列外层
 ```
 
 支持 `ready`、`navigate`、`set-screen`、`screen-changed`、`error`。
+
+- `navigate.targetPage`、`set-screen.screen`、`screen-changed.screen` 使用同一规范路径格式；外层页面注册表保存规范 pathname。
+- 为兼容旧页面，框架可接收 `navigate.targetPage: "home.html"`，但向外层中继时必须规范化为 `pages/home.html`。
+- query/hash 不参与页面是否已登记的判断；pathname 通过注册表后才允许保留并下发。
 
 - 页面只向直接父级框架发送消息。
 - 框架验证内部 iframe 的 `event.source` 后向外层中继。

@@ -31,28 +31,32 @@ assets/frames/
 
 ## Usage
 
-Each frame accepts a \`?screen=<path>\` query parameter and renders that
-path inside its inner viewport:
+Each frame accepts a \`?screen=<path>\` query parameter. The path is
+resolved from the generated project's `prototype/` root, not from
+`document.referrer` or the frame file directory:
 
 \`\`\`html
 <iframe
-  src="../../assets/frames/iphone-15-pro.html?screen=screens/home.html"
+  src="assets/frames/iphone-15-pro.html?screen=pages/home.html"
   width="390"
   height="844"
   loading="lazy"
 ></iframe>
 \`\`\`
 
-In an OD-managed project, the recommended pattern is:
+The supported generated-project pattern is:
 
 \`\`\`
-my-project/
-├── index.html               ← gallery view: composes 3+ frames in a row
-├── screens/
-│   ├── home.html            ← inner content rendered inside iphone-15-pro.html
+prototype/
+├── index.html
+├── pages/
+│   ├── home.html
 │   ├── search.html
 │   └── detail.html
-└── (no copy of frames — point at the shared assets folder)
+├── previews/
+│   └── home-preview.html
+└── assets/frames/
+    └── iphone-15-pro.html
 \`\`\`
 
 ## Design tokens
@@ -67,8 +71,9 @@ When extending this library:
 
 1. **No external assets.** Inline all SVG. No font imports. No image URLs.
 2. **One frame per file.** Don't bundle iPhone + Android in one HTML.
-3. **\`?screen=\` query is the only contract.** Don't introduce other
-   query params; the harness has to be predictable for skills to use.
+3. **\`?screen=\` is the only required query.** Its pathname must be a
+   project-root-relative `pages/*.html` or `previews/*.html` path. Safe
+   query/hash values may be passed through after the pathname is allowed.
 4. **The frame is decorative chrome only.** All content lives in the inner
    screen file. The frame must work with `?screen=about:blank` (showing
    just the device shell).

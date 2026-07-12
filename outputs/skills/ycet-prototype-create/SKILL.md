@@ -48,7 +48,7 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 - 框架说明：`assets/frames/README.md`
 - 微信小程序默认映射 `iphone-15-pro`；仅当用户明确指定 Android 宿主时映射 `android-pixel`。
 - 生成项目时只复制选中框架，并写入 `prototype/assets/frames/frame-config.json`。
-- 生成文件必须使用相对路径，不得依赖本 Skill 的安装绝对路径。
+- 生成文件必须使用相对路径，不得依赖本 Skill 的安装绝对路径；运行时页面路径统一以 `prototype/` 为 URL 根，具体格式读取 `docs/shared-prototype-standards.md`「路径与文件名契约」。
 
 ## 完成说明
 

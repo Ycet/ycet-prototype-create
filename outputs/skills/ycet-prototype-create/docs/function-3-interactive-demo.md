@@ -60,12 +60,14 @@
 
 - 左侧约 280px，按核心流程、辅助功能、设置等分组展示页面。
 - 右侧居中显示项目选中的单个设备框架。
-- 使用项目内 `assets/frames/<frame-file>.html`，不得引用 Skill 源目录。
+- 使用项目内 `assets/frames/<frameFile>`；`frameFile` 已包含 `.html` 扩展名，不得重复追加，也不得引用 Skill 源目录。
 - 小屏幕可改为上下布局或折叠侧栏，不改变页面逻辑画布。
 
 ### 页面注册表
 
 根据 `prototype/pages/` 建立明确注册表：页面 ID、显示名称、文件名和允许来源。任何导航目标必须存在于注册表；拒绝远程 URL、绝对路径、上级目录和 `javascript:`。
+
+注册表同时保存规范 pathname（如 `pages/home.html`）。收到带 query/hash 的目标时，先正规化并按 pathname 查询注册表，命中后才保留 query/hash；页面 ID、显示名称、裸文件名和规范路径不得混用。
 
 ### 双层 iframe 通信
 
@@ -76,9 +78,11 @@
   channel: "ycet-prototype",
   version: 1,
   type: "navigate",
-  targetPage: "home.html"
+  targetPage: "pages/home.html"
 }
 ```
+
+兼容旧页面发送的 `targetPage: "home.html"`：框架中继前补全为 `pages/home.html`。新生成页面必须直接发送规范路径。
 
 支持 `ready`、`navigate`、`set-screen`、`screen-changed`、`error`。
 
@@ -93,7 +97,7 @@
 #### 右侧到左侧
 
 1. 内部页面向直接父级框架发送 `navigate`。
-2. 框架验证 `event.source`，补充框架 ID并中继。
+2. 框架验证 `event.source`，将目标正规化为项目根相对路径，补充框架 ID 并中继。
 3. 外层验证当前框架、消息字段和页面注册表。
 4. 外层切换页面并同步左侧高亮。
 

@@ -1,6 +1,8 @@
 {
   "schemaVersion": 1,
   "screenQueryParameter": "screen",
+  "screenPathBase": "prototype-root",
+  "frameProjectRootRelativePath": "../../",
   "allowedScreenPrefixes": [
     "pages/",
     "previews/"

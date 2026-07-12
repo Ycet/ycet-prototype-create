@@ -26,7 +26,9 @@ assets/frames/
 ></iframe>
 ```
 
-`screen` 参数只接受 URL 编码后的 `pages/*.html` 或 `previews/*.html` 相对路径。生成文件不得依赖 Skill 安装目录的绝对路径。
+`screen` 参数只接受 URL 编码后的 `pages/*.html` 或 `previews/*.html` 项目根相对路径。项目根固定为 `prototype/`；框架位于 `prototype/assets/frames/`，按 Manifest `frameProjectRootRelativePath` 从框架自身 URL 向上推导项目根，不依赖 `document.referrer`。生成文件不得依赖 Skill 安装目录的绝对路径。
+
+`frameFile` 包含 `.html` 扩展名并相对于 `prototype/assets/frames/`。`navigate.targetPage`、`set-screen.screen` 与 `screen-changed.screen` 使用和 `screen` 相同的规范路径；旧页面发送的裸文件名可由框架补全为 `pages/<file>.html` 后中继。安全的中文或空格旧文件名会被 URL 编码；query/hash 仅在 pathname 通过允许目录校验后保留。
 
 ## 职责边界
 

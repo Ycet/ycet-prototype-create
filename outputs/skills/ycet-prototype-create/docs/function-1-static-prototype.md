@@ -98,7 +98,7 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 1. 读取 Manifest，根据端口、宿主设备选择唯一框架。
 2. 若 Manifest 缺失、无效、版本不支持或框架文件不存在，停止并报告，不回退旧尺寸。
 3. 只复制选中框架到 `prototype/assets/frames/`。
-4. 将选中 Manifest 条目写入 `prototype/assets/frames/frame-config.json`，作为项目配置快照。
+4. 按共享规范的字段映射，将选中 Manifest 条目、Manifest 顶层路径字段和已确认端口/宿主合并写入 `prototype/assets/frames/frame-config.json`；`frameFile` 保留 Manifest `file` 中已有的 `.html` 扩展名。
 5. 生成 `prototype/previews/home-preview.html`；页面只包含产品 UI，并按 `safeArea` 避让系统 UI。
 6. 生成 `prototype/design-direction.html`。
 
@@ -136,6 +136,7 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 ### 生成规则
 
 - 正式页面写入 `prototype/pages/*.html`。
+- 新页面与预览文件名使用小写 ASCII kebab-case；页面通信统一使用 `pages/<file>.html` 规范路径，不生成裸文件名。
 - 页面根画布匹配 `frame-config.json.logicalViewport`。
 - 页面不得绘制系统 UI；App 导航、Tab Bar、微信胶囊按钮、网站导航等产品 UI保留。
 - 生成 HTML 前列出内容图位与图标需求，按 `shared-prototype-standards.md`「图片与图标」下载到本地并只写相对路径。

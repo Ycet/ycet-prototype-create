@@ -30,29 +30,43 @@
       const FRAME_ID = "browser-chrome";
       const CHANNEL = "ycet-prototype";
       const VERSION = 1;
+      const SCREEN_QUERY_PARAMETER = "screen";
+      const FRAME_PROJECT_ROOT_RELATIVE_PATH = "../../";
+      const ALLOWED_SCREEN_PREFIXES = ["pages/", "previews/"];
+      const PROJECT_ROOT_URL = new URL(FRAME_PROJECT_ROOT_RELATIVE_PATH, location.href);
       const inner = document.getElementById("screen");
       let currentScreen = "about:blank";
-      // 只允许项目内正式页面、设计预览页或中性空白页。
-      function normalizeScreen(value) {
-        if (value === "about:blank") return value;
-        if (typeof value !== "string") throw new Error("screen 必须是字符串");
-        const normalized = value.replace(/\\/g, "/").trim();
-        if (/^[a-z][a-z\d+.-]*:/i.test(normalized) || normalized.startsWith("/") || normalized.split("/").includes("..")) throw new Error("screen 必须是安全的项目相对路径");
-        if (!/^(pages|previews)\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.html(?:[?#].*)?$/.test(normalized)) throw new Error("screen 只能指向 pages/ 或 previews/ 下的 HTML");
-        return normalized;
+      // 所有页面路径都以 prototype/ 为根；兼容 file://、中文/空格旧文件名和安全的 query/hash。
+      function normalizeProjectPath(value, allowLegacyPageName) {
+        if (typeof value !== "string") throw new Error("页面路径必须是字符串");
+        let candidate = value.replace(/\\/g, "/").trim();
+        if (allowLegacyPageName && !candidate.includes("/")) candidate = "pages/" + candidate;
+        if (!candidate || /^[a-z][a-z\d+.-]*:/i.test(candidate) || candidate.startsWith("/")) throw new Error("页面路径必须是安全的项目相对路径");
+        const resolved = new URL(candidate, PROJECT_ROOT_URL);
+        if (resolved.protocol !== PROJECT_ROOT_URL.protocol || resolved.host !== PROJECT_ROOT_URL.host || !resolved.pathname.startsWith(PROJECT_ROOT_URL.pathname)) throw new Error("页面路径超出项目根目录");
+        const encodedPath = resolved.pathname.slice(PROJECT_ROOT_URL.pathname.length);
+        let decodedPath;
+        try { decodedPath = decodeURIComponent(encodedPath); } catch (_error) { throw new Error("页面路径编码无效"); }
+        const segments = decodedPath.split("/");
+        if (/[\u0000-\u001F\u007F]/.test(decodedPath) || segments.some((segment) => !segment || segment === "." || segment === "..")) throw new Error("页面路径包含非法片段");
+        if (!ALLOWED_SCREEN_PREFIXES.some((prefix) => decodedPath.startsWith(prefix)) || !decodedPath.toLowerCase().endsWith(".html")) throw new Error("页面路径只能指向 pages/ 或 previews/ 下的 HTML");
+        return encodedPath + resolved.search + resolved.hash;
       }
-      function resolveScreen(screen) { return screen === "about:blank" ? screen : new URL(screen, document.referrer || location.href).toString(); }
+      function normalizeScreen(value) { return value === "about:blank" ? value : normalizeProjectPath(value, false); }
+      function normalizeNavigationTarget(value) { return normalizeProjectPath(value, true); }
+      function resolveScreen(screen) { return screen === "about:blank" ? screen : new URL(screen, PROJECT_ROOT_URL).toString(); }
       function notify(type, payload) { window.parent.postMessage({ channel: CHANNEL, version: VERSION, type, frameId: FRAME_ID, ...(payload || {}) }, "*"); }
       function setScreen(value) { try { currentScreen = normalizeScreen(value); inner.src = resolveScreen(currentScreen); } catch (error) { notify("error", { message: error.message, screen: value }); } }
       // 框架作为双层 iframe 的受控消息中继。
       window.addEventListener("message", function (event) {
         const message = event.data || {};
         if (message.channel !== CHANNEL || message.version !== VERSION) return;
-        if (event.source === inner.contentWindow && ["ready", "navigate", "error"].includes(message.type)) { notify(message.type, { targetPage: message.targetPage, message: message.message }); return; }
+        if (event.source === inner.contentWindow && message.type === "navigate") { try { notify("navigate", { targetPage: normalizeNavigationTarget(message.targetPage) }); } catch (error) { notify("error", { message: error.message, screen: message.targetPage }); } return; }
+        if (event.source === inner.contentWindow && ["ready", "error"].includes(message.type)) { notify(message.type, { message: message.message }); return; }
         if (event.source === window.parent && message.type === "set-screen") setScreen(message.screen);
       });
       inner.addEventListener("load", function () { notify("screen-changed", { screen: currentScreen }); });
-      setScreen(new URLSearchParams(location.search).get("screen") || "about:blank");
+      setScreen(new URLSearchParams(location.search).get(SCREEN_QUERY_PARAMETER) || "about:blank");
     })();
   </script>
 </body>
