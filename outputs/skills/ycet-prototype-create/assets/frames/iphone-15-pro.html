@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN" data-ycet-frame-id="iphone-15-pro" data-logical-width="390" data-logical-height="844">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>iPhone 15 Pro Frame</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+    body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    .device {
+      position: relative;
+      width: 414px;
+      height: 868px;
+      padding: 12px;
+      border-radius: 60px;
+      background: linear-gradient(155deg, #303034, #111114 58%, #050506);
+      box-shadow: 0 0 0 2px #000 inset, 0 26px 60px -16px rgba(0, 0, 0, .5);
+    }
+    .screen { position: relative; width: 390px; height: 844px; overflow: hidden; border-radius: 48px; background: #fafaf7; }
+    .inner { display: block; width: 390px; height: 844px; border: 0; background: #fafaf7; }
+    .island { position: absolute; z-index: 30; top: 22px; left: 50%; width: 124px; height: 36px; transform: translateX(-50%); border-radius: 999px; background: #000; pointer-events: none; }
+    .statusbar { position: absolute; z-index: 20; inset: 0 0 auto; height: 47px; padding: 18px 26px 0; display: flex; justify-content: space-between; color: #171719; font-size: 15px; font-weight: 600; pointer-events: none; }
+    .status-icons { display: flex; align-items: center; gap: 6px; }
+    .status-icons svg { width: 17px; height: 11px; fill: currentColor; }
+    .status-icons .battery { width: 25px; }
+    .home-indicator { position: absolute; z-index: 20; inset: auto 0 0; height: 28px; pointer-events: none; }
+    .home-indicator::after { content: ""; position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; transform: translateX(-50%); border-radius: 999px; background: #171719; opacity: .85; }
+    .rail { position: absolute; width: 4px; border-radius: 3px; background: #09090b; }
+    .rail.a { left: -3px; top: 174px; height: 32px; }
+    .rail.b { left: -3px; top: 220px; height: 60px; }
+    .rail.c { left: -3px; top: 290px; height: 60px; }
+    .rail.d { right: -3px; top: 250px; height: 100px; }
+  </style>
+</head>
+<body>
+  <div class="device">
+    <span class="rail a" aria-hidden="true"></span><span class="rail b" aria-hidden="true"></span><span class="rail c" aria-hidden="true"></span><span class="rail d" aria-hidden="true"></span>
+    <div class="screen">
+      <iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" src="about:blank"></iframe>
+      <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="status-icons"><svg viewBox="0 0 17 11"><path d="M0 11V8h3v3zm4 0V6h3v5zm4 0V3h3v8zm4 0V0h3v11z"/></svg><svg viewBox="0 0 17 11"><path d="M8.5 1.2c-3 0-5.7 1.1-7.8 3l1.5 1.6a9 9 0 0 1 12.6 0l1.5-1.6a11.2 11.2 0 0 0-7.8-3zm0 4.2c-1.8 0-3.5.7-4.8 1.9l1.5 1.5a4.8 4.8 0 0 1 6.6 0l1.5-1.5a7 7 0 0 0-4.8-1.9z"/></svg><svg class="battery" viewBox="0 0 25 11"><rect x=".5" y=".5" width="21" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="18" height="7" rx="1.4"/><rect x="22" y="3.5" width="1.5" height="4" rx=".4"/></svg></span></div>
+      <span class="island" aria-hidden="true"></span>
+      <div class="home-indicator" aria-hidden="true"></div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const FRAME_ID = "iphone-15-pro";
+      const CHANNEL = "ycet-prototype";
+      const VERSION = 1;
+      const inner = document.getElementById("screen");
+      let currentScreen = "about:blank";
+
+      // 只允许项目内正式页面、设计预览页或中性空白页。
+      function normalizeScreen(value) {
+        if (value === "about:blank") return value;
+        if (typeof value !== "string") throw new Error("screen 必须是字符串");
+        const normalized = value.replace(/\\/g, "/").trim();
+        if (/^[a-z][a-z\d+.-]*:/i.test(normalized) || normalized.startsWith("/") || normalized.split("/").includes("..")) throw new Error("screen 必须是安全的项目相对路径");
+        if (!/^(pages|previews)\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.html(?:[?#].*)?$/.test(normalized)) throw new Error("screen 只能指向 pages/ 或 previews/ 下的 HTML");
+        return normalized;
+      }
+      function resolveScreen(screen) { return screen === "about:blank" ? screen : new URL(screen, document.referrer || location.href).toString(); }
+      function notify(type, payload) { window.parent.postMessage({ channel: CHANNEL, version: VERSION, type, frameId: FRAME_ID, ...(payload || {}) }, "*"); }
+      function setScreen(value) {
+        try { currentScreen = normalizeScreen(value); inner.src = resolveScreen(currentScreen); }
+        catch (error) { notify("error", { message: error.message, screen: value }); }
+      }
+
+      // 框架作为双层 iframe 的受控消息中继。
+      window.addEventListener("message", function (event) {
+        const message = event.data || {};
+        if (message.channel !== CHANNEL || message.version !== VERSION) return;
+        if (event.source === inner.contentWindow && ["ready", "navigate", "error"].includes(message.type)) {
+          notify(message.type, { targetPage: message.targetPage, message: message.message });
+          return;
+        }
+        if (event.source === window.parent && message.type === "set-screen") setScreen(message.screen);
+      });
+      inner.addEventListener("load", function () { notify("screen-changed", { screen: currentScreen }); });
+      setScreen(new URLSearchParams(location.search).get("screen") || "about:blank");
+    })();
+  </script>
+</body>
+</html>

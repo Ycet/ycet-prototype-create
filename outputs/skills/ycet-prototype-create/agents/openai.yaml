@@ -1,0 +1,7 @@
+interface:
+  display_name: "YCET Prototype Create"
+  short_description: "发现 UI Skill，生成、编辑、迁移并串联高保真产品原型"
+  default_prompt: "Use $ycet-prototype-create to choose the correct workflow and create or update my product prototype."
+
+policy:
+  allow_implicit_invocation: true

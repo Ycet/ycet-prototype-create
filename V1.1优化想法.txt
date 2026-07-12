@@ -1,0 +1,59 @@
+**我需要针对该skill进行优化调整，要求如下**：
+
+---
+
+# 功能一调整点
+
+## 阶段一调用skill调整点
+原skill功能一中，对于产品想法、零散需求、不完整说明：使用 superpowers:brainstorming帮助用户完善需求，需要将调用的skill从brainstorming替换为**brainstorming-solo**
+
+## 阶段二选择skill调整点
+
+在功能一中，原来阶段二会询问用户是否指定UI设计相关skill
+
+需要调整为：
+
+该阶段开始时，需要获取并分析当前agent已安装的UI设计相关skill有哪些，并将这些skill的名称、功能展示给用户，询问用户要调用哪个skill
+
+> skill展示示例：
+> UI Design System Governor → 选择设计系统指导UI风格
+> UI/UX Pro Max → 选择参考风格指导UI风格
+> frontend-design → 指导设计风格
+> design-brief → 将模糊的自然语言转化为具体的设计规范
+>  reference-design-contract → 将参考图/参考网站转化为具体的设计规范
+> ……
+
+- 若用户选择了某个skill，则按照该skill来指导设计风格
+- 若用户选择不使用skill，则必须询问用户：
+    - 设计风格
+    - 色彩方案
+    - 参考产品/网站
+    - 其他补充问题
+
+**注意**：
+- 若用户选择了`UI Design System Governor`，则必须按照该skill的要求提供或打开链接：`https://open-design.ai/zh/plugins/systems/`，方便用户直观查看各个设计系统
+- 若用户选择了`UI/UX Pro Max`，则必须提供或打开链接：`https://ui-ux-pro-max-skill.com/zh/#styles`，方便用户直观查看各个网站演示画廊
+
+## 阶段二生成 `prototype/design-direction.html`调整点
+
+合并`设备框架预览`和`首页UI效果展示`两个部分为`首页预览`，在
+
+`prototype/design-direction.html`的`首页预览`部分中，设备框架使用`D:\AI Agent project\00 Long-term project\00 大型项目\01 原型制作skill\assets\frames`  中对应的框架
+    - 根据阶段一中确定的产品端口选择对应的框架
+        - 若产品端口是安卓，则所用框架为：`android-pixel.html`
+        - 若产品端口是ios/iPhone，则所用框架为：`iphone-15-pro.html`
+        - 若产品端口是ipad，则所用框架为：`ipad-pro.html`
+        - 若产品端口是网页，则所用框架为：`browser-chrome.html`
+        - 若产品端口是桌面端应用（包括windows和mac），则所用框架为：`macbook.html`
+
+**需要将`D:\AI Agent project\00 Long-term project\00 大型项目\01 原型制作skill\assets\frames`文件夹添加到该skill的文件目录中，方便直接调用**
+
+## 阶段三生成`prototype/index.html`调整点
+
+`prototype/index.html`文件中的设备框架直接使用`D:\AI Agent project\00 Long-term project\00 大型项目\01 原型制作skill\assets\frames`对应的框架
+    - 根据阶段一中确定的产品端口选择对应的框架
+        - 若产品端口是安卓，则所用框架为：`android-pixel.html`
+        - 若产品端口是ios/iPhone，则所用框架为：`iphone-15-pro.html`
+        - 若产品端口是ipad，则所用框架为：`ipad-pro.html`
+        - 若产品端口是网页，则所用框架为：`browser-chrome.html`
+        - 若产品端口是桌面端应用（包括windows和mac），则所用框架为：`macbook.html`

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN" data-ycet-frame-id="ipad-pro" data-logical-width="834" data-logical-height="1194">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>iPad Pro Frame</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+    body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    .stage { position: relative; width: 604px; height: 856px; overflow: hidden; }
+    .device { position: absolute; top: 0; left: 0; width: 862px; height: 1222px; padding: 14px; transform: scale(.7); transform-origin: top left; border-radius: 42px; background: linear-gradient(155deg, #303034, #111114 58%, #050506); box-shadow: 0 0 0 2px #000 inset, 0 32px 70px -18px rgba(0, 0, 0, .45); }
+    .screen { position: relative; width: 834px; height: 1194px; overflow: hidden; border-radius: 28px; background: #fafaf7; }
+    .inner { display: block; width: 834px; height: 1194px; border: 0; background: #fafaf7; }
+    .camera { position: absolute; z-index: 30; top: 7px; left: 50%; width: 7px; height: 7px; transform: translateX(-50%); border-radius: 50%; background: #050505; pointer-events: none; }
+    .statusbar { position: absolute; z-index: 20; inset: 0 0 auto; height: 24px; padding: 6px 20px 0; display: flex; justify-content: space-between; color: #171719; font-size: 12px; font-weight: 600; pointer-events: none; }
+    .home-indicator { position: absolute; z-index: 20; inset: auto 0 0; height: 20px; pointer-events: none; }
+    .home-indicator::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 120px; height: 4px; transform: translateX(-50%); border-radius: 999px; background: #171719; opacity: .8; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="device">
+      <span class="camera" aria-hidden="true"></span>
+      <div class="screen">
+        <iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" src="about:blank"></iframe>
+        <div class="statusbar" aria-hidden="true"><span>9:41</span><span>Wi‑Fi&nbsp;&nbsp;100%</span></div>
+        <div class="home-indicator" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const FRAME_ID = "ipad-pro";
+      const CHANNEL = "ycet-prototype";
+      const VERSION = 1;
+      const inner = document.getElementById("screen");
+      let currentScreen = "about:blank";
+      // 只允许项目内正式页面、设计预览页或中性空白页。
+      function normalizeScreen(value) {
+        if (value === "about:blank") return value;
+        if (typeof value !== "string") throw new Error("screen 必须是字符串");
+        const normalized = value.replace(/\\/g, "/").trim();
+        if (/^[a-z][a-z\d+.-]*:/i.test(normalized) || normalized.startsWith("/") || normalized.split("/").includes("..")) throw new Error("screen 必须是安全的项目相对路径");
+        if (!/^(pages|previews)\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.html(?:[?#].*)?$/.test(normalized)) throw new Error("screen 只能指向 pages/ 或 previews/ 下的 HTML");
+        return normalized;
+      }
+      function resolveScreen(screen) { return screen === "about:blank" ? screen : new URL(screen, document.referrer || location.href).toString(); }
+      function notify(type, payload) { window.parent.postMessage({ channel: CHANNEL, version: VERSION, type, frameId: FRAME_ID, ...(payload || {}) }, "*"); }
+      function setScreen(value) { try { currentScreen = normalizeScreen(value); inner.src = resolveScreen(currentScreen); } catch (error) { notify("error", { message: error.message, screen: value }); } }
+      // 框架作为双层 iframe 的受控消息中继。
+      window.addEventListener("message", function (event) {
+        const message = event.data || {};
+        if (message.channel !== CHANNEL || message.version !== VERSION) return;
+        if (event.source === inner.contentWindow && ["ready", "navigate", "error"].includes(message.type)) { notify(message.type, { targetPage: message.targetPage, message: message.message }); return; }
+        if (event.source === window.parent && message.type === "set-screen") setScreen(message.screen);
+      });
+      inner.addEventListener("load", function () { notify("screen-changed", { screen: currentScreen }); });
+      setScreen(new URLSearchParams(location.search).get("screen") || "about:blank");
+    })();
+  </script>
+</body>
+</html>

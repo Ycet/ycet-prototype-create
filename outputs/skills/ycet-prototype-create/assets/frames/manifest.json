@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "screenQueryParameter": "screen",
+  "allowedScreenPrefixes": [
+    "pages/",
+    "previews/"
+  ],
+  "messageProtocol": {
+    "channel": "ycet-prototype",
+    "version": 1,
+    "types": [
+      "ready",
+      "navigate",
+      "set-screen",
+      "screen-changed",
+      "error"
+    ]
+  },
+  "frames": [
+    {
+      "id": "iphone-15-pro",
+      "displayName": "iPhone 15 Pro",
+      "file": "iphone-15-pro.html",
+      "platforms": ["ios", "iphone"],
+      "logicalViewport": { "width": 390, "height": 844 },
+      "preview": { "width": 414, "height": 868, "scale": 1 },
+      "safeArea": { "top": 47, "right": 0, "bottom": 28, "left": 0 },
+      "systemChrome": ["status-bar", "dynamic-island", "home-indicator"],
+      "productUiResponsibilities": ["app-header", "tab-bar", "page-content"],
+      "defaultColumns": 4
+    },
+    {
+      "id": "android-pixel",
+      "displayName": "Android Pixel",
+      "file": "android-pixel.html",
+      "platforms": ["android", "pixel"],
+      "logicalViewport": { "width": 412, "height": 900 },
+      "preview": { "width": 432, "height": 920, "scale": 1 },
+      "safeArea": { "top": 36, "right": 0, "bottom": 28, "left": 0 },
+      "systemChrome": ["status-bar", "punch-hole", "system-navigation"],
+      "productUiResponsibilities": ["app-header", "tab-bar", "page-content"],
+      "defaultColumns": 4
+    },
+    {
+      "id": "ipad-pro",
+      "displayName": "iPad Pro 11-inch",
+      "file": "ipad-pro.html",
+      "platforms": ["ipad", "ipados", "tablet"],
+      "logicalViewport": { "width": 834, "height": 1194 },
+      "preview": { "width": 604, "height": 856, "scale": 0.7 },
+      "safeArea": { "top": 24, "right": 0, "bottom": 20, "left": 0 },
+      "systemChrome": ["status-bar", "camera", "home-indicator"],
+      "productUiResponsibilities": ["app-header", "sidebar", "tab-bar", "page-content"],
+      "defaultColumns": 2
+    },
+    {
+      "id": "browser-chrome",
+      "displayName": "Browser Chrome",
+      "file": "browser-chrome.html",
+      "platforms": ["web", "browser", "website"],
+      "logicalViewport": { "width": 1440, "height": 900 },
+      "preview": { "width": 960, "height": 626, "scale": 0.6666667 },
+      "safeArea": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "systemChrome": ["browser-toolbar", "address-bar"],
+      "productUiResponsibilities": ["site-navigation", "page-content", "footer"],
+      "defaultColumns": 1
+    },
+    {
+      "id": "macbook",
+      "displayName": "MacBook Pro",
+      "file": "macbook.html",
+      "platforms": ["desktop", "windows", "macos", "desktop-app"],
+      "logicalViewport": { "width": 1440, "height": 900 },
+      "preview": { "width": 880, "height": 574, "scale": 0.5945946 },
+      "safeArea": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "systemChrome": ["device-shell", "camera-notch"],
+      "productUiResponsibilities": ["app-titlebar", "app-menu", "page-content", "status-bar"],
+      "defaultColumns": 1
+    }
+  ],
+  "routing": {
+    "ios": { "defaultFrameId": "iphone-15-pro" },
+    "iphone": { "defaultFrameId": "iphone-15-pro" },
+    "android": { "defaultFrameId": "android-pixel" },
+    "ipad": { "defaultFrameId": "ipad-pro" },
+    "web": { "defaultFrameId": "browser-chrome" },
+    "desktop": { "defaultFrameId": "macbook" },
+    "windows": { "defaultFrameId": "macbook" },
+    "macos": { "defaultFrameId": "macbook" },
+    "wechat-mini-program": {
+      "defaultFrameId": "iphone-15-pro",
+      "hostOverrides": { "android": "android-pixel" }
+    }
+  }
+}

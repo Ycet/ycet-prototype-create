@@ -1,0 +1,103 @@
+{
+  "skill_name": "ycet-prototype-create",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我只有一个想法：做一个帮助门店员工快速生成促销海报的 App，请帮我从需求开始制作高保真原型。",
+      "expected_output": "路由功能一，将输入判断为不完整需求，读取并使用 brainstorming-solo；在 brainstorming-solo 完成和 Spec 确认前不进入 UI 设计。",
+      "files": [],
+      "assertions": [
+        {"name": "route-function-1", "description": "读取 docs/function-1-static-prototype.md"},
+        {"name": "use-brainstorming-solo", "description": "不完整需求使用 brainstorming-solo，不使用 superpowers:brainstorming"},
+        {"name": "respect-spec-gate", "description": "需求梳理未完成前不生成或确认 Spec 后续产物"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Spec 已确认，现在进入 UI 设计阶段。请告诉我当前 Agent 有哪些 UI 设计相关 skill，我再选择。",
+      "expected_output": "混合读取会话 Skill 清单和标准本地目录，按 name、真实路径与 junction 去重，展示全部有效 UI 相关 Skill 的功能、类型、来源、调用状态和前置条件，并允许单选或不使用 Skill。",
+      "files": [],
+      "assertions": [
+        {"name": "hybrid-discovery", "description": "同时考虑会话 Skill 与 ~/.agents、~/.codex、~/.claude 标准目录"},
+        {"name": "show-all-ui-skills", "description": "不按生成、品牌、审核或润色类型过滤有效 UI Skill"},
+        {"name": "single-primary-skill", "description": "一次只允许选择一个主 UI Skill"},
+        {"name": "show-callability", "description": "区分已安装与当前可调用状态"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "我在 UI 设计阶段选择 UI Design System Governor。",
+      "expected_output": "读取并遵循所选 Skill，同时在回复中提供设计系统展示页链接；未经用户明确要求不自动打开浏览器。",
+      "files": [],
+      "assertions": [
+        {"name": "governor-link", "description": "提供 https://open-design.ai/zh/plugins/systems/"},
+        {"name": "no-auto-open", "description": "不未经明确要求自动打开网页"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "我不使用任何 UI skill，继续确定设计方向。",
+      "expected_output": "每轮只问一个主题，第一问是否有参考产品或网站；之后依次为设计风格、色彩方案和其他补充。",
+      "files": [],
+      "assertions": [
+        {"name": "reference-first", "description": "第一问是参考产品或网站"},
+        {"name": "one-question-per-turn", "description": "每轮只推进一个主题"}
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "产品端口是微信小程序，没有指定宿主设备。设计方向已确认，请生成首页预览和静态原型入口。",
+      "expected_output": "读取 Manifest，默认选择 iphone-15-pro；按需复制框架，生成 frame-config.json、previews/home-preview.html、design-direction.html、pages/*.html 和 index.html；框架负责系统 UI。",
+      "files": [],
+      "assertions": [
+        {"name": "wechat-default-iphone", "description": "微信小程序默认映射 iphone-15-pro"},
+        {"name": "copy-selected-frame-only", "description": "只复制选中框架和项目配置快照"},
+        {"name": "merged-home-preview", "description": "设计方向页只有合并后的首页预览"},
+        {"name": "no-duplicate-system-ui", "description": "页面不重复绘制框架负责的系统 UI"}
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "静态页面和 frame-config.json 已存在，请生成完整交互 Demo。页面会向父级发送 navigate 消息。",
+      "expected_output": "路由功能三，确认交互流程后读取项目框架配置；使用设备框架消息中继完成左右双向同步，校验 channel、version、event.source 和页面白名单。",
+      "files": [],
+      "assertions": [
+        {"name": "project-config-first", "description": "框架识别优先读取 frame-config.json"},
+        {"name": "nested-iframe-relay", "description": "页面消息经设备框架中继到外层 Demo"},
+        {"name": "message-validation", "description": "校验协议字段、消息来源和页面白名单"},
+        {"name": "flow-confirmation", "description": "生成前保留交互流程确认门禁"}
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "现有项目仍使用 .phone-frame，没有 frame-config.json，请生成交互 Demo。",
+      "expected_output": "功能三在新规则无法识别后进入旧框架兼容模式，不强制迁移静态页面，并在完成说明中明确标注。",
+      "files": [],
+      "assertions": [
+        {"name": "legacy-fallback", "description": "仅在新框架识别失败后检查旧 CSS 框架类"},
+        {"name": "legacy-mode-disclosed", "description": "完成说明标注旧框架兼容模式"}
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "接管一个旧 HTML 原型：它重复绘制 iOS 状态栏、尺寸不匹配且没有项目框架配置。请规范化后再修改标题。",
+      "expected_output": "路由功能四，先按 Manifest 体系审计并建议最低必要 Level；修复系统/产品 UI 边界和配置，Level 3 仍需确认，迁移与用户编辑分别记录日志。",
+      "files": [],
+      "assertions": [
+        {"name": "manifest-audit", "description": "审计框架配置、逻辑画布、安全区域和系统 UI"},
+        {"name": "keep-level-gate", "description": "保留 Level 1/2/3 与 Level 3 确认门禁"},
+        {"name": "separate-editlog-records", "description": "迁移与用户要求的编辑分别记录"}
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "CSS 选择器是 '.price input'，HTML 是 '<input class=\"price\">'，请把边框改红。",
+      "expected_output": "保持功能二直接路由与精准修改逻辑，不受新框架体系影响，并更新 EditLog。",
+      "files": [],
+      "assertions": [
+        {"name": "function-2-unchanged", "description": "CSS 选择器 + HTML 片段 + 明确修改要求直接路由功能二"},
+        {"name": "targeted-edit", "description": "只修改目标元素并记录日志"}
+      ]
+    }
+  ]
+}

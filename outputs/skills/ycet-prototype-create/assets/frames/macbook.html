@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN" data-ycet-frame-id="macbook" data-logical-width="1440" data-logical-height="900">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MacBook Pro Frame</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+    body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    .stage { position: relative; width: 880px; height: 574px; overflow: hidden; }
+    .laptop { position: absolute; top: 0; left: 0; width: 1480px; height: 964px; transform: scale(.5945946); transform-origin: top left; }
+    .lid { position: relative; width: 1480px; height: 940px; padding: 20px; border-radius: 26px 26px 6px 6px; background: #18181a; box-shadow: 0 12px 30px -12px rgba(0,0,0,.5); }
+    .display { position: relative; width: 1440px; height: 900px; overflow: hidden; border-radius: 6px; background: #fafaf7; }
+    .inner { display: block; width: 1440px; height: 900px; border: 0; background: #fafaf7; }
+    .notch { position: absolute; z-index: 20; top: 0; left: 50%; width: 156px; height: 20px; transform: translateX(-50%); border-radius: 0 0 12px 12px; background: #18181a; pointer-events: none; }
+    .notch::after { content: ""; position: absolute; top: 7px; left: 50%; width: 5px; height: 5px; transform: translateX(-50%); border-radius: 50%; background: #050505; }
+    .base { position: relative; width: 1480px; height: 24px; margin-top: -1px; border-radius: 0 0 10px 10px; background: linear-gradient(#c8c8cc, #8d8d92); box-shadow: 0 7px 16px -6px rgba(0,0,0,.3); }
+    .base::after { content: ""; position: absolute; top: 0; left: 50%; width: 120px; height: 6px; transform: translateX(-50%); border-radius: 0 0 8px 8px; background: rgba(0,0,0,.2); }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="laptop">
+      <div class="lid"><span class="notch" aria-hidden="true"></span><div class="display"><iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" src="about:blank"></iframe></div></div>
+      <div class="base" aria-hidden="true"></div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const FRAME_ID = "macbook";
+      const CHANNEL = "ycet-prototype";
+      const VERSION = 1;
+      const inner = document.getElementById("screen");
+      let currentScreen = "about:blank";
+      // 只允许项目内正式页面、设计预览页或中性空白页。
+      function normalizeScreen(value) {
+        if (value === "about:blank") return value;
+        if (typeof value !== "string") throw new Error("screen 必须是字符串");
+        const normalized = value.replace(/\\/g, "/").trim();
+        if (/^[a-z][a-z\d+.-]*:/i.test(normalized) || normalized.startsWith("/") || normalized.split("/").includes("..")) throw new Error("screen 必须是安全的项目相对路径");
+        if (!/^(pages|previews)\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.html(?:[?#].*)?$/.test(normalized)) throw new Error("screen 只能指向 pages/ 或 previews/ 下的 HTML");
+        return normalized;
+      }
+      function resolveScreen(screen) { return screen === "about:blank" ? screen : new URL(screen, document.referrer || location.href).toString(); }
+      function notify(type, payload) { window.parent.postMessage({ channel: CHANNEL, version: VERSION, type, frameId: FRAME_ID, ...(payload || {}) }, "*"); }
+      function setScreen(value) { try { currentScreen = normalizeScreen(value); inner.src = resolveScreen(currentScreen); } catch (error) { notify("error", { message: error.message, screen: value }); } }
+      // 框架作为双层 iframe 的受控消息中继。
+      window.addEventListener("message", function (event) {
+        const message = event.data || {};
+        if (message.channel !== CHANNEL || message.version !== VERSION) return;
+        if (event.source === inner.contentWindow && ["ready", "navigate", "error"].includes(message.type)) { notify(message.type, { targetPage: message.targetPage, message: message.message }); return; }
+        if (event.source === window.parent && message.type === "set-screen") setScreen(message.screen);
+      });
+      inner.addEventListener("load", function () { notify("screen-changed", { screen: currentScreen }); });
+      setScreen(new URLSearchParams(location.search).get("screen") || "about:blank");
+    })();
+  </script>
+</body>
+</html>

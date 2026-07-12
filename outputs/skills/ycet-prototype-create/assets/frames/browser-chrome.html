@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN" data-ycet-frame-id="browser-chrome" data-logical-width="1440" data-logical-height="900">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Browser Chrome Frame</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+    body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    .stage { position: relative; width: 960px; height: 626px; overflow: hidden; }
+    .window { position: absolute; top: 0; left: 0; width: 1440px; height: 938px; transform: scale(.6666667); transform-origin: top left; overflow: hidden; border-radius: 18px; background: #fafaf7; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset, 0 30px 70px -20px rgba(0,0,0,.25); }
+    .toolbar { height: 38px; display: flex; align-items: center; gap: 18px; padding: 0 18px; border-bottom: 1px solid rgba(0,0,0,.1); background: linear-gradient(#ededec, #d8d8d6); }
+    .lights { display: flex; gap: 8px; }
+    .light { width: 12px; height: 12px; border-radius: 50%; }
+    .light.r { background: #ff5f57; } .light.y { background: #febc2e; } .light.g { background: #28c840; }
+    .address { flex: 1; max-width: 760px; margin: 0 auto; padding: 4px 14px; overflow: hidden; border: 1px solid rgba(0,0,0,.08); border-radius: 7px; background: #fff; color: #696864; font-size: 12px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+    .inner { display: block; width: 1440px; height: 900px; border: 0; background: #fafaf7; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="window">
+      <div class="toolbar" aria-hidden="true"><span class="lights"><span class="light r"></span><span class="light y"></span><span class="light g"></span></span><span>‹</span><span>›</span><div class="address">🔒 prototype.local</div><span>＋</span></div>
+      <iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" src="about:blank"></iframe>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const FRAME_ID = "browser-chrome";
+      const CHANNEL = "ycet-prototype";
+      const VERSION = 1;
+      const inner = document.getElementById("screen");
+      let currentScreen = "about:blank";
+      // 只允许项目内正式页面、设计预览页或中性空白页。
+      function normalizeScreen(value) {
+        if (value === "about:blank") return value;
+        if (typeof value !== "string") throw new Error("screen 必须是字符串");
+        const normalized = value.replace(/\\/g, "/").trim();
+        if (/^[a-z][a-z\d+.-]*:/i.test(normalized) || normalized.startsWith("/") || normalized.split("/").includes("..")) throw new Error("screen 必须是安全的项目相对路径");
+        if (!/^(pages|previews)\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.html(?:[?#].*)?$/.test(normalized)) throw new Error("screen 只能指向 pages/ 或 previews/ 下的 HTML");
+        return normalized;
+      }
+      function resolveScreen(screen) { return screen === "about:blank" ? screen : new URL(screen, document.referrer || location.href).toString(); }
+      function notify(type, payload) { window.parent.postMessage({ channel: CHANNEL, version: VERSION, type, frameId: FRAME_ID, ...(payload || {}) }, "*"); }
+      function setScreen(value) { try { currentScreen = normalizeScreen(value); inner.src = resolveScreen(currentScreen); } catch (error) { notify("error", { message: error.message, screen: value }); } }
+      // 框架作为双层 iframe 的受控消息中继。
+      window.addEventListener("message", function (event) {
+        const message = event.data || {};
+        if (message.channel !== CHANNEL || message.version !== VERSION) return;
+        if (event.source === inner.contentWindow && ["ready", "navigate", "error"].includes(message.type)) { notify(message.type, { targetPage: message.targetPage, message: message.message }); return; }
+        if (event.source === window.parent && message.type === "set-screen") setScreen(message.screen);
+      });
+      inner.addEventListener("load", function () { notify("screen-changed", { screen: currentScreen }); });
+      setScreen(new URLSearchParams(location.search).get("screen") || "about:blank");
+    })();
+  </script>
+</body>
+</html>

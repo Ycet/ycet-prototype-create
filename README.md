@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-开发中：正在将单体 `SKILL.md` 重构为总入口路由 + 独立功能文档 + 共享规范文档。
+测试中：原始版本保留在 `skill/ycet-prototype-create/`，本轮优化版本输出到 `outputs/skills/ycet-prototype-create/`。
 
 ## 功能范围
 
@@ -25,29 +25,35 @@
 ```text
 skill/
   ycet-prototype-create/
-    SKILL.md
-    docs/
-      function-1-static-prototype.md
-      function-2-precision-edit.md
-      function-3-interactive-demo.md
-      function-4-existing-prototype-edit.md
-      shared-prototype-standards.md
-      shared-editlog-rules.md
-    agents/
-    evals/
-优化想法.txt
+outputs/
+  skills/
+    ycet-prototype-create/
+      SKILL.md
+      agents/
+      assets/frames/
+      docs/
+      evals/
+      scripts/
 ```
 
 ## 使用方式
 
-将 `skill/ycet-prototype-create` 作为 Codex 或 Claude Code skill 目录使用。Agent 读取 `SKILL.md` 后，应先完成路由判断，再按需读取对应功能文档和共享规范文件。
+使用本轮优化结果时，将 `outputs/skills/ycet-prototype-create` 作为 Codex 或 Claude Code skill 目录。Agent 读取 `SKILL.md` 后，应先完成路由判断，再按需读取对应功能文档和共享规范文件。
+
+验证命令：
+
+```powershell
+python outputs\skills\ycet-prototype-create\scripts\validate_skill.py
+python outputs\skills\ycet-prototype-create\scripts\test_frames_runtime.py
+```
 
 ## 文档索引
 
-- `skill/ycet-prototype-create/SKILL.md`：总入口、路由规则、全局强制规则。
-- `skill/ycet-prototype-create/docs/`：功能文档与共享规范。
-- `skill/ycet-prototype-create/evals/evals.json`：技能行为评估用例。
+- `outputs/skills/ycet-prototype-create/SKILL.md`：优化版总入口、路由规则和全局强制规则。
+- `outputs/skills/ycet-prototype-create/docs/`：功能文档与共享规范。
+- `outputs/skills/ycet-prototype-create/assets/frames/`：Manifest 与五类设备框架。
+- `outputs/skills/ycet-prototype-create/evals/evals.json`：技能行为评估用例。
 
 ## 已知限制
 
-- 当前 skill 主要通过文档约束 Agent 行为，尚未提供自动化脚本来强制检查 `EditLog.md` 或原型尺寸。
+- 自动化脚本覆盖 Skill 结构、框架元数据和设备框架运行时行为；尚未自动执行完整的 Agent 对话评估。
