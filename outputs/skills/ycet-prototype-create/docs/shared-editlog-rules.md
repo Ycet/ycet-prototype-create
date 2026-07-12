@@ -13,6 +13,8 @@
 - `prototype/assets/frames/frame-config.json`
 - 项目内复制、替换或升级的设备框架 HTML
 - 承载图片原型的 HTML 页面
+- `prototype/assets/images/` 下内容图及 `images-manifest.json`
+- `prototype/assets/icons/` 下图标与本地化图标库
 
 即使用户后续未主动调用本 Skill，只要修改上述原型内容，也需要记录。
 
@@ -47,6 +49,8 @@ prototype/docs/EditLog.md
 | 功能三 | 生成可交互 Demo 文件 |
 | 功能四迁移 | 迁移到 Manifest 框架体系 |
 | 图片原型 | 导入图片资源并生成承载页面 |
+| 内容图/图标本地化 | 下载或替换资源、路径改写、匹配降级或近似顶替、用户外链例外 |
+| 图片清单更新 | 生成或更新 images-manifest.json |
 | 项目框架升级 | 更新项目框架及配置快照 |
 
 ## 执行要求

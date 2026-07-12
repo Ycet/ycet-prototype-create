@@ -14,6 +14,8 @@ prototype/
   pages/*.html
   assets/frames/frame-config.json
   assets/frames/<selected-frame>.html
+  assets/images/
+  assets/icons/
 ```
 
 涉及原型写入时读取 `shared-editlog-rules.md`；生成 HTML 前读取 `shared-prototype-standards.md` 与 `../assets/frames/manifest.json`。
@@ -122,6 +124,9 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - 产品端口、宿主设备、框架 ID；
 - 逻辑画布、预览尺寸和默认列数；
 - 只实现页面内交互，不实现跨页面跳转；
+- 内容图数量与主要语义类别、图标本地化方案；
+- 资源目录 `assets/images/` 与 `assets/icons/`；
+- 图片失败策略：严格→大类→非匹配兜底，下载失败近似图顶替，禁止灰占位；
 - 共享规范与日志规则；
 - 路径、尺寸、溢出、交互、图片、框架配置和日志验证项。
 
@@ -130,6 +135,9 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - 正式页面写入 `prototype/pages/*.html`。
 - 页面根画布匹配 `frame-config.json.logicalViewport`。
 - 页面不得绘制系统 UI；App 导航、Tab Bar、微信胶囊按钮、网站导航等产品 UI保留。
+- 生成 HTML 前列出内容图位与图标需求，按 `shared-prototype-standards.md`「图片与图标」下载到本地并只写相对路径。
+- 建议维护 `assets/images/images-manifest.json`。
+- 阶段二已下载的图可在阶段三复用；缺图按语义阶梯补齐。
 - `prototype/index.html` 使用选中框架的 `?screen=pages/<file>.html` 加载每个页面，并设置 `data-ycet-frame-id`。
 - 默认列数读取 Manifest：手机/微信宿主 4、iPad 2、Browser/MacBook 1；小屏幕可减少列数，不改变逻辑画布。
 - 每张页面卡片保留页面名、文件名和“打开页面html”链接。
@@ -141,6 +149,9 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - Manifest、`frame-config.json`、`Spec.md` 和 `data-ycet-frame-id` 一致。
 - 框架系统 UI 与页面产品 UI 不重复。
 - iframe 无非预期滚动条、裁剪或留白。
+- 内容图与网络图标已本地化；无未授权外链与占位图。
+- 断开外网后页面内容图与图标仍可显示。
+- 语义降级/近似顶替（若有）已在完成说明列出。
 - 本地 HTML 与本地静态服务器均可打开。
 - 将整个 `prototype/` 移动目录后仍可加载。
 - `EditLog.md` 记录阶段二和阶段三生成动作。

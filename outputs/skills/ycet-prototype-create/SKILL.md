@@ -40,6 +40,7 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 9. 关键 HTML/CSS/JS 添加中文注释。
 10. 不确定信息写入“待确认事项”或向用户确认，不得编造。
 11. 不自动安装 Skill、打开外部网页、发布、部署或执行 Git 提交。
+12. 内容图与网络获取的 UI 图标须按 `docs/shared-prototype-standards.md`「图片与图标」本地化到 `prototype/assets/images/` 与 `prototype/assets/icons/`；禁止灰占位或图标冒充内容图。
 
 ## 框架资产
 
@@ -57,5 +58,6 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 - 生成或修改的文件及用途；
 - 查看或继续方式；
 - 使用的框架 ID；
+- 内容图/图标是否已本地化，以及是否发生语义降级或近似顶替；
 - 是否已记录 EditLog；
 - 尚未解决的限制或待确认事项。
