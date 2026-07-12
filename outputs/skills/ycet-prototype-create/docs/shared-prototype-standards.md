@@ -93,14 +93,20 @@ prototype/
   data-ycet-frame-id="iphone-15-pro"
   src="assets/frames/iphone-15-pro.html?screen=pages/home.html"
   title="首页"
+  width="414"
+  height="868"
+  style="width:414px;height:868px;border:0;display:block;overflow:hidden;"
 ></iframe>
 ```
 
+上例中的 `414×868` 取自 Manifest / `frame-config.json` 的 `preview`，生成时必须替换为当前项目实际 preview 像素，不得照抄示例数字。
+
 - `screen` 进行 URL 编码，只指向 `pages/*.html`、`previews/*.html` 或 `about:blank`。
 - 禁止远程 URL、绝对路径、上级目录和 `javascript:`。
-- 框架 iframe 使用 Manifest `preview` 尺寸，不通过外层 CSS 强制压缩。
-- 框架内部页面 iframe 使用 `logicalViewport` 尺寸。
+- **外层框架 iframe**（`index.html`、`design-direction.html` 中嵌入的设备框架）宽高必须等于当前项目 `preview.width` × `preview.height` 固定像素；属性与 CSS 一致，禁止用百分比、`max-width`、`height: auto` 或外层 `transform: scale()` 二次压缩。
+- **框架内部页面 iframe** 使用 `logicalViewport` 尺寸；缩放只允许发生在框架 HTML 内部（由 Manifest `preview.scale` 决定），外层不得再缩放。
 - 所有路径为生成项目内相对路径。
+- 滚动分层与 `index.html` 尺寸细则见下方「`index.html`」专节；`design-direction.html` 的首页预览 iframe 遵守同一契约。
 
 ## 页面文件
 
@@ -252,16 +258,79 @@ manifest 用于溯源与审计，非运行时强依赖；页面不得只靠 mani
 
 - 包含色彩、字体、按钮、反馈、必要补充组件和“首页预览”。
 - 首页预览加载 `previews/home-preview.html`。
+- 首页预览使用的设备框架 iframe 遵守与 `index.html` 相同的 preview 固定像素尺寸与滚动分层契约。
 - 不创建独立“设备框架预览”模块。
 - 不展示其他正式页面，不执行跨页面导航。
 
 ## `index.html`
 
+`index.html` 是页面阵列入口。生成时必须同时满足：卡片信息完整、框架 iframe 尺寸匹配 preview、三层滚动职责正确。
+
+### 卡片与阵列
+
 1. 每张页面卡片通过选中设备框架加载一个 `pages/*.html`。
-2. 卡片包含页面名称、文件名、框架预览和“打开页面html”链接。
-3. 默认列数读取 Manifest `defaultColumns`；宽度不足时可减少列数或允许阵列外层横向滚动。
-4. 框架与内部页面不得出现由阵列布局造成的滚动条。
-5. 页面内交互可用；跨页面导航被忽略。
+2. 卡片至少包含：页面名称、文件名、框架预览 iframe、“打开页面html”链接。
+3. 默认列数读取 Manifest `defaultColumns`；视口宽度不足时可减少列数，或允许**阵列外层容器**横向滚动。
+4. 页面内交互可用；跨页面导航被忽略。
+
+### 三层滚动（允许 / 禁止）
+
+```text
+index.html 阵列外层
+  └─ 框架 iframe（设备壳，尺寸 = preview）
+       └─ 产品页 iframe（尺寸 = logicalViewport，由框架内部管理）
+```
+
+| 层级 | 允许 | 禁止 |
+| --- | --- | --- |
+| `index.html` 阵列外层 | 窄屏下整页/阵列横向滚动；页面纵向滚动浏览多卡片 | 用滚动条“挤出”被压小的框架；卡片内再套一层滚动包住框架 |
+| 框架 iframe（外层嵌入） | 无原生滚动条；完整显示设备壳与屏幕 | 出现纵向/横向原生滚动条；被父级裁剪、遮挡或二次缩放 |
+| 产品页文档根（`pages/*`） | 根画布固定为 logicalViewport | `html/body` 级滚动或文档级横向溢出 |
+| 产品页内部内容容器 | 长列表/长内容在**内部容器**纵向滚动 | 把滚动交给 iframe 文档根或框架壳 |
+
+说明：产品页**内部**滚动是预期行为；“无非预期滚动条”指框架 iframe 与阵列挤压导致的条，不是禁止页面内容滚动。
+
+### 尺寸契约（防嵌入大小不匹配）
+
+1. 读取 `prototype/assets/frames/frame-config.json`（或生成时的 Manifest 选中条目）的 `preview.width` / `preview.height`。
+2. 每个框架 iframe 的 `width`/`height` 属性与 CSS `width`/`height` 均写为上述固定像素，二者一致。
+3. 卡片中承载 iframe 的容器宽度/高度**不得小于** preview；可用 padding 包住卡片标题与链接，但不得让 padding/border 挤占 iframe 的约定显示区域。
+4. 框架 iframe 样式至少包含：`border: 0; display: block; overflow: hidden;`（或等价写法），避免默认 iframe 边框撑出滚动条。
+5. **禁止**对框架 iframe 或其直接父级使用：`width: 100%`、`height: 100%`（相对弹性父级）、`max-width` 压缩、`height: auto`、`transform: scale(...)`、`object-fit` 等方式二次适配。
+6. **禁止**用 `overflow: auto|scroll` 的小盒子包住 oversized 框架来“假装适配”；正确做法是保持 preview 像素，并在阵列层减列或横向滚动。
+7. 缩放只发生在框架 HTML 内部（`logicalViewport` → `preview.scale`）；`index.html` 不得再缩放。
+
+### 最小结构示例
+
+生成时将 `414`/`868` 替换为当前项目实际 `preview` 值：
+
+```html
+<section class="page-card">
+  <header>
+    <h2>首页</h2>
+    <p>pages/home.html</p>
+    <a href="pages/home.html" target="_blank" rel="noopener">打开页面html</a>
+  </header>
+  <iframe
+    data-ycet-frame-id="iphone-15-pro"
+    src="assets/frames/iphone-15-pro.html?screen=pages/home.html"
+    title="首页"
+    width="414"
+    height="868"
+    style="width:414px;height:868px;border:0;display:block;overflow:hidden;"
+  ></iframe>
+</section>
+```
+
+### 常见错误
+
+| 错误写法 | 后果 |
+| --- | --- |
+| iframe 设 `width:100%` 塞进响应式卡片 | 框架被压扁/裁切，或内部出现原生滚动条 |
+| 外层再 `transform: scale(0.5)` | 与框架内缩放叠加，preview 契约失效 |
+| 卡片 `overflow:auto` 且小于 preview | 卡片内出现滚动条，看起来像“嵌入页滚动条” |
+| 只写 `height:auto` / 不写固定高 | iframe 默认高度过小，页面被裁切 |
+| 把产品页长内容滚动做成 `body` 滚动 | 框架内出现文档级滚动条，固定导航错位 |
 
 ## 消息协议
 
@@ -290,6 +359,9 @@ manifest 用于溯源与审计，非运行时强依赖；页面不得只靠 mani
 - 页面逻辑画布、框架预览、缩放与安全区域一致。
 - 系统 UI 和产品 UI 无重复。
 - iframe 路径有效，无横向溢出、裁剪或留白。
+- `index.html` / `design-direction.html` 中每个框架 iframe 的宽高等于当前 `preview` 固定像素，未二次缩放。
+- 框架 iframe 无原生滚动条；阵列仅允许外层在窄屏下横向滚动。
+- 产品页文档根不滚动；长内容仅在页面内部容器滚动。
 - 内容图均在 `assets/images/`，网络图标均在 `assets/icons/`，HTML/CSS 为项目内相对路径。
 - 无灰色占位、图标冒充内容图、占位图服务或未授权远程内容图/图标依赖。
 - 内容图语义匹配可解释；降级/顶替已在完成说明列出。

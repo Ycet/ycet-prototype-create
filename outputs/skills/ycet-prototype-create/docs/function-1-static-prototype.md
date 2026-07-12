@@ -109,10 +109,13 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
   data-ycet-frame-id="<frame-id>"
   src="assets/frames/<frame-file>?screen=previews/home-preview.html"
   title="首页预览"
+  width="<preview.width>"
+  height="<preview.height>"
+  style="width:<preview.width>px;height:<preview.height>px;border:0;display:block;overflow:hidden;"
 ></iframe>
 ```
 
-不得另设“设备框架预览”模块，也不得展示其他正式页面。用户确认后才能进入阶段三。
+宽高必须替换为当前框架 `preview` 固定像素，不得二次缩放。不得另设“设备框架预览”模块，也不得展示其他正式页面。用户确认后才能进入阶段三。
 
 ## 阶段三：静态原型生成
 
@@ -139,7 +142,8 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - 建议维护 `assets/images/images-manifest.json`。
 - 阶段二已下载的图可在阶段三复用；缺图按语义阶梯补齐。
 - `prototype/index.html` 使用选中框架的 `?screen=pages/<file>.html` 加载每个页面，并设置 `data-ycet-frame-id`。
-- 默认列数读取 Manifest：手机/微信宿主 4、iPad 2、Browser/MacBook 1；小屏幕可减少列数，不改变逻辑画布。
+- `index.html` 与 `design-direction.html` 中的框架 iframe 宽高必须等于 `frame-config.json.preview` 固定像素；禁止百分比、外层 scale 或 overflow 小盒二次适配；滚动分层遵守 `shared-prototype-standards.md`「`index.html`」专节。
+- 默认列数读取 Manifest：手机/微信宿主 4、iPad 2、Browser/MacBook 1；小屏幕可减少列数，不改变逻辑画布与 preview 像素。
 - 每张页面卡片保留页面名、文件名和“打开页面html”链接。
 - `index.html` 不执行跨页面导航；页面内 Tab、弹窗、Toast、表单、loading、折叠和轮播可以工作。
 
@@ -148,7 +152,7 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - 设计方向、首页预览、静态页面、入口、框架文件和项目配置均存在且路径有效。
 - Manifest、`frame-config.json`、`Spec.md` 和 `data-ycet-frame-id` 一致。
 - 框架系统 UI 与页面产品 UI 不重复。
-- iframe 无非预期滚动条、裁剪或留白。
+- 框架 iframe 尺寸等于 preview 固定像素；无框架原生滚动条、裁剪或留白；产品页仅内部容器滚动。
 - 内容图与网络图标已本地化；无未授权外链与占位图。
 - 断开外网后页面内容图与图标仍可显示。
 - 语义降级/近似顶替（若有）已在完成说明列出。
