@@ -15,6 +15,8 @@ prototype/
   pages/
     home.html
     ...
+    source-images/
+      imported-screen.png
   runtime-pages/
     home--prototype.html
     ...
@@ -142,6 +144,13 @@ prototype/
 - 产品固定导航使用根容器内部定位，不依赖外部 viewport。
 - 内容图片与 UI 操作图标遵守「图片与图标」专章；二者不互相替代。
 
+### 功能四整页图片承载页
+
+- `pages/source-images/` 保存 PNG/JPG/JPEG/WebP 等原始整页图片，不作为 `screen` 直接目标；每张图片必须一一对应一个 `pages/**/*.html` 承载页。
+- 承载页只使用必要根容器、带 `data-ycet-scroll` 的适配容器和 `<img>` 显示完整原图。禁止 OCR、切片、元素识别或用 DOM/CSS 重绘图片中的标题、按钮、卡片、列表和导航。
+- 承载页不绘制或嵌入设备外壳；由 `index.html` 的 Manifest 框架 iframe 通过 `?screen=pages/<file>.html` 加载，使图片显示在设备屏幕区域。
+- 图片保持原始宽高比，不拉伸、不裁剪；默认按逻辑画布宽度适配，超出可视高度时仅由内部 `data-ycet-scroll` 容器纵向滚动。
+
 ## 分阶段交互契约
 
 ### 功能一：静态页
@@ -156,6 +165,13 @@ prototype/
 - `index.html` 与既有 `pages/**/*.html` 是只读输入，生成前后必须按原始字节计算 SHA-256 并验证文件集合与摘要完全一致。
 - 跨页逻辑只写入 `runtime-pages/*.html` 与 `prototype*.html`；旧项目如需白名单兼容，只能另写版本专用 `runtime-assets/frames/*.html`。运行时副本可读取静态页中的 `data-ycet-nav-target` 并映射到已登记的 `runtime-pages/` 目标。
 - 不得为省事向 `pages/` 注入脚本、修改 `href`、增加事件属性、格式化文件、重命名或创建新的源页面。
+
+### 功能四：静态重构与功能三交接
+
+- 非本 Skill HTML 必须先从入口及关联 HTML/CSS/JS/资源直接生成 `prototype/docs/Spec.md`，不得调用 `brainstorming-solo` 或 `grill-me`；Spec 确认后复用功能一阶段二、阶段三。
+- HTML 静态高保真原型完成后必须停止。任务开始时的交互要求不能替代静态完成后的再次确认；确认前不得生成 `runtime-pages/` 或 `prototype*.html`。
+- 整页图片必须先生成只显示完整原图的 `pages/**/*.html` 承载页与 `index.html`。确认生成 Demo 前，禁止生成 `prototype.html`、运行时副本或交互热点。
+- 图片 Demo 的 `runtime-pages/` 可叠加已确认的透明交互热点，但必须继续以完整原图为视觉基底，不得将图片替换为元素化 DOM。
 
 ## 跨浏览器无可见滚动条契约
 

@@ -8,6 +8,7 @@
 - `prototype/previews/*.html`
 - `prototype/index.html`
 - `prototype/pages/*.html`
+- `prototype/pages/source-images/*`
 - `prototype/prototype.html`
 - `prototype/prototype-vN.html`
 - `prototype/assets/frames/frame-config.json`
@@ -48,7 +49,8 @@ prototype/docs/EditLog.md
 | 功能二 | 记录目标元素、修改内容和文件 |
 | 功能三 | 生成可交互 Demo 与版本专用 `runtime-pages/` 副本；不得记录为修改 `pages/` 或 `index.html` |
 | 功能四迁移 | 迁移到 Manifest 框架体系 |
-| 图片原型 | 导入图片资源并生成承载页面 |
+| 功能四 HTML 解析重构 | 记录源 HTML/关联文件解析、直接生成 Spec 与重构等级；后续 UI 方向和静态生成按功能一阶段分别记录 |
+| 图片原型 | 导入原图并生成原图承载型 `pages` 页面与 `index.html`；用户确认后的 Demo 按功能三另行记录 |
 | 内容图/图标本地化 | 下载或替换资源、路径改写、匹配降级或近似顶替、用户外链例外 |
 | 图片清单更新 | 生成或更新 images-manifest.json |
 | 项目框架升级 | 更新项目框架及配置快照 |

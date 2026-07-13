@@ -11,6 +11,8 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 
 ### 直接路由
 
+- 用户提供非本 Skill 生成的完整 HTML 原型文件并要求增加/修改页面或交互：读取 `docs/function-4-existing-prototype-edit.md`；即使同时提供 CSS 选择器或 HTML 片段，本规则也优先于功能二。
+- 用户提供 PNG、JPG、JPEG、WebP 等整页原型图片并要求接管、编辑或生成交互原型：读取 `docs/function-4-existing-prototype-edit.md`。
 - 用户同时提供 CSS 选择器、HTML 片段和明确元素修改要求：读取 `docs/function-2-precision-edit.md`。
 - 用户明确指定功能一/二/三/四或对应名称：直接读取对应文件。
 
@@ -46,6 +48,8 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 15. 所有生成 HTML 必须遵守共享规范的跨浏览器无可见滚动条契约；不能只依赖 Chromium 的滚动条表现。
 16. 功能三将 `prototype/index.html` 与既有 `prototype/pages/**/*.html` 视为只读输入；跨页逻辑写入 `prototype/runtime-pages/`，并在生成前后用 SHA-256 校验受保护输入未变化。
 17. 功能四每次启动时，必须在读取或审计用户原型前询问并获得用户对当前产品端口的明确回复；禁止根据页面内容、尺寸、文件名、现有框架或配置自行判断。用户回复前不得继续，回复后按功能一相同的 Manifest 端口映射选择设备框架。
+18. 功能四编辑非本 Skill 生成的 HTML 时，必须解析入口 HTML 及关联 HTML/CSS/JS/资源，直接生成 `prototype/docs/Spec.md`；不得调用 `brainstorming-solo` 或 `grill-me`。Spec 确认后复用功能一阶段二、阶段三；静态高保真原型完成后必须停止，只有再次获得用户明确确认才进入功能三。
+19. 功能四接管 PNG/JPG 等整页图片时，必须先生成仅以原图为视觉内容的 `pages/**/*.html` 承载页和 `index.html`；禁止将图片解构、OCR 还原或重绘为页面元素。生成 `prototype.html` 前必须在静态产物完成后再次获得用户确认。
 
 ## 框架资产
 

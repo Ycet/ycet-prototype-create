@@ -18,6 +18,15 @@ def fail(message: str, failures: list[str]) -> None:
     failures.append(message)
 
 
+def require_order(text: str, tokens: tuple[str, ...], label: str, failures: list[str]) -> None:
+    """验证强门禁在文档中的先后顺序，避免只有关键词但执行顺序倒置。"""
+    positions = [text.find(token) for token in tokens]
+    if -1 in positions:
+        return
+    if positions != sorted(positions):
+        fail(f"{label}顺序错误: {' → '.join(tokens)}", failures)
+
+
 def main() -> int:
     failures: list[str] = []
 
@@ -107,9 +116,29 @@ def main() -> int:
         keys = re.findall(r"^([A-Za-z0-9_-]+):", frontmatter.group(1), re.MULTILINE)
         if keys != ["name", "description"]:
             fail(f"SKILL.md frontmatter 只能包含 name 和 description，当前为 {keys}", failures)
-    for token in ("功能四每次启动时", "用户回复前不得继续", "按功能一相同的 Manifest 端口映射"):
+    for token in (
+        "即使同时提供 CSS 选择器或 HTML 片段，本规则也优先于功能二",
+        "PNG、JPG、JPEG、WebP 等整页原型图片",
+        "功能四每次启动时",
+        "用户回复前不得继续",
+        "按功能一相同的 Manifest 端口映射",
+        "直接生成 `prototype/docs/Spec.md`",
+        "不得调用 `brainstorming-solo` 或 `grill-me`",
+        "静态高保真原型完成后必须停止",
+        "禁止将图片解构、OCR 还原或重绘为页面元素",
+        "生成 `prototype.html` 前必须",
+    ):
         if token not in skill_md:
-            fail(f"SKILL.md 缺少功能四产品端口前置门禁: {token}", failures)
+            fail(f"SKILL.md 缺少功能四前置、静态或交互门禁: {token}", failures)
+    require_order(
+        skill_md,
+        (
+            "用户提供非本 Skill 生成的完整 HTML 原型文件",
+            "用户同时提供 CSS 选择器、HTML 片段和明确元素修改要求",
+        ),
+        "功能四与功能二直接路由优先级",
+        failures,
+    )
 
     function_one = (ROOT / "docs" / "function-1-static-prototype.md").read_text(encoding="utf-8")
     if "brainstorming-solo" not in function_one or "superpowers:brainstorming" in function_one:
@@ -142,6 +171,10 @@ def main() -> int:
         "[data-ycet-scroll]",
         'scrolling="no"',
         "runtime-pages/",
+        "### 功能四整页图片承载页",
+        "### 功能四：静态重构与功能三交接",
+        "禁止 OCR、切片、元素识别",
+        "确认前不得生成 `runtime-pages/` 或 `prototype*.html`",
     ):
         if token not in shared_standards:
             fail(f"共享规范缺少路径契约: {token}", failures)
@@ -176,6 +209,19 @@ def main() -> int:
         "不得开始读取或审计用户原型",
         "与功能一完全一致",
         "使用默认宿主",
+        "## 非本 Skill HTML 原型编辑流程",
+        "直接生成 `prototype/docs/Spec.md`",
+        "本分支不得调用 `brainstorming-solo` 或 `grill-me`",
+        "源视觉证据",
+        "静态高保真原型完成后必须停止当前任务",
+        "任务开始时提出“增加交互”",
+        "只有用户明确确认生成可交互原型后",
+        "## 图片原型静态承载与交互门禁",
+        "绝对不得将图片 OCR、切片、解构、识别或重绘",
+        "必须先完成这两类静态文件",
+        "单独询问是否确认生成 `prototype.html`",
+        "运行时副本必须继续以完整原图为视觉基底",
+        "SHA-256 未变化",
         "| iOS、iPhone | `iphone-15-pro` |",
         "| Android | `android-pixel` |",
         "| iPad | `ipad-pro` |",
@@ -188,6 +234,33 @@ def main() -> int:
     ):
         if token not in function_four:
             fail(f"功能四缺少端口确认门禁或迁移路径规则: {token}", failures)
+
+    html_section = function_four.split("## 非本 Skill HTML 原型编辑流程", 1)[-1].split(
+        "## 图片原型静态承载与交互门禁", 1
+    )[0]
+    require_order(
+        html_section,
+        (
+            "直接生成 `prototype/docs/Spec.md`",
+            "生成后展示 Spec 摘要并请求用户确认",
+            "Spec 确认后进入功能一阶段二",
+            "静态高保真原型完成后必须停止当前任务",
+            "只有用户明确确认生成可交互原型后",
+        ),
+        "功能四 HTML 的 Spec、静态与功能三门禁",
+        failures,
+    )
+    image_section = function_four.split("## 图片原型静态承载与交互门禁", 1)[-1].split("## 迁移规则", 1)[0]
+    require_order(
+        image_section,
+        (
+            "为每张图片生成对应的原图承载型 `pages/**/*.html`",
+            "静态文件完成后停止任务",
+            "用户明确确认后才读取并执行功能三",
+        ),
+        "功能四图片静态产物与 prototype.html 门禁",
+        failures,
+    )
 
     evals_path = ROOT / "evals" / "evals.json"
     try:
