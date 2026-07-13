@@ -32,6 +32,23 @@ prototype/
 
 被调用 Skill 未结束前，不生成 `Spec.md`，也不提前进入 UI 设计。
 
+### 阶段一强制范围
+
+阶段一只澄清产品问题：产品端口、背景与定位、目标用户、使用场景、页面清单、信息与功能、业务流程、业务规则、边界条件和异常处理。页面元素可以按“需要什么信息或操作”讨论，但不得讨论其视觉呈现。
+
+调用 `brainstorming-solo` 或 `grill-me` 前，必须向被调用 Skill 明确传递以下范围约束；该约束优先于被调用 Skill 的通用设计分支：
+
+> 本次只完善产品需求。禁止询问、推荐、比较或确定 UI 设计风格、设计语言、色彩、字体、排版观感、视觉布局、图标/插画/图片风格、动效风格、视觉参考对象和 UI Skill；不得启动视觉伴侣或生成视觉方向。上述内容全部留到 YCET 功能一阶段二。
+
+阶段一禁止：
+
+- 询问“喜欢什么风格、颜色、字体、品牌调性或参考网站视觉”；
+- 推荐 UI 风格、设计系统、配色、字体组合或视觉素材；
+- 发现、选择或调用 UI 设计类 Skill；
+- 将视觉结论写成阶段一的确认项或 Spec 决策。
+
+如果用户主动提供 UI 偏好，只按原意记录到 Spec 的“阶段二待处理输入”，不追问、不细化、不确认。被调用 Skill 试图进入上述话题时，立即跳过该问题并回到产品需求缺口；阶段一结束前再审计一次，不得残留已确认的 UI 设计决策。
+
 ### 需求审计与提问
 
 先检查产品端口、产品背景、定位、页面清单、核心功能、页面元素、业务流程、边界条件、异常处理和补充需求。每轮只询问一个最高优先级问题，并提供推荐选项。
@@ -47,7 +64,7 @@ prototype/
 5. 最终框架 ID 可根据 Manifest 唯一确定。
 6. 未确定内容进入“待确认事项”。
 
-Spec 重点记录页面、组件、页面内交互、页面间流程、异常、业务规则、边界、产品端口、宿主设备和框架 ID。用户确认后才能进入阶段二。
+Spec 重点记录页面、组件、页面内交互、页面间流程、异常、业务规则、边界、产品端口、宿主设备和框架 ID。用户主动给出的 UI 偏好只能原样进入“阶段二待处理输入”，不得在阶段一细化。用户确认后才能进入阶段二。
 
 ## 阶段二：UI 设计方向
 
@@ -111,6 +128,7 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
   title="首页预览"
   width="<preview.width>"
   height="<preview.height>"
+  scrolling="no"
   style="width:<preview.width>px;height:<preview.height>px;border:0;display:block;overflow:hidden;"
 ></iframe>
 ```
@@ -136,7 +154,7 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 ### 生成规则
 
 - 正式页面写入 `prototype/pages/*.html`。
-- 新页面与预览文件名使用小写 ASCII kebab-case；页面通信统一使用 `pages/<file>.html` 规范路径，不生成裸文件名。
+- 新页面与预览文件名使用小写 ASCII kebab-case；未来跨页目标只写为 `data-ycet-nav-target="pages/<file>.html"` 意图元数据，不在静态页中发送导航消息。
 - 页面根画布匹配 `frame-config.json.logicalViewport`。
 - 页面不得绘制系统 UI；App 导航、Tab Bar、微信胶囊按钮、网站导航等产品 UI保留。
 - 生成 HTML 前列出内容图位与图标需求，按 `shared-prototype-standards.md`「图片与图标」下载到本地并只写相对路径。
@@ -146,7 +164,14 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - `index.html` 与 `design-direction.html` 中的框架 iframe 宽高必须等于 `frame-config.json.preview` 固定像素；禁止百分比、外层 scale 或 overflow 小盒二次适配；滚动分层遵守 `shared-prototype-standards.md`「`index.html`」专节。
 - 默认列数读取 Manifest：手机/微信宿主 4、iPad 2、Browser/MacBook 1；小屏幕可减少列数，不改变逻辑画布与 preview 像素。
 - 每张页面卡片保留页面名、文件名和“打开页面html”链接。
-- `index.html` 不执行跨页面导航；页面内 Tab、弹窗、Toast、表单、loading、折叠和轮播可以工作。
+- `pages/**/*.html` 与 `previews/**/*.html` 只实现页面内状态变化：Tab、弹窗/抽屉、Toast、表单校验、loading、折叠、轮播、筛选和排序等均可工作，但操作前后必须仍停留在同一 HTML 文档。
+- 代表未来跨页动作的控件保留视觉与可访问语义，优先使用 `<button type="button" data-ycet-nav-target="pages/detail.html">`；功能一中不得为该控件绑定跨页处理器。`data-ycet-nav-target` 只是功能三读取的声明，不是导航实现。
+- 静态页禁止使用 `<a href="其他页面">`、表单跨页 `action`、`location.href`、`location.assign()`、`location.replace()`、`window.open()`、`history.pushState()`、路由器跳转、`window.top`、`parent.location`，以及发送 `type: "navigate"` 的 `postMessage`。同文档 `#fragment` 可用于页面内交互。
+- `index.html` 不执行产品跨页导航；卡片中的“打开页面html”是用于检查独立交付文件的工具链接，不属于产品交互，是唯一例外。
+
+### 静态交互验收门禁
+
+生成完成后必须运行 `scripts/prototype_guard.py static --prototype-dir <prototype目录>`，并人工复核所有 `data-ycet-nav-target` 都指向已登记的 `pages/*.html`。发现任一主动导航实现即视为功能一未完成，必须只移除跨页实现，不得删除页面内交互或导航控件视觉。
 
 ### 完成标准
 
@@ -154,6 +179,8 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - Manifest、`frame-config.json`、`Spec.md` 和 `data-ycet-frame-id` 一致。
 - 框架系统 UI 与页面产品 UI 不重复。
 - 框架 iframe 尺寸等于 preview 固定像素；无框架原生滚动条、裁剪或留白；产品页仅内部容器滚动。
+- Chrome、Edge 与 Firefox 中均不显示浏览器原生滚动条；需要滚动的阵列和页面内部容器仍可通过滚轮、触控与键盘滚动。
+- 静态交互验收通过；`pages/**/*.html` 与 `previews/**/*.html` 不含主动跨页实现，跨页控件仅保留安全的 `data-ycet-nav-target`。
 - 内容图与网络图标已本地化；无未授权外链与占位图。
 - 断开外网后页面内容图与图标仍可显示。
 - 语义降级/近似顶替（若有）已在完成说明列出。

@@ -41,6 +41,10 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 10. 不确定信息写入“待确认事项”或向用户确认，不得编造。
 11. 不自动安装 Skill、打开外部网页、发布、部署或执行 Git 提交。
 12. 内容图与网络获取的 UI 图标须按 `docs/shared-prototype-standards.md`「图片与图标」本地化到 `prototype/assets/images/` 与 `prototype/assets/icons/`；禁止灰占位或图标冒充内容图。
+13. 功能一阶段一只完善产品需求，禁止询问或确定 UI 设计风格；视觉方向、UI Skill、色彩、字体和视觉参考只在阶段二处理。
+14. 功能一生成的 `pages/**/*.html` 与 `previews/**/*.html` 只允许页面内交互，禁止任何跨页面或离开当前文档的导航实现；跨页控件只保留 `data-ycet-nav-target` 意图元数据，实际导航只在功能三的运行时副本中实现。
+15. 所有生成 HTML 必须遵守共享规范的跨浏览器无可见滚动条契约；不能只依赖 Chromium 的滚动条表现。
+16. 功能三将 `prototype/index.html` 与既有 `prototype/pages/**/*.html` 视为只读输入；跨页逻辑写入 `prototype/runtime-pages/`，并在生成前后用 SHA-256 校验受保护输入未变化。
 
 ## 框架资产
 

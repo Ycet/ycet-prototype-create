@@ -23,10 +23,11 @@ assets/frames/
   data-ycet-frame-id="iphone-15-pro"
   src="assets/frames/iphone-15-pro.html?screen=pages/home.html"
   title="首页"
+  scrolling="no"
 ></iframe>
 ```
 
-`screen` 参数只接受 URL 编码后的 `pages/*.html` 或 `previews/*.html` 项目根相对路径。项目根固定为 `prototype/`；框架位于 `prototype/assets/frames/`，按 Manifest `frameProjectRootRelativePath` 从框架自身 URL 向上推导项目根，不依赖 `document.referrer`。生成文件不得依赖 Skill 安装目录的绝对路径。
+`screen` 参数只接受 URL 编码后的 `pages/*.html`、`previews/*.html` 或 `runtime-pages/*.html` 项目根相对路径。`runtime-pages/` 只承载功能三生成的交互副本。项目根固定为 `prototype/`；框架位于 `prototype/assets/frames/`，按 Manifest `frameProjectRootRelativePath` 从框架自身 URL 向上推导项目根，不依赖 `document.referrer`。生成文件不得依赖 Skill 安装目录的绝对路径。
 
 `frameFile` 包含 `.html` 扩展名并相对于 `prototype/assets/frames/`。`navigate.targetPage`、`set-screen.screen` 与 `screen-changed.screen` 使用和 `screen` 相同的规范路径；旧页面发送的裸文件名可由框架补全为 `pages/<file>.html` 后中继。安全的中文或空格旧文件名会被 URL 编码；query/hash 仅在 pathname 通过允许目录校验后保留。
 
@@ -58,3 +59,4 @@ assets/frames/
 4. 页面 iframe 始终以 Manifest 的 `logicalViewport` 渲染，再由框架整体缩放到预览尺寸。
 5. 框架必须支持 `?screen=about:blank` 以外的受控项目页面；无页面时显示中性空白画布。
 6. 未知消息、非法路径和加载异常不得导致框架跳转到远程地址。
+7. 框架文档根和内部 iframe 必须隐藏原生滚动条：CSS 同时包含 `scrollbar-width: none`、`-ms-overflow-style: none` 与 `::-webkit-scrollbar` 规则，内部 iframe 还须设置 `scrolling="no"`；必要滚动由页面内部容器承担。

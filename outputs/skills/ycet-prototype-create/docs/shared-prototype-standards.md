@@ -15,6 +15,12 @@ prototype/
   pages/
     home.html
     ...
+  runtime-pages/
+    home--prototype.html
+    ...
+  runtime-assets/
+    frames/
+      prototype--<selected-frame>.html
   assets/
     frames/
       frame-config.json
@@ -32,8 +38,10 @@ prototype/
 ## 路径与文件名契约
 
 - `prototype/` 是所有运行时页面路径的唯一 URL 根；下文称“项目根”。
-- `screen`、`navigate.targetPage`、`set-screen.screen` 与 `screen-changed.screen` 均使用相对于项目根的规范路径，如 `pages/home.html` 或 `previews/home-preview.html`。
+- `screen`、`navigate.targetPage`、`set-screen.screen` 与 `screen-changed.screen` 均使用相对于项目根的规范路径，如 `pages/home.html`、`previews/home-preview.html` 或 `runtime-pages/home--prototype.html`。
 - 新生成的 `pages/*.html` 与 `previews/*.html` 文件名使用小写 ASCII kebab-case。接管旧项目时允许保留安全的中文、空格等文件名，但消息中的路径必须由 URL 正规化并编码。
+- `runtime-pages/` 只由功能三生成，保存从静态页派生的可交互运行时副本；功能一不得创建该目录。运行时副本保持与 `pages/` 相同的目录深度，使 `../assets/` 相对引用继续有效。
+- `runtime-assets/frames/` 只用于兼容尚未允许 `runtime-pages/` 的旧版 Manifest 框架。功能三可在此生成版本专用框架副本，但不得修改项目原有 `assets/frames/`、`index.html` 或静态页；副本仍按 `../../` 解析项目根。
 - `screen` pathname 只允许位于 Manifest `allowedScreenPrefixes` 下并以 `.html` 结尾；允许保留 query/hash，但白名单与页面注册表先按解码后的 pathname 匹配，再把 query/hash 原样传给已登记页面。
 - `frameFile` 包含 `.html` 扩展名，是相对于 `prototype/assets/frames/` 的纯文件名；消费者不得再次追加扩展名。
 - 框架固定放在 `prototype/assets/frames/`，必须按 Manifest `frameProjectRootRelativePath` 从框架自身 URL 推导项目根；禁止依赖 `document.referrer`，以兼容 `file://`。
@@ -111,13 +119,14 @@ prototype/
   title="首页"
   width="414"
   height="868"
+  scrolling="no"
   style="width:414px;height:868px;border:0;display:block;overflow:hidden;"
 ></iframe>
 ```
 
 上例中的 `414×868` 取自 Manifest / `frame-config.json` 的 `preview`，生成时必须替换为当前项目实际 preview 像素，不得照抄示例数字。
 
-- `screen` 按「路径与文件名契约」正规化和 URL 编码，只指向 `pages/*.html`、`previews/*.html` 或 `about:blank`，并始终相对于项目根解析。
+- `screen` 按「路径与文件名契约」正规化和 URL 编码，只指向 `pages/*.html`、`previews/*.html`、`runtime-pages/*.html` 或 `about:blank`，并始终相对于项目根解析。
 - 禁止远程 URL、绝对路径、上级目录和 `javascript:`。
 - **外层框架 iframe**（`index.html`、`design-direction.html` 中嵌入的设备框架）宽高必须等于当前项目 `preview.width` × `preview.height` 固定像素；属性与 CSS 一致，禁止用百分比、`max-width`、`height: auto` 或外层 `transform: scale()` 二次压缩。
 - **框架内部页面 iframe** 使用 `logicalViewport` 尺寸；缩放只允许发生在框架 HTML 内部（由 Manifest `preview.scale` 决定），外层不得再缩放。
@@ -132,6 +141,60 @@ prototype/
 - 纵向滚动放在内部内容容器，不由 iframe 文档根节点承担。
 - 产品固定导航使用根容器内部定位，不依赖外部 viewport。
 - 内容图片与 UI 操作图标遵守「图片与图标」专章；二者不互相替代。
+
+## 分阶段交互契约
+
+### 功能一：静态页
+
+- `pages/**/*.html` 与 `previews/**/*.html` 只能改变当前文档内的状态，不得加载、打开或替换成另一个页面。
+- 未来跨页控件只声明 `data-ycet-nav-target="pages/<file>.html"`；该属性不得配套导航监听器、`navigate` 消息或 URL 修改。
+- 禁止跨页 `<a href>`、表单 `action`、Location/History API、`window.open()`、路由器跳转、顶层窗口控制和 `type: "navigate"` 消息。同文档 `#fragment` 不在禁用范围内。
+- `index.html` 卡片的“打开页面html”工具链接用于检查独立交付物，不属于产品交互例外之外的导航能力。
+
+### 功能三：运行时副本
+
+- `index.html` 与既有 `pages/**/*.html` 是只读输入，生成前后必须按原始字节计算 SHA-256 并验证文件集合与摘要完全一致。
+- 跨页逻辑只写入 `runtime-pages/*.html` 与 `prototype*.html`；旧项目如需白名单兼容，只能另写版本专用 `runtime-assets/frames/*.html`。运行时副本可读取静态页中的 `data-ycet-nav-target` 并映射到已登记的 `runtime-pages/` 目标。
+- 不得为省事向 `pages/` 注入脚本、修改 `href`、增加事件属性、格式化文件、重命名或创建新的源页面。
+
+## 跨浏览器无可见滚动条契约
+
+目标是“保留需要的滚动能力，但不显示浏览器原生滚动条”。只写 `overflow: hidden` 或 `::-webkit-scrollbar` 不足以覆盖 Firefox；所有生成 HTML 必须同时包含 Firefox 与 Chromium/WebKit 规则。
+
+页面文档根和所有显式滚动容器使用以下基础规则；需要滚动的容器添加 `data-ycet-scroll`，并自行设置 `overflow: auto` 或 `overflow-y: auto`：
+
+```css
+/* 文档根不承担产品内容滚动，并隐藏各浏览器原生滚动条。 */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* 旧版 Edge / IE 兼容兜底 */
+}
+
+[data-ycet-scroll] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+[data-ycet-scroll]::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+```
+
+分层要求：
+
+- `pages/*`、`previews/*`、`runtime-pages/*` 的 `html/body` 另设 `overflow: hidden`；长内容只放入带 `data-ycet-scroll` 的内部容器。
+- `index.html`、`design-direction.html`、`prototype*.html` 如需整页或阵列滚动，不得用 `overflow: hidden` 阻断滚轮、触控或键盘；只应用上述隐藏样式。
+- 外层框架 iframe 与框架内部页面 iframe 同时设置 `scrolling="no"` 和 `overflow: hidden`。`scrolling="no"` 是兼容兜底，不能替代 CSS。
+- 设备框架自身的 `html/body` 必须同时使用 `overflow: hidden`、`scrollbar-width: none`、`-ms-overflow-style: none` 和 WebKit 滚动条隐藏规则。
+- 不得用裁剪内容、禁用页面内部滚动或缩短画布来达到“无滚动条”。
 
 ## 图片与图标
 
@@ -299,7 +362,7 @@ index.html 阵列外层
 
 | 层级 | 允许 | 禁止 |
 | --- | --- | --- |
-| `index.html` 阵列外层 | 窄屏下整页/阵列横向滚动；页面纵向滚动浏览多卡片 | 用滚动条“挤出”被压小的框架；卡片内再套一层滚动包住框架 |
+| `index.html` 阵列外层 | 窄屏下整页/阵列横向滚动；页面纵向滚动浏览多卡片；按无可见滚动条契约隐藏原生轨道 | 用滚动条“挤出”被压小的框架；卡片内再套一层滚动包住框架；为隐藏滚动条而禁用必要滚动 |
 | 框架 iframe（外层嵌入） | 无原生滚动条；完整显示设备壳与屏幕 | 出现纵向/横向原生滚动条；被父级裁剪、遮挡或二次缩放 |
 | 产品页文档根（`pages/*`） | 根画布固定为 logicalViewport | `html/body` 级滚动或文档级横向溢出 |
 | 产品页内部内容容器 | 长列表/长内容在**内部容器**纵向滚动 | 把滚动交给 iframe 文档根或框架壳 |
@@ -311,7 +374,7 @@ index.html 阵列外层
 1. 读取 `prototype/assets/frames/frame-config.json`（或生成时的 Manifest 选中条目）的 `preview.width` / `preview.height`。
 2. 每个框架 iframe 的 `width`/`height` 属性与 CSS `width`/`height` 均写为上述固定像素，二者一致。
 3. 卡片中承载 iframe 的容器宽度/高度**不得小于** preview；可用 padding 包住卡片标题与链接，但不得让 padding/border 挤占 iframe 的约定显示区域。
-4. 框架 iframe 样式至少包含：`border: 0; display: block; overflow: hidden;`（或等价写法），避免默认 iframe 边框撑出滚动条。
+4. 框架 iframe 必须同时设置 `scrolling="no"`，样式至少包含：`border: 0; display: block; overflow: hidden;`（或等价写法），避免 Firefox 等浏览器显示 iframe 原生滚动条。
 5. **禁止**对框架 iframe 或其直接父级使用：`width: 100%`、`height: 100%`（相对弹性父级）、`max-width` 压缩、`height: auto`、`transform: scale(...)`、`object-fit` 等方式二次适配。
 6. **禁止**用 `overflow: auto|scroll` 的小盒子包住 oversized 框架来“假装适配”；正确做法是保持 preview 像素，并在阵列层减列或横向滚动。
 7. 缩放只发生在框架 HTML 内部（`logicalViewport` → `preview.scale`）；`index.html` 不得再缩放。
@@ -333,6 +396,7 @@ index.html 阵列外层
     title="首页"
     width="414"
     height="868"
+    scrolling="no"
     style="width:414px;height:868px;border:0;display:block;overflow:hidden;"
   ></iframe>
 </section>
@@ -380,7 +444,7 @@ index.html 阵列外层
 - 系统 UI 和产品 UI 无重复。
 - iframe 路径有效，无横向溢出、裁剪或留白。
 - `index.html` / `design-direction.html` 中每个框架 iframe 的宽高等于当前 `preview` 固定像素，未二次缩放。
-- 框架 iframe 无原生滚动条；阵列仅允许外层在窄屏下横向滚动。
+- 框架 iframe 无原生滚动条；阵列仅允许外层在窄屏下横向滚动，且 Chrome、Edge、Firefox 均不显示原生滚动条轨道。
 - 产品页文档根不滚动；长内容仅在页面内部容器滚动。
 - 内容图均在 `assets/images/`，网络图标均在 `assets/icons/`，HTML/CSS 为项目内相对路径。
 - 无灰色占位、图标冒充内容图、占位图服务或未授权远程内容图/图标依赖。

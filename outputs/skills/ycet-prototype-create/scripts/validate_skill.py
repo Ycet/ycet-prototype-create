@@ -36,8 +36,8 @@ def main() -> int:
     if manifest.get("frameProjectRootRelativePath") != "../../":
         fail("Manifest frameProjectRootRelativePath 必须为 ../../", failures)
     allowed_prefixes = manifest.get("allowedScreenPrefixes")
-    if allowed_prefixes != ["pages/", "previews/"]:
-        fail("Manifest allowedScreenPrefixes 必须为 pages/ 与 previews/", failures)
+    if allowed_prefixes != ["pages/", "previews/", "runtime-pages/"]:
+        fail("Manifest allowedScreenPrefixes 必须为 pages/、previews/ 与 runtime-pages/", failures)
 
     frames = manifest.get("frames")
     if not isinstance(frames, list) or not frames:
@@ -75,10 +75,14 @@ def main() -> int:
             "event.source === inner.contentWindow": "内部消息来源校验",
             'const SCREEN_QUERY_PARAMETER = "screen"': "screen 查询参数常量",
             'const FRAME_PROJECT_ROOT_RELATIVE_PATH = "../../"': "项目根相对路径常量",
-            'const ALLOWED_SCREEN_PREFIXES = ["pages/", "previews/"]': "页面路径白名单",
+            'const ALLOWED_SCREEN_PREFIXES = ["pages/", "previews/", "runtime-pages/"]': "页面路径白名单",
             "new URL(FRAME_PROJECT_ROOT_RELATIVE_PATH, location.href)": "项目根解析",
             "normalizeNavigationTarget": "旧导航路径规范化",
             "new URL(screen, PROJECT_ROOT_URL)": "项目根页面解析",
+            "scrollbar-width: none": "Firefox 滚动条隐藏规则",
+            "-ms-overflow-style: none": "旧版 Edge 滚动条隐藏兜底",
+            "::-webkit-scrollbar": "Chromium/WebKit 滚动条隐藏规则",
+            'scrolling="no"': "iframe 滚动条兼容属性",
         }
         for token, label in checks.items():
             if token not in html:
@@ -107,6 +111,17 @@ def main() -> int:
     function_one = (ROOT / "docs" / "function-1-static-prototype.md").read_text(encoding="utf-8")
     if "brainstorming-solo" not in function_one or "superpowers:brainstorming" in function_one:
         fail("功能一未正确切换到 brainstorming-solo", failures)
+    for token in (
+        "### 阶段一强制范围",
+        "不得启动视觉伴侣",
+        "阶段二待处理输入",
+        'data-ycet-nav-target="pages/<file>.html"',
+        "location.href",
+        'type: "navigate"',
+        "prototype_guard.py static",
+    ):
+        if token not in function_one:
+            fail(f"功能一缺少阶段或静态交互强约束: {token}", failures)
     for url in ("https://open-design.ai/zh/plugins/systems/", "https://ui-ux-pro-max-skill.com/zh/#styles"):
         if url not in function_one:
             fail(f"功能一缺少特殊 UI Skill 链接: {url}", failures)
@@ -118,16 +133,37 @@ def main() -> int:
         "allowedScreenPrefixes",
         "navigate.targetPage",
         "禁止依赖 `document.referrer`",
+        "## 分阶段交互契约",
+        "## 跨浏览器无可见滚动条契约",
+        "scrollbar-width: none",
+        "[data-ycet-scroll]",
+        'scrolling="no"',
+        "runtime-pages/",
     ):
         if token not in shared_standards:
             fail(f"共享规范缺少路径契约: {token}", failures)
 
     function_three = (ROOT / "docs" / "function-3-interactive-demo.md").read_text(encoding="utf-8")
-    for token in ('targetPage: "pages/home.html"', "assets/frames/<frameFile>", "规范 pathname"):
+    for token in (
+        'targetPage: "runtime-pages/detail--prototype.html"',
+        "assets/frames/<frameFile>",
+        "规范 pathname",
+        "只读输入保护门禁",
+        "SHA-256",
+        "prototype_guard.py verify",
+        "runtime-pages/<源文件stem>--<Demo文件stem>.html",
+        "runtime-assets/frames/<Demo文件stem>--<frameFile>",
+    ):
         if token not in function_three:
             fail(f"功能三缺少规范路径说明: {token}", failures)
     if "assets/frames/<frame-file>.html" in function_three:
         fail("功能三仍可能对 frameFile 重复追加 .html", failures)
+
+    guard_script = ROOT / "scripts" / "prototype_guard.py"
+    if not guard_script.is_file():
+        fail("缺少静态交互与只读输入保护脚本 prototype_guard.py", failures)
+    if not (ROOT / "scripts" / "test_prototype_guard.py").is_file():
+        fail("缺少 prototype_guard 回归测试", failures)
 
     function_four = (ROOT / "docs" / "function-4-existing-prototype-edit.md").read_text(encoding="utf-8")
     for token in ("CSS `url()` / `@import`", "模块 import", "pages/source-images/"):

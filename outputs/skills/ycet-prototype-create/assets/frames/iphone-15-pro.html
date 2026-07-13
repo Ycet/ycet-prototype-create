@@ -7,6 +7,9 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+    html, body, .inner { scrollbar-width: none; -ms-overflow-style: none; }
+    html::-webkit-scrollbar, body::-webkit-scrollbar, .inner::-webkit-scrollbar { width: 0; height: 0; display: none; }
+    .inner { overflow: hidden; }
     body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
     .device {
       position: relative;
@@ -37,7 +40,7 @@
   <div class="device">
     <span class="rail a" aria-hidden="true"></span><span class="rail b" aria-hidden="true"></span><span class="rail c" aria-hidden="true"></span><span class="rail d" aria-hidden="true"></span>
     <div class="screen">
-      <iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" src="about:blank"></iframe>
+      <iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" scrolling="no" src="about:blank"></iframe>
       <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="status-icons"><svg viewBox="0 0 17 11"><path d="M0 11V8h3v3zm4 0V6h3v5zm4 0V3h3v8zm4 0V0h3v11z"/></svg><svg viewBox="0 0 17 11"><path d="M8.5 1.2c-3 0-5.7 1.1-7.8 3l1.5 1.6a9 9 0 0 1 12.6 0l1.5-1.6a11.2 11.2 0 0 0-7.8-3zm0 4.2c-1.8 0-3.5.7-4.8 1.9l1.5 1.5a4.8 4.8 0 0 1 6.6 0l1.5-1.5a7 7 0 0 0-4.8-1.9z"/></svg><svg class="battery" viewBox="0 0 25 11"><rect x=".5" y=".5" width="21" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="18" height="7" rx="1.4"/><rect x="22" y="3.5" width="1.5" height="4" rx=".4"/></svg></span></div>
       <span class="island" aria-hidden="true"></span>
       <div class="home-indicator" aria-hidden="true"></div>
@@ -50,7 +53,7 @@
       const VERSION = 1;
       const SCREEN_QUERY_PARAMETER = "screen";
       const FRAME_PROJECT_ROOT_RELATIVE_PATH = "../../";
-      const ALLOWED_SCREEN_PREFIXES = ["pages/", "previews/"];
+      const ALLOWED_SCREEN_PREFIXES = ["pages/", "previews/", "runtime-pages/"];
       const PROJECT_ROOT_URL = new URL(FRAME_PROJECT_ROOT_RELATIVE_PATH, location.href);
       const inner = document.getElementById("screen");
       let currentScreen = "about:blank";
@@ -71,7 +74,7 @@
         catch (_error) { throw new Error("页面路径编码无效"); }
         const segments = decodedPath.split("/");
         if (/[\u0000-\u001F\u007F]/.test(decodedPath) || segments.some((segment) => !segment || segment === "." || segment === "..")) throw new Error("页面路径包含非法片段");
-        if (!ALLOWED_SCREEN_PREFIXES.some((prefix) => decodedPath.startsWith(prefix)) || !decodedPath.toLowerCase().endsWith(".html")) throw new Error("页面路径只能指向 pages/ 或 previews/ 下的 HTML");
+        if (!ALLOWED_SCREEN_PREFIXES.some((prefix) => decodedPath.startsWith(prefix)) || !decodedPath.toLowerCase().endsWith(".html")) throw new Error("页面路径只能指向 pages/、previews/ 或 runtime-pages/ 下的 HTML");
         return encodedPath + resolved.search + resolved.hash;
       }
       function normalizeScreen(value) { return value === "about:blank" ? value : normalizeProjectPath(value, false); }

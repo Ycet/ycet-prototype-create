@@ -5,7 +5,8 @@
   "frameProjectRootRelativePath": "../../",
   "allowedScreenPrefixes": [
     "pages/",
-    "previews/"
+    "previews/",
+    "runtime-pages/"
   ],
   "messageProtocol": {
     "channel": "ycet-prototype",
