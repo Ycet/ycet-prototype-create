@@ -45,6 +45,7 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 14. 功能一生成的 `pages/**/*.html` 与 `previews/**/*.html` 只允许页面内交互，禁止任何跨页面或离开当前文档的导航实现；跨页控件只保留 `data-ycet-nav-target` 意图元数据，实际导航只在功能三的运行时副本中实现。
 15. 所有生成 HTML 必须遵守共享规范的跨浏览器无可见滚动条契约；不能只依赖 Chromium 的滚动条表现。
 16. 功能三将 `prototype/index.html` 与既有 `prototype/pages/**/*.html` 视为只读输入；跨页逻辑写入 `prototype/runtime-pages/`，并在生成前后用 SHA-256 校验受保护输入未变化。
+17. 功能四每次启动时，必须在读取或审计用户原型前询问并获得用户对当前产品端口的明确回复；禁止根据页面内容、尺寸、文件名、现有框架或配置自行判断。用户回复前不得继续，回复后按功能一相同的 Manifest 端口映射选择设备框架。
 
 ## 框架资产
 

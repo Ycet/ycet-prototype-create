@@ -107,6 +107,9 @@ def main() -> int:
         keys = re.findall(r"^([A-Za-z0-9_-]+):", frontmatter.group(1), re.MULTILINE)
         if keys != ["name", "description"]:
             fail(f"SKILL.md frontmatter 只能包含 name 和 description，当前为 {keys}", failures)
+    for token in ("功能四每次启动时", "用户回复前不得继续", "按功能一相同的 Manifest 端口映射"):
+        if token not in skill_md:
+            fail(f"SKILL.md 缺少功能四产品端口前置门禁: {token}", failures)
 
     function_one = (ROOT / "docs" / "function-1-static-prototype.md").read_text(encoding="utf-8")
     if "brainstorming-solo" not in function_one or "superpowers:brainstorming" in function_one:
@@ -166,9 +169,25 @@ def main() -> int:
         fail("缺少 prototype_guard 回归测试", failures)
 
     function_four = (ROOT / "docs" / "function-4-existing-prototype-edit.md").read_text(encoding="utf-8")
-    for token in ("CSS `url()` / `@import`", "模块 import", "pages/source-images/"):
+    for token in (
+        "## 产品端口确认门禁",
+        "当前产品原型是什么产品端口",
+        "即使用户的初始描述",
+        "不得开始读取或审计用户原型",
+        "与功能一完全一致",
+        "使用默认宿主",
+        "| iOS、iPhone | `iphone-15-pro` |",
+        "| Android | `android-pixel` |",
+        "| iPad | `ipad-pro` |",
+        "| 网页、网站 | `browser-chrome` |",
+        "| 桌面端应用、Windows、macOS | `macbook` |",
+        "| 微信小程序 | 默认 `iphone-15-pro`；用户明确指定 Android 宿主时使用 `android-pixel` |",
+        "CSS `url()` / `@import`",
+        "模块 import",
+        "pages/source-images/",
+    ):
         if token not in function_four:
-            fail(f"功能四缺少迁移路径规则: {token}", failures)
+            fail(f"功能四缺少端口确认门禁或迁移路径规则: {token}", failures)
 
     evals_path = ROOT / "evals" / "evals.json"
     try:
