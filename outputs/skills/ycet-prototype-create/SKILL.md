@@ -44,12 +44,13 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 11. 不自动安装 Skill、打开外部网页、发布、部署或执行 Git 提交。
 12. 内容图与网络获取的 UI 图标须按 `docs/shared-prototype-standards.md`「图片与图标」本地化到 `prototype/assets/images/` 与 `prototype/assets/icons/`；禁止灰占位或图标冒充内容图。
 13. 功能一阶段一只完善产品需求，禁止询问或确定 UI 设计风格；视觉方向、UI Skill、色彩、字体和视觉参考只在阶段二处理。
-14. 功能一生成的 `pages/**/*.html` 与 `previews/**/*.html` 只允许页面内交互，禁止任何跨页面或离开当前文档的导航实现；跨页控件只保留 `data-ycet-nav-target` 意图元数据，实际导航只在功能三的运行时副本中实现。
-15. 所有生成 HTML 必须遵守共享规范的跨浏览器无可见滚动条契约；不能只依赖 Chromium 的滚动条表现。
-16. 功能三将 `prototype/index.html` 与既有 `prototype/pages/**/*.html` 视为只读输入；跨页逻辑写入 `prototype/runtime-pages/`，并在生成前后用 SHA-256 校验受保护输入未变化。
-17. 功能四每次启动时，必须在读取或审计用户原型前询问并获得用户对当前产品端口的明确回复；禁止根据页面内容、尺寸、文件名、现有框架或配置自行判断。用户回复前不得继续，回复后按功能一相同的 Manifest 端口映射选择设备框架。
-18. 功能四编辑非本 Skill 生成的 HTML 时，必须解析入口 HTML 及关联 HTML/CSS/JS/资源，直接生成 `prototype/docs/Spec.md`；不得调用 `brainstorming-solo` 或 `grill-me`。Spec 确认后复用功能一阶段二、阶段三；静态高保真原型完成后必须停止，只有再次获得用户明确确认才进入功能三。
-19. 功能四接管 PNG/JPG 等整页图片时，必须先生成仅以原图为视觉内容的 `pages/**/*.html` 承载页和 `index.html`；禁止将图片解构、OCR 还原或重绘为页面元素。生成 `prototype.html` 前必须在静态产物完成后再次获得用户确认。
+14. 功能一的结构化 PRD 调用 `grill-me` 时，只可追问产品交互逻辑、各页面元素、业务规则、边界条件和异常处理场景，且只问文档中缺失、矛盾或含糊的内容；不得重新打开已给定的产品背景、定位、目标用户、使用场景、页面清单或功能目标。仅当产品端口或微信小程序宿主缺失并阻塞框架选择时，主流程可单独直接询问一次，该问题不交给 `grill-me`。
+15. 功能一生成的 `pages/**/*.html` 与 `previews/**/*.html` 只允许页面内交互，禁止任何跨页面或离开当前文档的导航实现；跨页控件只保留 `data-ycet-nav-target` 意图元数据，实际导航只在功能三的运行时副本中实现。
+16. 所有生成 HTML 必须遵守共享规范的跨浏览器无可见滚动条契约；不能只依赖 Chromium 的滚动条表现。
+17. 功能三将 `prototype/index.html` 与既有 `prototype/pages/**/*.html` 视为只读输入；跨页逻辑写入 `prototype/runtime-pages/`，并在生成前后用 SHA-256 校验受保护输入未变化。
+18. 功能四每次启动时，必须在读取或审计用户原型前询问并获得用户对当前产品端口的明确回复；禁止根据页面内容、尺寸、文件名、现有框架或配置自行判断。用户回复前不得继续，回复后按功能一相同的 Manifest 端口映射选择设备框架。
+19. 功能四编辑非本 Skill 生成的 HTML 时，必须解析入口 HTML 及关联 HTML/CSS/JS/资源，直接生成 `prototype/docs/Spec.md`；不得调用 `brainstorming-solo` 或 `grill-me`。Spec 确认后复用功能一阶段二、阶段三；静态高保真原型完成后必须停止，只有再次获得用户明确确认才进入功能三。
+20. 功能四接管 PNG/JPG 等整页图片时，默认必须先生成仅以完整原图为视觉内容的 `pages/**/*.html` 承载页和 `index.html`；只有用户明确提出固定区域并确认边界时，才可将原图无损位图分割为固定区与可滚动区，禁止将图片解构、OCR 还原或重绘为页面元素。生成 `prototype.html` 前必须在静态产物完成后再次获得用户确认。
 
 ## 框架资产
 

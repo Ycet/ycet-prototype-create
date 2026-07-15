@@ -130,6 +130,14 @@ def main() -> int:
     ):
         if token not in skill_md:
             fail(f"SKILL.md 缺少功能四前置、静态或交互门禁: {token}", failures)
+    for token in (
+        "功能一的结构化 PRD 调用 `grill-me` 时",
+        "只可追问产品交互逻辑、各页面元素、业务规则、边界条件和异常处理场景",
+        "主流程可单独直接询问一次",
+        "无损位图分割为固定区与可滚动区",
+    ):
+        if token not in skill_md:
+            fail(f"SKILL.md 缺少结构化 PRD 或图片固定区域强约束: {token}", failures)
     require_order(
         skill_md,
         (
@@ -151,9 +159,23 @@ def main() -> int:
         "location.href",
         'type: "navigate"',
         "prototype_guard.py static",
+        "### 结构化 PRD 的 `grill-me` 专用边界",
+        "仅提问或追问产品交互逻辑、各页面元素、业务规则、边界条件和异常处理场景",
+        "不得重新询问产品背景、定位、目标用户、使用场景、既有页面清单、页面名称或已确认功能目标",
+        "不能交给 `grill-me` 扩展为其他问题",
     ):
         if token not in function_one:
             fail(f"功能一缺少阶段或静态交互强约束: {token}", failures)
+    require_order(
+        function_one,
+        (
+            "### 结构化 PRD 的 `grill-me` 专用边界",
+            "### 需求审计与提问",
+            "### Spec 生成门槛",
+        ),
+        "功能一结构化 PRD 复核与 Spec 门禁",
+        failures,
+    )
     for url in ("https://open-design.ai/zh/plugins/systems/", "https://ui-ux-pro-max-skill.com/zh/#styles"):
         if url not in function_one:
             fail(f"功能一缺少特殊 UI Skill 链接: {url}", failures)
@@ -173,7 +195,8 @@ def main() -> int:
         "runtime-pages/",
         "### 功能四整页图片承载页",
         "### 功能四：静态重构与功能三交接",
-        "禁止 OCR、切片、元素识别",
+        "除用户确认的固定区域位图分割外，禁止 OCR、元素识别",
+        "固定区域承载页只能由根容器、固定顶部/底部 `<img>`、唯一的 `data-ycet-scroll`",
         "确认前不得生成 `runtime-pages/` 或 `prototype*.html`",
     ):
         if token not in shared_standards:
@@ -217,10 +240,13 @@ def main() -> int:
         "任务开始时提出“增加交互”",
         "只有用户明确确认生成可交互原型后",
         "## 图片原型静态承载与交互门禁",
-        "绝对不得将图片 OCR、切片、解构、识别或重绘",
+        "### 固定区域位图分割（仅在用户明确需求时）",
+        "只有用户明确要求“顶部区域固定”“底部区域固定”或等效的固定区域效果时",
+        "仅按用户确认的水平边界无损生成位图片段",
+        "不得 OCR、元素识别、语义切分、逐元素导出",
         "必须先完成这两类静态文件",
         "单独询问是否确认生成 `prototype.html`",
-        "运行时副本必须继续以完整原图为视觉基底",
+        "运行时副本必须继续以完整原图或已确认片段组合为视觉基底",
         "SHA-256 未变化",
         "| iOS、iPhone | `iphone-15-pro` |",
         "| Android | `android-pixel` |",
@@ -251,6 +277,20 @@ def main() -> int:
         failures,
     )
     image_section = function_four.split("## 图片原型静态承载与交互门禁", 1)[-1].split("## 迁移规则", 1)[0]
+    fixed_image_section = image_section.split("### 固定区域位图分割（仅在用户明确需求时）", 1)[-1].split(
+        "### 图片处理流程", 1
+    )[0]
+    require_order(
+        fixed_image_section,
+        (
+            "先向用户确认每张图片的固定区域",
+            "保留未修改的完整原图",
+            "承载页的根容器按 `frame-config.json.logicalViewport` 建立局部坐标",
+            "验收时核对完整原图仍保留",
+        ),
+        "功能四图片固定区域确认、位图分割与验收",
+        failures,
+    )
     require_order(
         image_section,
         (
