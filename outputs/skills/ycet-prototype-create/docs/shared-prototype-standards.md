@@ -15,8 +15,6 @@ prototype/
   pages/
     home.html
     ...
-    source-images/
-      imported-screen.png
   runtime-pages/
     home--prototype.html
     ...
@@ -30,6 +28,7 @@ prototype/
     images/
       images-manifest.json
       <content-images>
+      imported-screen.png
     icons/
       <icon-files-or-icon-libraries>
   docs/
@@ -146,11 +145,18 @@ prototype/
 
 ### 功能四整页图片承载页
 
-- `pages/source-images/` 保存 PNG/JPG/JPEG/WebP 等原始整页图片，不作为 `screen` 直接目标；每张图片必须一一对应一个 `pages/**/*.html` 承载页。
+- `assets/images/` 保存 PNG/JPG/JPEG/WebP 等用户提供的原始整页图片及其已确认固定区域位图片段；每张图片必须一一对应一个 `pages/**/*.html` 承载页。新项目不得创建或引用 `pages/source-images/`。
 - 默认承载页只使用必要根容器、带 `data-ycet-scroll` 的适配容器和 `<img>` 显示完整原图。用户明确要求固定顶部/底部区域并确认原图边界时，允许从同一原图无损生成固定区和滚动区位图片段；除用户确认的固定区域位图分割外，禁止 OCR、元素识别或用 DOM/CSS 重绘图片中的标题、按钮、卡片、列表和导航。
 - 承载页不绘制或嵌入设备外壳；由 `index.html` 的 Manifest 框架 iframe 通过 `?screen=pages/<file>.html` 加载，使图片显示在设备屏幕区域。
 - 图片保持原始宽高比，不拉伸；默认按逻辑画布宽度适配且不裁剪，超出可视高度时仅由内部 `data-ycet-scroll` 容器纵向滚动。固定区域例外只能按用户确认的水平边界无损裁出位图片段，完整原图必须保留。
 - 固定区域承载页只能由根容器、固定顶部/底部 `<img>`、唯一的 `data-ycet-scroll` 中间 `<img>` 和必要无障碍属性组成。固定区使用逻辑画布局部定位，滚动区位于其间；所有片段按同一比例显示，禁止 `position: fixed`、CSS 裁剪、补绘系统 UI 或把图片内容转换为元素。
+- 图片承载页的 `<body>` 使用 `data-ycet-image-prototype="true"`。静态页和运行时副本都按所在文件位置引用同一 `assets/images/` 资源：根级 `pages/*.html` 与 `runtime-pages/*.html` 均写 `../assets/images/<file>`；嵌套页面保持等价相对路径，禁止运行时临时改为 `../pages/source-images/...`。
+
+### 功能四图片运行时热区
+
+- 热区只允许生成在用户确认后的 `runtime-pages/` 副本中，使用带 `data-ycet-nav-target` 和 `aria-label` 的 `<button class="ycet-image-hotspot ...">`；静态图片承载页不得包含该按钮或导航脚本。
+- 热区默认透明，不得用遮罩或实色边框改变原图视觉；`hover` 和 `focus-visible` 必须显示半透明虚线轮廓。使用 `outline: 1px dashed transparent` 作为默认状态，并在 `.ycet-image-hotspot:hover, .ycet-image-hotspot:focus-visible` 中设定半透明 `outline-color`；热区须 `pointer-events: auto`、高于对应位图。
+- 热区必须位于与目标图片相同的局部定位容器：滚动图片的热区跟随 `data-ycet-scroll` 滚动，固定片段的热区留在对应固定容器。未覆盖区域仍须可滚动。
 
 ## 分阶段交互契约
 
@@ -172,7 +178,7 @@ prototype/
 - 非本 Skill HTML 必须先从入口及关联 HTML/CSS/JS/资源直接生成 `prototype/docs/Spec.md`，不得调用 `brainstorming-solo` 或 `grill-me`；Spec 确认后复用功能一阶段二、阶段三。
 - HTML 静态高保真原型完成后必须停止。任务开始时的交互要求不能替代静态完成后的再次确认；确认前不得生成 `runtime-pages/` 或 `prototype*.html`。
 - 整页图片必须先生成默认只显示完整原图、或按用户确认固定区域承载的 `pages/**/*.html` 与 `index.html`。确认生成 Demo 前，禁止生成 `prototype.html`、运行时副本或交互热点；固定区域边界不明确时不得生成静态页。
-- 图片 Demo 的 `runtime-pages/` 可叠加已确认的透明交互热点，但必须继续以完整原图或其已确认位图片段组合作为视觉基底，不得将图片替换为元素化 DOM。
+- 图片 Demo 的 `runtime-pages/` 可叠加已确认的透明交互热点；热点默认透明、悬停或聚焦时显示半透明虚线轮廓。Demo 必须继续以完整原图或其已确认位图片段组合作为视觉基底，不得将图片替换为元素化 DOM。
 
 ## 跨浏览器无可见滚动条契约
 
@@ -333,7 +339,7 @@ manifest 用于溯源与审计，非运行时强依赖；页面不得只靠 mani
 <link rel="stylesheet" href="../assets/icons/fontawesome/css/all.min.css" />
 ```
 
-- `pages/*.html`、`previews/*.html` 使用 `../assets/images/` 与 `../assets/icons/`。
+- `pages/*.html`、`previews/*.html` 与同深度的 `runtime-pages/*.html` 使用 `../assets/images/` 与 `../assets/icons/`；嵌套页面按自身目录深度计算等价相对路径。
 - 根目录 HTML（如 `design-direction.html`、`index.html`）使用 `assets/images/` 与 `assets/icons/`。
 - 禁止本 Skill 安装目录绝对路径与 `file:///` 绝对本地路径。
 - CSS `background-image` 中的内容图同样必须本地相对路径。

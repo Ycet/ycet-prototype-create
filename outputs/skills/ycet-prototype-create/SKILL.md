@@ -50,7 +50,7 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 17. 功能三将 `prototype/index.html` 与既有 `prototype/pages/**/*.html` 视为只读输入；跨页逻辑写入 `prototype/runtime-pages/`，并在生成前后用 SHA-256 校验受保护输入未变化。
 18. 功能四每次启动时，必须在读取或审计用户原型前询问并获得用户对当前产品端口的明确回复；禁止根据页面内容、尺寸、文件名、现有框架或配置自行判断。用户回复前不得继续，回复后按功能一相同的 Manifest 端口映射选择设备框架。
 19. 功能四编辑非本 Skill 生成的 HTML 时，必须解析入口 HTML 及关联 HTML/CSS/JS/资源，直接生成 `prototype/docs/Spec.md`；不得调用 `brainstorming-solo` 或 `grill-me`。Spec 确认后复用功能一阶段二、阶段三；静态高保真原型完成后必须停止，只有再次获得用户明确确认才进入功能三。
-20. 功能四接管 PNG/JPG 等整页图片时，默认必须先生成仅以完整原图为视觉内容的 `pages/**/*.html` 承载页和 `index.html`；只有用户明确提出固定区域并确认边界时，才可将原图无损位图分割为固定区与可滚动区，禁止将图片解构、OCR 还原或重绘为页面元素。生成 `prototype.html` 前必须在静态产物完成后再次获得用户确认。
+20. 功能四接管 PNG/JPG 等整页图片时，必须将用户原图及确认后的固定区位图片段保存到 `prototype/assets/images/`，静态 `pages/**/*.html` 与功能三 `runtime-pages/**/*.html` 均从该目录使用同层级相对路径引用；不得继续把图片放在或引用为 `pages/source-images/`。默认先生成仅以完整原图为视觉内容的承载页和 `index.html`；只有用户明确提出固定区域并确认边界时，才可将原图无损位图分割为固定区与可滚动区，禁止将图片解构、OCR 还原或重绘为页面元素。图片运行时热区只写入副本，默认透明，鼠标悬停或键盘聚焦时必须显示半透明虚线轮廓。生成 `prototype.html` 前必须在静态产物完成后再次获得用户确认。
 
 ## 框架资产
 

@@ -135,6 +135,8 @@ def main() -> int:
         "只可追问产品交互逻辑、各页面元素、业务规则、边界条件和异常处理场景",
         "主流程可单独直接询问一次",
         "无损位图分割为固定区与可滚动区",
+        "静态 `pages/**/*.html` 与功能三 `runtime-pages/**/*.html` 均从该目录",
+        "鼠标悬停或键盘聚焦时必须显示半透明虚线轮廓",
     ):
         if token not in skill_md:
             fail(f"SKILL.md 缺少结构化 PRD 或图片固定区域强约束: {token}", failures)
@@ -197,6 +199,9 @@ def main() -> int:
         "### 功能四：静态重构与功能三交接",
         "除用户确认的固定区域位图分割外，禁止 OCR、元素识别",
         "固定区域承载页只能由根容器、固定顶部/底部 `<img>`、唯一的 `data-ycet-scroll`",
+        "新项目不得创建或引用 `pages/source-images/`",
+        '`data-ycet-image-prototype="true"`',
+        "`hover` 和 `focus-visible` 必须显示半透明虚线轮廓",
         "确认前不得生成 `runtime-pages/` 或 `prototype*.html`",
     ):
         if token not in shared_standards:
@@ -212,6 +217,8 @@ def main() -> int:
         "prototype_guard.py verify",
         "runtime-pages/<源文件stem>--<Demo文件stem>.html",
         "runtime-assets/frames/<Demo文件stem>--<frameFile>",
+        '`data-ycet-image-prototype="true"` 标记',
+        "prototype_guard.py image",
     ):
         if token not in function_three:
             fail(f"功能三缺少规范路径说明: {token}", failures)
@@ -223,6 +230,9 @@ def main() -> int:
         fail("缺少静态交互与只读输入保护脚本 prototype_guard.py", failures)
     if not (ROOT / "scripts" / "test_prototype_guard.py").is_file():
         fail("缺少 prototype_guard 回归测试", failures)
+    for token in ("def command_image", "ycet-image-hotspot", "--require-runtime"):
+        if token not in guard_script.read_text(encoding="utf-8"):
+            fail(f"图片原型守卫缺少资源或热区校验: {token}", failures)
 
     function_four = (ROOT / "docs" / "function-4-existing-prototype-edit.md").read_text(encoding="utf-8")
     for token in (
@@ -241,9 +251,16 @@ def main() -> int:
         "只有用户明确确认生成可交互原型后",
         "## 图片原型静态承载与交互门禁",
         "### 固定区域位图分割（仅在用户明确需求时）",
+        "### 图片运行时热区",
         "只有用户明确要求“顶部区域固定”“底部区域固定”或等效的固定区域效果时",
-        "仅按用户确认的水平边界无损生成位图片段",
+        "保留未修改的完整原图，并仅按用户确认的水平边界在",
         "不得 OCR、元素识别、语义切分、逐元素导出",
+        "`prototype/assets/images/`",
+        '`data-ycet-image-prototype="true"`',
+        "ycet-image-hotspot",
+        "outline: 1px dashed transparent",
+        "outline-color: rgba(37, 99, 235, 0.72)",
+        "新项目不得创建或引用 `pages/source-images/`",
         "必须先完成这两类静态文件",
         "单独询问是否确认生成 `prototype.html`",
         "运行时副本必须继续以完整原图或已确认片段组合为视觉基底",
@@ -256,7 +273,7 @@ def main() -> int:
         "| 微信小程序 | 默认 `iphone-15-pro`；用户明确指定 Android 宿主时使用 `android-pixel` |",
         "CSS `url()` / `@import`",
         "模块 import",
-        "pages/source-images/",
+        "scripts/prototype_guard.py image --prototype-dir <prototype目录> --require-runtime",
     ):
         if token not in function_four:
             fail(f"功能四缺少端口确认门禁或迁移路径规则: {token}", failures)
@@ -294,7 +311,8 @@ def main() -> int:
     require_order(
         image_section,
         (
-            "为每张图片生成对应的原图承载型 `pages/**/*.html`",
+            "将原始整页图片保存到 `prototype/assets/images/`",
+            "为每张图片生成带 `data-ycet-image-prototype=\"true\"` 的原图承载型",
             "静态文件完成后停止任务",
             "用户明确确认后才读取并执行功能三",
         ),

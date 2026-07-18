@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""校验功能一静态交互边界，并保护功能三的只读输入。"""
+"""校验静态交互边界、功能三只读输入和图片原型运行时契约。"""
 
 from __future__ import annotations
 
@@ -103,6 +103,36 @@ class StaticPageParser(HTMLParser):
                 self.violations.append(f"第 {line} 行：{source} 包含主动跨页实现（{label}）")
 
 
+class ImageCarrierParser(HTMLParser):
+    """提取功能四图片承载页的资源与跨页热区，不改写页面。"""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.is_image_prototype = False
+        self.images: list[tuple[int, str]] = []
+        self.nav_hotspots: list[tuple[int, set[str]]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._handle_tag(tag, attrs)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._handle_tag(tag, attrs)
+
+    def _handle_tag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        line, _column = self.getpos()
+        values = {name.lower(): value for name, value in attrs}
+        if (values.get("data-ycet-image-prototype") or "").strip().lower() == "true":
+            self.is_image_prototype = True
+
+        if tag.lower() == "img":
+            source = (values.get("src") or "").strip()
+            self.images.append((line, source))
+
+        if "data-ycet-nav-target" in values:
+            classes = set((values.get("class") or "").split())
+            self.nav_hotspots.append((line, classes))
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -188,6 +218,22 @@ def resolve_local_script(page_path: Path, prototype_dir: Path, source: str) -> P
     return candidate
 
 
+def resolve_local_asset(page_path: Path, prototype_dir: Path, source: str) -> Path | None:
+    """解析页面中的本地资源，并拒绝跳出原型目录的路径。"""
+    parts = urlsplit(source)
+    if parts.scheme or parts.netloc or source.startswith("/"):
+        return None
+    decoded = unquote(parts.path).replace("\\", "/")
+    if not decoded:
+        return None
+    candidate = (page_path.parent / decoded).resolve()
+    try:
+        candidate.relative_to(prototype_dir.resolve())
+    except ValueError:
+        return None
+    return candidate
+
+
 def audit_static_page(page_path: Path, prototype_dir: Path, known_pages: set[str]) -> list[str]:
     parser = StaticPageParser()
     parser.feed(page_path.read_text(encoding="utf-8"))
@@ -242,6 +288,105 @@ def command_static(prototype_dir: Path) -> int:
     return 0
 
 
+def is_within(path: Path, directory: Path) -> bool:
+    try:
+        path.relative_to(directory.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def audit_image_carrier(page_path: Path, prototype_dir: Path, require_runtime: bool) -> tuple[bool, list[str]]:
+    """检查图片承载页资源路径和运行时热区的可见性契约。"""
+    text = page_path.read_text(encoding="utf-8")
+    parser = ImageCarrierParser()
+    parser.feed(text)
+    if not parser.is_image_prototype:
+        return False, []
+
+    relative = page_path.relative_to(prototype_dir).as_posix()
+    failures: list[str] = []
+    images_dir = prototype_dir / "assets" / "images"
+    if "source-images/" in text:
+        failures.append(f"{relative}：图片承载页不得引用 pages/source-images/")
+    if not parser.images:
+        failures.append(f"{relative}：图片承载页缺少 <img>")
+
+    for line, source in parser.images:
+        resolved = resolve_local_asset(page_path, prototype_dir, source)
+        if resolved is None:
+            failures.append(f"{relative} 第 {line} 行：图片 src 不是安全的项目内相对路径（{source!r}）")
+        elif not is_within(resolved, images_dir):
+            failures.append(f"{relative} 第 {line} 行：图片 src 必须解析到 assets/images/（{source!r}）")
+        elif not resolved.is_file():
+            failures.append(f"{relative} 第 {line} 行：图片资源不存在（{source!r}）")
+
+    if not require_runtime and parser.nav_hotspots:
+        for line, _classes in parser.nav_hotspots:
+            failures.append(f"{relative} 第 {line} 行：静态图片承载页不得包含跨页热区")
+
+    if require_runtime and parser.nav_hotspots:
+        for line, classes in parser.nav_hotspots:
+            if "ycet-image-hotspot" not in classes:
+                failures.append(f"{relative} 第 {line} 行：图片跨页热区必须使用 ycet-image-hotspot 类")
+
+        default_style = re.compile(
+            r"\.ycet-image-hotspot\s*\{(?=[^}]*outline\s*:\s*1px\s+dashed\s+transparent\s*)(?=[^}]*background\s*:\s*transparent\s*;)(?=[^}]*pointer-events\s*:\s*auto\s*;)[^}]*\}",
+            re.DOTALL,
+        )
+        hover_style = re.compile(
+            r"\.ycet-image-hotspot:hover\s*,\s*\.ycet-image-hotspot:focus-visible\s*\{[^}]*outline-color\s*:\s*rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0?\.\d+\s*\)\s*;",
+            re.DOTALL,
+        )
+        if not default_style.search(text):
+            failures.append(f"{relative}：图片热区缺少默认透明虚线轮廓、透明背景或 pointer-events: auto")
+        if not hover_style.search(text):
+            failures.append(f"{relative}：图片热区缺少 hover/focus-visible 半透明虚线轮廓")
+
+    return True, failures
+
+
+def command_image(prototype_dir: Path, require_runtime: bool) -> int:
+    pages_dir = prototype_dir / "pages"
+    if not pages_dir.is_dir():
+        print(f"[FAIL] 静态页面目录不存在：{pages_dir}")
+        return 1
+
+    static_paths = sorted(path for path in pages_dir.rglob("*.html") if path.is_file())
+    static_carriers = 0
+    failures: list[str] = []
+    for path in static_paths:
+        is_carrier, issues = audit_image_carrier(path, prototype_dir, require_runtime=False)
+        if is_carrier:
+            static_carriers += 1
+            failures.extend(issues)
+
+    if not static_carriers:
+        failures.append("未找到带 data-ycet-image-prototype=\"true\" 的图片静态承载页")
+
+    runtime_carriers = 0
+    if require_runtime:
+        runtime_dir = prototype_dir / "runtime-pages"
+        if not runtime_dir.is_dir():
+            failures.append(f"运行时页面目录不存在：{runtime_dir}")
+        else:
+            for path in sorted(path for path in runtime_dir.rglob("*.html") if path.is_file()):
+                is_carrier, issues = audit_image_carrier(path, prototype_dir, require_runtime=True)
+                if is_carrier:
+                    runtime_carriers += 1
+                    failures.extend(issues)
+            if not runtime_carriers:
+                failures.append("未找到带 data-ycet-image-prototype=\"true\" 的图片运行时副本")
+
+    if failures:
+        for failure in failures:
+            print(f"[FAIL] {failure}")
+        return 1
+
+    print(f"[OK] 图片原型资源与热区通过：{static_carriers} 个静态页，{runtime_carriers} 个运行时页。")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -257,6 +402,10 @@ def main() -> int:
     verify_parser.add_argument("--prototype-dir", required=True, type=Path)
     verify_parser.add_argument("--snapshot", required=True, type=Path)
 
+    image_parser = subparsers.add_parser("image", help="检查功能四图片资源路径与运行时热区")
+    image_parser.add_argument("--prototype-dir", required=True, type=Path)
+    image_parser.add_argument("--require-runtime", action="store_true", help="要求校验图片运行时副本与热区反馈")
+
     args = parser.parse_args()
     prototype_dir = args.prototype_dir.resolve()
     try:
@@ -264,6 +413,8 @@ def main() -> int:
             return command_static(prototype_dir)
         if args.command == "snapshot":
             return command_snapshot(prototype_dir, args.output.resolve())
+        if args.command == "image":
+            return command_image(prototype_dir, args.require_runtime)
         return command_verify(prototype_dir, args.snapshot.resolve())
     except (OSError, UnicodeError, ValueError) as exc:
         print(f"[FAIL] {exc}")

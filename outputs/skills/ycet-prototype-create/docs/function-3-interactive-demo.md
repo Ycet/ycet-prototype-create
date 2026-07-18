@@ -97,7 +97,7 @@ python <skill目录>/scripts/prototype_guard.py verify --prototype-dir <prototyp
 ### 运行时页面
 
 1. 每个静态页生成一个同层级副本，命名为 `runtime-pages/<源文件stem>--<Demo文件stem>.html`。例如 `pages/home.html` 对应 `runtime-pages/home--prototype.html`，`prototype-v2.html` 对应 `runtime-pages/home--prototype-v2.html`。
-2. 运行时副本与 `pages/` 保持相同目录深度，继续使用 `../assets/...`，不得复制或改写共享图片、图标和样式资产。
+2. 运行时副本与 `pages/` 保持相同目录深度，继续使用 `../assets/...`，不得复制或改写共享图片、图标和样式资产。功能四图片承载页必须保留 `data-ycet-image-prototype="true"` 标记，静态页与运行时页中的原图、固定区和滚动区均从 `assets/images/` 以同层级相对路径引用；根级页面的规范写法均为 `../assets/images/<file>`，不得改写为 `pages/source-images/` 或依赖运行时页面位置猜测路径。
 3. 页面内交互原样保留；只在副本中增加已确认的跨页监听器。
 4. 优先读取 `data-ycet-nav-target="pages/detail.html"`。若接管的旧静态页没有该属性，可按已确认流程在副本中绑定目标，但不得回写源页。
 5. 本次 Demo 的所有运行时副本都使用同一 Demo stem，禁止覆盖其他 Demo 版本的副本。
@@ -178,4 +178,5 @@ python <skill目录>/scripts/prototype_guard.py verify --prototype-dir <prototyp
 - Chrome、Edge 与 Firefox 中无可见浏览器原生滚动条，必要滚动能力仍可用。
 - 本地 HTML、静态服务器和目录迁移后均可使用。
 - 生成前后 `index.html`、`pages/**/*.html` 的文件集合与 SHA-256 完全一致。
+- 若本次包含功能四图片承载页，静态与运行时页面中的图片均可从 `assets/images/` 本地加载；每个跨页图片热区默认透明，鼠标悬停或键盘聚焦时显示半透明虚线轮廓，并通过 `scripts/prototype_guard.py image --prototype-dir <prototype目录> --require-runtime` 校验通过。
 - EditLog 已记录 Demo、运行时副本和使用的框架 ID/兼容模式，未声称修改静态页。
