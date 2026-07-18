@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
+import os
 import re
 import sys
 from html.parser import HTMLParser
@@ -14,6 +16,11 @@ from urllib.parse import unquote, urlsplit
 
 
 SNAPSHOT_SCHEMA_VERSION = 1
+MOBILE_FILE_PATTERN = re.compile(r"prototype-mobile(?:-v(?P<version>\d+))?\.html")
+MOBILE_REGISTRY_PATTERN = re.compile(
+    r'<script id="ycet-mobile-pages" type="application/json">(.*?)</script>',
+    re.DOTALL,
+)
 SAFE_NAV_TARGET = re.compile(r"^pages/[a-z0-9]+(?:-[a-z0-9]+)*\.html$")
 SCRIPT_NAVIGATION_PATTERNS = (
     (re.compile(r"\b(?:(?:window|document)\s*\.\s*)?location\s*\.\s*href\b"), "location.href"),
@@ -387,6 +394,143 @@ def command_image(prototype_dir: Path, require_runtime: bool) -> int:
     return 0
 
 
+def latest_mobile_file(prototype_dir: Path) -> Path:
+    candidates: list[tuple[int, Path]] = []
+    for path in prototype_dir.iterdir():
+        if not path.is_file():
+            continue
+        match = MOBILE_FILE_PATTERN.fullmatch(path.name)
+        if match:
+            candidates.append((int(match.group("version") or 1), path))
+    if not candidates:
+        raise ValueError(f"未找到 prototype-mobile*.html：{prototype_dir}")
+    return max(candidates, key=lambda item: item[0])[1]
+
+
+def command_mobile(prototype_dir: Path, mobile_file: Path | None) -> int:
+    """检查功能五输出的自包含注册表、目标白名单和外部依赖。"""
+    path = latest_mobile_file(prototype_dir) if mobile_file is None else mobile_file
+    if not path.is_absolute():
+        path = prototype_dir / path
+    path = path.resolve()
+    if not is_within(path, prototype_dir) or not MOBILE_FILE_PATTERN.fullmatch(path.name):
+        print(f"[FAIL] 手机版文件必须是 prototype/ 下的 prototype-mobile*.html：{path}")
+        return 1
+    if not path.is_file():
+        print(f"[FAIL] 手机版文件不存在：{path}")
+        return 1
+
+    document = path.read_text(encoding="utf-8")
+    failures: list[str] = []
+    for token in (
+        'data-ycet-mobile-prototype="true"',
+        'id="mobile-screen"',
+        'id="menu-button"',
+        'id="navigation-drawer"',
+    ):
+        if token not in document:
+            failures.append(f"移动端外壳缺少标记：{token}")
+    if re.search(r"https?://|file:///", document, re.IGNORECASE):
+        failures.append("手机版外层仍含远程或绝对文件依赖")
+
+    match = MOBILE_REGISTRY_PATTERN.search(document)
+    if not match:
+        failures.append("缺少 ycet-mobile-pages 页面注册表")
+        registry: list[object] = []
+    else:
+        try:
+            parsed = json.loads(match.group(1))
+            registry = parsed if isinstance(parsed, list) else []
+            if not isinstance(parsed, list):
+                failures.append("ycet-mobile-pages 页面注册表必须是数组")
+        except json.JSONDecodeError as exc:
+            failures.append(f"ycet-mobile-pages 页面注册表 JSON 无效：{exc}")
+            registry = []
+
+    if not registry:
+        failures.append("页面注册表为空")
+
+    ids: set[str] = set()
+    aliases: set[str] = set()
+    initial_count = 0
+    valid_pages: list[dict[str, object]] = []
+    for index, raw_page in enumerate(registry):
+        if not isinstance(raw_page, dict):
+            failures.append(f"页面注册表第 {index + 1} 项不是对象")
+            continue
+        page = raw_page
+        valid_pages.append(page)
+        page_id = page.get("id")
+        if not isinstance(page_id, str) or not page_id or page_id in ids:
+            failures.append(f"页面 ID 缺失或重复：{page_id!r}")
+        else:
+            ids.add(page_id)
+        if page.get("initial") is True:
+            initial_count += 1
+        if page.get("order") != index:
+            failures.append(f"页面 {page_id!r} 的 order 与注册表顺序不一致")
+        for field, prefix in (("runtimePath", "runtime-pages/"), ("sourcePath", "pages/")):
+            value = page.get(field)
+            try:
+                if not isinstance(value, str):
+                    raise ValueError
+                parts = urlsplit(value)
+                decoded = unquote(parts.path)
+                pure = Path(decoded.replace("/", os.sep))
+                if parts.scheme or parts.netloc or not decoded.startswith(prefix) or ".." in pure.parts:
+                    raise ValueError
+                aliases.add(decoded)
+            except ValueError:
+                failures.append(f"页面 {page_id!r} 的 {field} 不安全：{value!r}")
+
+        encoded = page.get("srcdocBase64")
+        try:
+            if not isinstance(encoded, str):
+                raise ValueError
+            srcdoc = base64.b64decode(encoded, validate=True).decode("utf-8")
+        except (ValueError, UnicodeError):
+            failures.append(f"页面 {page_id!r} 的 srcdocBase64 无效")
+            continue
+        if re.search(r"https?://|file:///", srcdoc, re.IGNORECASE):
+            failures.append(f"页面 {page_id!r} 的 srcdoc 仍含远程或绝对文件依赖")
+        if re.search(
+            r"\b(?:src|poster|data)\s*=\s*(['\"])(?!data:|about:)[^'\"]+\1",
+            srcdoc,
+            re.IGNORECASE,
+        ):
+            failures.append(f"页面 {page_id!r} 的 srcdoc 仍含未内联资源属性")
+        if re.search(r"<link\b[^>]*\bhref\s*=\s*(['\"])(?!data:)[^'\"]+\1", srcdoc, re.IGNORECASE):
+            failures.append(f"页面 {page_id!r} 的 srcdoc 仍含未内联 link")
+
+    if initial_count != 1:
+        failures.append(f"页面注册表必须有且仅有一个初始页，当前为 {initial_count}")
+
+    for page in valid_pages:
+        page_id = page.get("id")
+        targets = page.get("targets", [])
+        if not isinstance(targets, list):
+            failures.append(f"页面 {page_id!r} 的 targets 必须是数组")
+            continue
+        for target in targets:
+            if not isinstance(target, str):
+                failures.append(f"页面 {page_id!r} 存在非字符串目标")
+                continue
+            parts = urlsplit(target)
+            pathname = unquote(parts.path)
+            if parts.scheme or parts.netloc or target.startswith("/") or ".." in Path(pathname.replace("/", os.sep)).parts:
+                failures.append(f"页面 {page_id!r} 存在不安全目标：{target!r}")
+            elif pathname not in aliases:
+                failures.append(f"页面 {page_id!r} 存在未登记目标：{target!r}")
+
+    if failures:
+        for failure in failures:
+            print(f"[FAIL] {failure}")
+        return 1
+
+    print(f"[OK] 手机版单文件通过：{path.name}，{len(valid_pages)} 个页面。")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -406,6 +550,10 @@ def main() -> int:
     image_parser.add_argument("--prototype-dir", required=True, type=Path)
     image_parser.add_argument("--require-runtime", action="store_true", help="要求校验图片运行时副本与热区反馈")
 
+    mobile_parser = subparsers.add_parser("mobile", help="检查功能五离线单文件结构与依赖")
+    mobile_parser.add_argument("--prototype-dir", required=True, type=Path)
+    mobile_parser.add_argument("--mobile-file", type=Path, help="待校验文件；省略时选择最新版本")
+
     args = parser.parse_args()
     prototype_dir = args.prototype_dir.resolve()
     try:
@@ -415,6 +563,8 @@ def main() -> int:
             return command_snapshot(prototype_dir, args.output.resolve())
         if args.command == "image":
             return command_image(prototype_dir, args.require_runtime)
+        if args.command == "mobile":
+            return command_mobile(prototype_dir, args.mobile_file)
         return command_verify(prototype_dir, args.snapshot.resolve())
     except (OSError, UnicodeError, ValueError) as exc:
         print(f"[FAIL] {exc}")

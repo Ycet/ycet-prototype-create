@@ -140,6 +140,15 @@ def main() -> int:
     ):
         if token not in skill_md:
             fail(f"SKILL.md 缺少结构化 PRD 或图片固定区域强约束: {token}", failures)
+    for token in (
+        "手机预览、移动端预览、离线单文件、单 HTML 文件或 `prototype-mobile.html`",
+        "| E | 生成可单独发送到手机的离线单文件原型 |",
+        "功能五复用功能三的运行时页面和 `ycet-prototype` 消息协议",
+        "打包阶段只允许新增一个递增命名的 `prototype-mobile*.html`",
+        "部分存在、目标悬空或来源冲突必须停止",
+    ):
+        if token not in skill_md:
+            fail(f"SKILL.md 缺少功能五路由或只读门禁: {token}", failures)
     require_order(
         skill_md,
         (
@@ -203,6 +212,10 @@ def main() -> int:
         '`data-ycet-image-prototype="true"`',
         "`hover` 和 `focus-visible` 必须显示半透明虚线轮廓",
         "确认前不得生成 `runtime-pages/` 或 `prototype*.html`",
+        "### 功能五：移动端离线单文件",
+        "每个运行时页面转为资源完全内联的独立 `srcdoc`",
+        "不更新 EditLog",
+        "prototype-mobile.html",
     ):
         if token not in shared_standards:
             fail(f"共享规范缺少路径契约: {token}", failures)
@@ -230,7 +243,7 @@ def main() -> int:
         fail("缺少静态交互与只读输入保护脚本 prototype_guard.py", failures)
     if not (ROOT / "scripts" / "test_prototype_guard.py").is_file():
         fail("缺少 prototype_guard 回归测试", failures)
-    for token in ("def command_image", "ycet-image-hotspot", "--require-runtime"):
+    for token in ("def command_image", "ycet-image-hotspot", "--require-runtime", "def command_mobile"):
         if token not in guard_script.read_text(encoding="utf-8"):
             fail(f"图片原型守卫缺少资源或热区校验: {token}", failures)
 
@@ -320,11 +333,70 @@ def main() -> int:
         failures,
     )
 
+    function_five_path = ROOT / "docs" / "function-5-mobile-single-file.md"
+    if not function_five_path.is_file():
+        fail("缺少功能五流程文档 function-5-mobile-single-file.md", failures)
+    else:
+        function_five = function_five_path.read_text(encoding="utf-8")
+        for token in (
+            "## 输入审计与确认门禁",
+            "部分存在、目标悬空、多个版本或来源冲突",
+            "用户确认前不得创建 `runtime-pages/`",
+            "build_mobile_prototype.py --prototype-dir",
+            "一个无边框 `iframe srcdoc`",
+            "prototype-mobile-v2.html",
+            "打包阶段只新增一个手机版文件",
+            "prototype_guard.py mobile",
+            "桌面移动视口不能冒充 Safari iOS",
+            "不得修改 EditLog",
+        ):
+            if token not in function_five:
+                fail(f"功能五缺少状态、打包或验收门禁: {token}", failures)
+        require_order(
+            function_five,
+            (
+                "## 输入审计与确认门禁",
+                "## 完全缺失时的运行时准备",
+                "## 离线打包",
+                "## 验证",
+                "## 完成标准",
+            ),
+            "功能五审计、确认、打包与验收",
+            failures,
+        )
+
+    builder_script = ROOT / "scripts" / "build_mobile_prototype.py"
+    builder_test = ROOT / "scripts" / "test_build_mobile_prototype.py"
+    browser_test = ROOT / "scripts" / "test_mobile_prototype_runtime.py"
+    if not builder_script.is_file():
+        fail("缺少功能五确定性打包器 build_mobile_prototype.py", failures)
+    else:
+        builder_text = builder_script.read_text(encoding="utf-8")
+        for token in ("def input_snapshot", "class ResourceBundler", "def build_shell", "os.replace"):
+            if token not in builder_text:
+                fail(f"功能五打包器缺少只读、资源或原子输出能力: {token}", failures)
+    if not builder_test.is_file():
+        fail("缺少功能五打包器回归测试", failures)
+    if not browser_test.is_file():
+        fail("缺少功能五移动视口浏览器测试", failures)
+
+    editlog_rules = (ROOT / "docs" / "shared-editlog-rules.md").read_text(encoding="utf-8")
+    for token in ("功能五是唯一例外", "打包阶段只新增一个手机版文件", "| 功能五 | 不写 EditLog"):
+        if token not in editlog_rules:
+            fail(f"EditLog 规则缺少功能五只写例外: {token}", failures)
+
+    openai_yaml = (ROOT / "agents" / "openai.yaml").read_text(encoding="utf-8")
+    if "离线手机预览单文件" not in openai_yaml:
+        fail("agents/openai.yaml 未体现功能五手机单文件能力", failures)
+
     evals_path = ROOT / "evals" / "evals.json"
     try:
         evals = json.loads(evals_path.read_text(encoding="utf-8"))
-        if len(evals.get("evals", [])) < 8:
-            fail("评估用例少于 8 个", failures)
+        eval_items = evals.get("evals", [])
+        if len(eval_items) < 14:
+            fail("评估用例少于 14 个，未完整覆盖功能一至五", failures)
+        if not any("prototype-mobile" in str(item.get("prompt", "")) for item in eval_items):
+            fail("评估用例缺少功能五 prototype-mobile 场景", failures)
     except Exception as exc:  # noqa: BLE001
         fail(f"评估 JSON 无效: {exc}", failures)
 

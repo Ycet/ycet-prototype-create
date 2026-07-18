@@ -1,14 +1,15 @@
 # YCET Prototype Create
 
-`ycet-prototype-create` 是一套面向 Codex、Claude Code 等 Agent 的产品原型制作 Skill，覆盖需求澄清、UI 方向确认、高保真静态原型、精准页面修改、多页面交互 Demo，以及已有原型接管与迁移。
+`ycet-prototype-create` 是一套面向 Codex、Claude Code 等 Agent 的产品原型制作 Skill，覆盖需求澄清、UI 方向确认、高保真静态原型、精准页面修改、多页面交互 Demo、已有原型接管与迁移，以及移动端离线单文件预览。
 
 ## 当前版本
 
-- 版本：V2.x 开发分支（V2.1 基线）
-- 状态：稳定性优化中；结构、静态交互边界与跨浏览器框架运行时需要在每次修改后重新验证
+- 版本：V3.0 开发迭代（功能五）
+- 分支：`V3.0开发迭代dev`
+- 状态：功能五已实现并通过结构、守卫、打包器及 Chrome/Edge 运行时验证；移动端真机尚未验证
 - 交付目录：`outputs/skills/ycet-prototype-create/`
 - 基线目录：`skill/ycet-prototype-create/`
-- 对应提交：`8762a2e`（`[260712] V2.1开发完成`）
+- 当前开发基线：`52c50b1`
 
 基线目录用于保留优化前的 Skill；后续使用、验证或安装时应以交付目录为准。
 
@@ -42,6 +43,7 @@
 - 功能一的 `pages/`、`previews/` 不得包含跨页链接、Location/History API、路由器跳转、顶层窗口控制或 `navigate` 消息。
 - `scrollbar-width: none`、`-ms-overflow-style: none`、`::-webkit-scrollbar` 与 iframe `scrolling="no"` 共同构成跨浏览器兼容契约。
 - 功能三用 `runtime-pages/<源页面>--<Demo版本>.html` 承载跨页逻辑，生成前后校验静态输入文件集合和 SHA-256；旧框架兼容增强只写入 `runtime-assets/frames/` 的版本专用副本。
+- 功能五通过全项目输入 SHA-256、Base64 `srcdoc` 页面注册表和递增输出保护，只写新的 `prototype-mobile*.html`；生成失败不留半成品。
 
 ### 功能四：已有原型接管与迁移
 
@@ -52,6 +54,15 @@
 - PNG/JPG 等整页图片必须先将用户原图及确认后的固定区位图片段存入 `prototype/assets/images/`，再生成承载页与 `index.html`；`pages/` 和 `runtime-pages/` 均从该目录引用图片，禁止使用 `pages/source-images/`。禁止把图片解构或重绘为页面元素；只有用户明确要求固定顶部/底部区域并确认边界时，才可从原图无损分割固定区与可滚动区位图承载。
 - 图片静态产物完成并经用户确认后才生成 `prototype.html`；交互只写入功能三运行时副本，静态 `pages/` 与 `index.html` 保持不变。
 - 图片运行时热区默认透明；鼠标悬停或键盘聚焦时显示半透明虚线轮廓，不遮挡原图或阻断未覆盖区域滚动。
+
+### 功能五：移动端离线单文件原型
+
+- 将同一版本的 `runtime-pages/**/*.html` 及其 CSS、JavaScript、图片、图标、字体和可枚举依赖打包为一个自包含 `prototype-mobile*.html`。
+- 默认全屏显示产品页面，不显示设备框架、桌面 Demo 常驻导航或调试信息；左上角按钮可展开覆盖式页面导航抽屉。
+- 复用功能三 `ycet-prototype` 消息协议、页面注册表和历史逻辑，支持原型内部跳转、抽屉选页、query/hash 与浏览器返回。
+- 既有运行时页、静态页、入口、桌面 Demo、框架、资源和日志均为只读输入；打包阶段只新增一个递增手机版文件，不覆盖旧版本。
+- 只有运行时 HTML 完全缺失且用户确认跳转图时，才可先创建完整的新运行时页集合；部分存在、目标悬空或多个版本冲突时停止。
+- 确定性脚本阻断远程依赖、路径越界、缺失资源和无法枚举的动态网络，并在临时校验后原子落盘。
 
 ## V2.1 核心变化
 
@@ -82,10 +93,10 @@
 .
 ├─ skill/                              # 优化前的基线 Skill
 ├─ outputs/skills/ycet-prototype-create/
-│  ├─ SKILL.md                         # V2.1 总入口与功能路由
+│  ├─ SKILL.md                         # V3.0 总入口与五项功能路由
 │  ├─ agents/openai.yaml               # Codex 展示与调用元数据
 │  ├─ assets/frames/                   # Manifest 和五类设备框架
-│  ├─ docs/                            # 四项功能流程与共享规范
+│  ├─ docs/                            # 五项功能流程与共享规范
 │  ├─ evals/evals.json                 # Agent 行为评估用例
 │  └─ scripts/                         # 静态与运行时校验脚本
 ├─ assets/frames/                      # 本轮框架设计源文件
@@ -128,6 +139,7 @@ Agent 应先读取 `SKILL.md` 完成功能路由，再按需读取对应功能�
 ```powershell
 python outputs\skills\ycet-prototype-create\scripts\validate_skill.py
 python outputs\skills\ycet-prototype-create\scripts\test_prototype_guard.py
+python outputs\skills\ycet-prototype-create\scripts\test_build_mobile_prototype.py
 ```
 
 五类框架运行时验证：
@@ -140,6 +152,19 @@ python outputs\skills\ycet-prototype-create\scripts\test_frames_runtime.py
 
 ```powershell
 python outputs\skills\ycet-prototype-create\scripts\test_frames_runtime.py --require-firefox
+```
+
+移动端单文件运行时验证：
+
+```powershell
+python outputs\skills\ycet-prototype-create\scripts\test_mobile_prototype_runtime.py
+```
+
+对已准备好 `runtime-pages/` 的实际原型生成并校验手机版文件：
+
+```powershell
+python outputs\skills\ycet-prototype-create\scripts\build_mobile_prototype.py --prototype-dir <prototype目录>
+python outputs\skills\ycet-prototype-create\scripts\prototype_guard.py mobile --prototype-dir <prototype目录> --mobile-file <生成文件>
 ```
 
 运行时测试覆盖 HTTP 与 `file://` 页面加载、设计方向首页预览、逻辑视口尺寸、iframe 无可见滚动条契约、`runtime-pages/` 白名单、双层 iframe 消息中继、旧裸文件名兼容、中文/空格页面名、query/hash、编码遍历拦截，以及移动到带空格和中文目录后的可移植性。
@@ -159,15 +184,18 @@ python outputs\skills\ycet-prototype-create\scripts\prototype_guard.py verify --
 - `outputs/skills/ycet-prototype-create/docs/function-2-precision-edit.md`：页面精准修改流程。
 - `outputs/skills/ycet-prototype-create/docs/function-3-interactive-demo.md`：交互 Demo 流程和消息协议。
 - `outputs/skills/ycet-prototype-create/docs/function-4-existing-prototype-edit.md`：已有原型审计、接管和迁移流程。
+- `outputs/skills/ycet-prototype-create/docs/function-5-mobile-single-file.md`：移动端离线单文件的输入状态、确认门禁、打包和验收流程。
 - `outputs/skills/ycet-prototype-create/docs/shared-prototype-standards.md`：目录、框架、画布和页面规范。
 - `outputs/skills/ycet-prototype-create/docs/shared-editlog-rules.md`：原型变更日志规则。
 - `outputs/skills/ycet-prototype-create/assets/frames/README.md`：设备框架使用说明。
-- `outputs/skills/ycet-prototype-create/scripts/prototype_guard.py`：功能一静态跨页禁令检查，以及功能三只读输入 SHA-256 快照/复核。
-- `docs/brainstorms/specs/`：V2.1 已确认需求规格。
-- `docs/brainstorms/plan/`：V2.1 执行计划。
+- `outputs/skills/ycet-prototype-create/scripts/prototype_guard.py`：功能一静态跨页禁令、功能三只读输入 SHA-256，以及功能四图片和功能五单文件检查。
+- `outputs/skills/ycet-prototype-create/scripts/build_mobile_prototype.py`：功能五确定性离线单文件打包器。
+- `docs/brainstorms/specs/`：已确认的版本需求规格。
+- `docs/brainstorms/plan/`：对应实施计划与验证结果。
 
 ## 已知限制与注意事项
 
 - 当前自动化脚本验证 Skill 结构、框架配置和浏览器运行时行为，尚未自动执行完整的 Agent 对话评估。
 - Skill 不会自动安装自身、替换全局 Skill、发布、部署、推送远程仓库或创建 PR。
-- 当前交付目录未包含 `outputs/skills/ycet-prototype-create/evals/evals.json`；该文件仍存在于 V2.1 提交 `8762a2e` 中。恢复前，`validate_skill.py` 会因缺少评估文件而报告唯一失败，其余结构与本轮新增契约检查可正常完成。
+- 桌面 Chrome/Edge 移动视口通过不等于 Safari iOS、Chrome Android 或 Edge Android 真机通过；未执行真机测试时必须明确标为“未验证”。
+- 完全自包含会增加手机版文件体积和内存占用；不得通过删除页面或资源降低完整性。动态网络、登录态和真实后端无法离线等价打包时会阻断生成。

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import subprocess
 import sys
 import tempfile
@@ -170,6 +172,57 @@ def main() -> int:
         )
         result = run_guard("image", "--prototype-dir", str(image_prototype), "--require-runtime")
         assert result.returncode == 1 and "hover/focus-visible" in result.stdout, result.stdout + result.stderr
+
+        # 功能五守卫必须验证外壳、注册表、目标白名单和离线 srcdoc。
+        mobile_prototype = Path(temp) / "mobile-prototype"
+        mobile_prototype.mkdir()
+        home_srcdoc = "<!doctype html><title>首页</title><img src=\"data:image/png;base64,AA==\" alt=\"图\" />"
+        detail_srcdoc = "<!doctype html><title>详情</title><h1>详情</h1>"
+        registry = [
+            {
+                "id": "home",
+                "label": "首页",
+                "sourcePath": "pages/home.html",
+                "runtimePath": "runtime-pages/home--prototype.html",
+                "targets": ["runtime-pages/detail--prototype.html?from=home#top"],
+                "order": 0,
+                "initial": True,
+                "srcdocBase64": base64.b64encode(home_srcdoc.encode("utf-8")).decode("ascii"),
+            },
+            {
+                "id": "detail",
+                "label": "详情",
+                "sourcePath": "pages/detail.html",
+                "runtimePath": "runtime-pages/detail--prototype.html",
+                "targets": [],
+                "order": 1,
+                "initial": False,
+                "srcdocBase64": base64.b64encode(detail_srcdoc.encode("utf-8")).decode("ascii"),
+            },
+        ]
+        registry_json = json.dumps(registry, ensure_ascii=False, separators=(",", ":"))
+        mobile_file = mobile_prototype / "prototype-mobile.html"
+        mobile_file.write_text(
+            '<!doctype html><html data-ycet-mobile-prototype="true"><iframe id="mobile-screen"></iframe>'
+            '<button id="menu-button"></button><aside id="navigation-drawer"></aside>'
+            f'<script id="ycet-mobile-pages" type="application/json">{registry_json}</script></html>',
+            encoding="utf-8",
+        )
+        result = run_guard("mobile", "--prototype-dir", str(mobile_prototype), "--mobile-file", mobile_file.name)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        registry[0]["srcdocBase64"] = base64.b64encode(
+            b'<!doctype html><img src="https://example.com/image.png" />'
+        ).decode("ascii")
+        mobile_file.write_text(
+            '<!doctype html><html data-ycet-mobile-prototype="true"><iframe id="mobile-screen"></iframe>'
+            '<button id="menu-button"></button><aside id="navigation-drawer"></aside>'
+            f'<script id="ycet-mobile-pages" type="application/json">'
+            f'{json.dumps(registry, ensure_ascii=False, separators=(",", ":"))}</script></html>',
+            encoding="utf-8",
+        )
+        result = run_guard("mobile", "--prototype-dir", str(mobile_prototype))
+        assert result.returncode == 1 and "远程或绝对文件依赖" in result.stdout, result.stdout + result.stderr
 
     print("[OK] prototype_guard 回归测试通过。")
     return 0

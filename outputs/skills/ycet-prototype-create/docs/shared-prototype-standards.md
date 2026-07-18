@@ -10,6 +10,8 @@ prototype/
   index.html
   prototype.html
   prototype-v2.html
+  prototype-mobile.html
+  prototype-mobile-v2.html
   previews/
     home-preview.html
   pages/
@@ -41,7 +43,8 @@ prototype/
 - `prototype/` 是所有运行时页面路径的唯一 URL 根；下文称“项目根”。
 - `screen`、`navigate.targetPage`、`set-screen.screen` 与 `screen-changed.screen` 均使用相对于项目根的规范路径，如 `pages/home.html`、`previews/home-preview.html` 或 `runtime-pages/home--prototype.html`。
 - 新生成的 `pages/*.html` 与 `previews/*.html` 文件名使用小写 ASCII kebab-case。接管旧项目时允许保留安全的中文、空格等文件名，但消息中的路径必须由 URL 正规化并编码。
-- `runtime-pages/` 只由功能三生成，保存从静态页派生的可交互运行时副本；功能一不得创建该目录。运行时副本保持与 `pages/` 相同的目录深度，使 `../assets/` 相对引用继续有效。
+- `runtime-pages/` 保存从静态页派生的可交互运行时副本。通常只由功能三生成；功能五仅在该目录完全没有 HTML 且用户已确认页面跳转逻辑时，才可按功能三规范一次性创建完整集合。功能一不得创建该目录。运行时副本保持与 `pages/` 相同的目录深度，使 `../assets/` 相对引用继续有效。
+- `prototype-mobile.html` 与 `prototype-mobile-vN.html` 是功能五的自包含输出。首次使用无版本名，后续按已有最大版本递增，禁止覆盖旧文件。它们可以保存页面 pathname 作为注册表数据，但不得在运行时从 pathname、项目目录、绝对路径或网络读取资源。
 - `runtime-assets/frames/` 只用于兼容尚未允许 `runtime-pages/` 的旧版 Manifest 框架。功能三可在此生成版本专用框架副本，但不得修改项目原有 `assets/frames/`、`index.html` 或静态页；副本仍按 `../../` 解析项目根。
 - `screen` pathname 只允许位于 Manifest `allowedScreenPrefixes` 下并以 `.html` 结尾；允许保留 query/hash，但白名单与页面注册表先按解码后的 pathname 匹配，再把 query/hash 原样传给已登记页面。
 - `frameFile` 包含 `.html` 扩展名，是相对于 `prototype/assets/frames/` 的纯文件名；消费者不得再次追加扩展名。
@@ -179,6 +182,17 @@ prototype/
 - HTML 静态高保真原型完成后必须停止。任务开始时的交互要求不能替代静态完成后的再次确认；确认前不得生成 `runtime-pages/` 或 `prototype*.html`。
 - 整页图片必须先生成默认只显示完整原图、或按用户确认固定区域承载的 `pages/**/*.html` 与 `index.html`。确认生成 Demo 前，禁止生成 `prototype.html`、运行时副本或交互热点；固定区域边界不明确时不得生成静态页。
 - 图片 Demo 的 `runtime-pages/` 可叠加已确认的透明交互热点；热点默认透明、悬停或聚焦时显示半透明虚线轮廓。Demo 必须继续以完整原图或其已确认位图片段组合作为视觉基底，不得将图片替换为元素化 DOM。
+
+### 功能五：移动端离线单文件
+
+- 明确的手机预览、移动端预览、单 HTML 或离线单文件意图直接进入功能五。完整运行时页面存在时不再询问跳转逻辑。
+- 已有运行时页面、静态页、入口、桌面 Demo、框架、配置、资源和日志均为只读输入。打包阶段只新增一个递增命名的 `prototype-mobile*.html`，不更新 EditLog。
+- 只有运行时 HTML 完全缺失且用户已确认跳转图时，功能五才可先创建全新的完整 `runtime-pages/` 集合；部分存在、目标悬空、多个版本或来源冲突时必须停止。
+- 每个运行时页面转为资源完全内联的独立 `srcdoc`，再以 Base64 安全存入页面注册表。禁止把多个页面合并到同一 DOM，也禁止依赖 Blob URL、本地路径、远程 URL、CDN、登录态或真实后端。
+- 外层只提供一个全屏无边框 iframe、左上角菜单按钮、覆盖式左侧导航抽屉、注册表白名单和历史管理。默认不显示设备框架、常驻导航或调试信息。
+- 内部跨页继续使用 `channel: "ycet-prototype"`、`version: 1` 的 `navigate` 消息；外层验证 `event.source`、消息字段和规范目标。合法 query/hash 在 pathname 命中注册表后保留。
+- 首次输出 `prototype-mobile.html`，后续输出下一个 `prototype-mobile-vN.html`。临时构建通过机械校验和输入 SHA-256 复核后才原子落盘，失败不得留下半成品。
+- 完整流程、状态矩阵、脚本命令和验收门禁读取 `function-5-mobile-single-file.md`。
 
 ## 跨浏览器无可见滚动条契约
 
@@ -459,6 +473,8 @@ index.html 阵列外层
 - 为兼容 `file://` 的 `origin: "null"`，不能只依赖 origin 字符串。
 - 页面加载失败时保留当前页面并报告错误。
 
+功能五没有设备框架中继层，运行时页直接向全屏 iframe 的父窗口发送同一协议的 `navigate` 消息。手机版外层只消费已登记页面目标，不新增另一套业务消息格式。
+
 ## 质量检查
 
 - 所有原型产物位于 `prototype/`。
@@ -477,6 +493,7 @@ index.html 阵列外层
 - 页面内交互正常。
 - 本地 HTML、本地静态服务器和目录迁移场景均可用。
 - `EditLog.md` 已记录本次变更。
+- 功能五例外：为遵守单文件只写边界，不修改 `EditLog.md`；完成说明必须记录输出版本、页面数、内联资源数、文件大小、只读校验和浏览器/真机结果。
 
 ## 旧框架兼容
 
