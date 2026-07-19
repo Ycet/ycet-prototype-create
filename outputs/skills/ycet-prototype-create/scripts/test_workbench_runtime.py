@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -17,6 +18,7 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).with_name("prototype_workbench.py")
+IPHONE_FRAME = SCRIPT.parent.parent / "assets" / "frames" / "iphone-15-pro.html"
 
 
 def sha256(path: Path) -> str:
@@ -215,6 +217,14 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     # 根入口中的同源 iframe 与 srcdoc 都必须选择到真实元素。
     nested = page.frame_locator("#preview-frame").frame_locator("#nested-page").locator("#buy")
     nested.wait_for()
+    nested_image = page.frame_locator("#preview-frame").frame_locator("#nested-page").locator("#cover")
+    nested_image.wait_for()
+    if not nested_image.evaluate("element => element.complete && element.naturalWidth > 0"):
+        regression_failures.append("功能四图片承载页的相对图片资源没有在嵌套预览中加载")
+    framed_image = page.frame_locator("#preview-frame").frame_locator("#device-frame").frame_locator("#screen").locator("#cover")
+    framed_image.wait_for()
+    if not framed_image.evaluate("element => element.complete && element.naturalWidth > 0"):
+        regression_failures.append("功能四图片承载页的相对图片资源没有通过设备框架加载")
     nested.click()
     page.locator("#selected-name").filter(has_text="button").wait_for()
     nested_frame = page.frame_locator("#preview-frame").locator("#nested-page")
@@ -664,9 +674,13 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as temp:
         project = Path(temp)
-        home = write(project / "prototype/pages/home.html", "<!doctype html><html><head><style>html,body{margin:0;min-width:1400px}main{height:1800px;padding:24px}#secondary{display:block;width:180px;margin-top:120px;font-size:22px;color:rgb(170,0,0)}</style></head><body><main><button id='buy' style='height:42px'>购买</button><button id='secondary'>次要操作</button><img id='cover' alt='封面' src='data:image/gif;base64,R0lGODlhAQABAAAAACw='></main></body></html>")
+        image = project / "prototype/assets/images/cover.gif"
+        image.parent.mkdir(parents=True, exist_ok=True)
+        image.write_bytes(base64.b64decode("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="))
+        home = write(project / "prototype/pages/home.html", "<!doctype html><html><head><style>html,body{margin:0;min-width:1400px}main{height:1800px;padding:24px}#secondary{display:block;width:180px;margin-top:120px;font-size:22px;color:rgb(170,0,0)}</style></head><body><main><button id='buy' style='height:42px'>购买</button><button id='secondary'>次要操作</button><img id='cover' alt='封面' src='../assets/images/cover.gif'></main></body></html>")
+        write(project / "prototype/assets/frames/iphone-15-pro.html", IPHONE_FRAME.read_text(encoding="utf-8"))
         write(project / "prototype/pages/scaled.html", "<!doctype html><html><head><style>html,body{margin:0}#scaled-target{display:block;width:160px;height:60px;margin:80px 0 0 120px}</style></head><body><button id='scaled-target'>缩放目标</button></body></html>")
-        write(project / "prototype/index.html", "<!doctype html><html><body><iframe id='nested-page' src='pages/home.html'></iframe><iframe id='inline-page' srcdoc=\"<button id='srcdoc-action'>内联操作</button>\"></iframe><iframe id='scaled-page' src='pages/scaled.html' style='display:block;width:400px;height:300px;border:0;transform:scale(.5);transform-origin:top left'></iframe></body></html>")
+        write(project / "prototype/index.html", "<!doctype html><html><body><iframe id='nested-page' src='pages/home.html'></iframe><iframe id='device-frame' src='assets/frames/iphone-15-pro.html?screen=pages/home.html' width='414' height='868'></iframe><iframe id='inline-page' srcdoc=\"<button id='srcdoc-action'>内联操作</button>\"></iframe><iframe id='scaled-page' src='pages/scaled.html' style='display:block;width:400px;height:300px;border:0;transform:scale(.5);transform-origin:top left'></iframe></body></html>")
         write(project / "prototype/runtime-pages/home--prototype.html", "<!doctype html><button>运行时</button><script>const type='navigate'</script>")
         port = free_port()
         token = "runtime-test-token"

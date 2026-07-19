@@ -19,8 +19,10 @@ import time
 import types
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 import warnings
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest import mock
 
@@ -164,6 +166,35 @@ class ServiceTests(unittest.TestCase):
             self.assertIn("preview-runtime.js", body)
             self.assertIn("Content-Security-Policy", response.headers)
         self.assertEqual(digest(self.home), self.original_sha)
+
+    def test_function_four_page_loads_relative_image_from_prototype_assets(self) -> None:
+        image = self.root / "prototype" / "assets" / "images" / "poster.png"
+        image.parent.mkdir(parents=True, exist_ok=True)
+        image.write_bytes(b"function-four-image")
+        self.home.write_text("<!doctype html><img src='../assets/images/poster.png' alt='图片原型'>", encoding="utf-8")
+        file_id = self.running.service.workspace.data["files"][0]["id"]
+        preview_url = f"{self.running.url}/preview/{file_id}/"
+        request = urllib.request.Request(preview_url, headers={"X-YCET-Token": self.running.token})
+        with urllib.request.urlopen(request, timeout=3) as response:
+            html = response.read().decode("utf-8")
+
+        class BaseParser(HTMLParser):
+            href: str | None = None
+
+            def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                if tag == "base":
+                    self.href = dict(attrs).get("href")
+
+        parser = BaseParser()
+        parser.feed(html)
+        self.assertIsNotNone(parser.href, "预览响应缺少资源解析基准")
+        document_base = urllib.parse.urljoin(preview_url, parser.href)
+        image_url = urllib.parse.urljoin(document_base, "../assets/images/poster.png")
+        image_request = urllib.request.Request(image_url, headers={"X-YCET-Token": self.running.token})
+        with urllib.request.urlopen(image_request, timeout=3) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.read(), image.read_bytes())
+        self.assertEqual(self.home.read_text(encoding="utf-8"), "<!doctype html><img src='../assets/images/poster.png' alt='图片原型'>")
 
     def test_path_traversal_is_rejected(self) -> None:
         file_id = self.running.service.workspace.data["files"][0]["id"]

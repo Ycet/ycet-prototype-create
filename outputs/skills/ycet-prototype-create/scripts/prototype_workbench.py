@@ -649,7 +649,8 @@ def handler_factory(service: WorkbenchService):
             root_path = service.workspace.record_path(root_record)
             allowed_root = service.workspace.prototype_root if root_record["source"] == "project" else root_path.parent
             relative = urllib.parse.unquote(relative or "")
-            target = (root_path.parent / relative).resolve() if relative else root_path
+            # 预览路由以 prototype/ 为 URL 根，保留原 HTML 的目录层级和相对资源语义。
+            target = (allowed_root / relative).resolve() if relative else root_path
             if not is_within(target, allowed_root) or not target.is_file():
                 self._error(404, "预览资源不存在或路径越界")
                 return
@@ -670,7 +671,9 @@ def handler_factory(service: WorkbenchService):
                 "path": actual["path"],
                 "sha256": sha256_file(target),
             }
-            payload = inject_runtime(text, config, f"/preview/{actual['id']}/")
+            parent_relative = target.parent.relative_to(allowed_root).as_posix()
+            parent_route = "" if parent_relative == "." else urllib.parse.quote(parent_relative, safe="/") + "/"
+            payload = inject_runtime(text, config, f"/preview/{identifier}/{parent_route}")
             csp = (
                 "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; "
                 "style-src 'self' 'unsafe-inline' data: blob:; img-src 'self' data: blob:; font-src 'self' data: blob:; "

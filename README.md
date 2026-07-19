@@ -285,7 +285,7 @@ python outputs\skills\ycet-prototype-create\scripts\build_mobile_prototype.py --
 python outputs\skills\ycet-prototype-create\scripts\prototype_guard.py mobile --prototype-dir <prototype目录> --mobile-file <生成文件>
 ```
 
-当前基线验证已通过工作台服务与请求状态测试（27 项）、Chrome/Edge 工作台运行时与三档布局、Chrome 真实关闭进程交互、五类设备框架运行时、`prototype_guard.py`、功能五打包回归、移动端离线单文件运行时、`validate_skill.py`、`quick_validate.py`、JavaScript 语法检查和 `git diff --check`。Playwright Chromium/Firefox 因当前环境 `spawn EPERM` 未完成；Firefox、移动端真机和完整 Agent 对话评估仍未验证。`release_audit.py` 当前会提示交付目录包含测试产物和 `scripts/__pycache__/`，发布前需清理或按审计规则处理。
+当前基线验证已通过工作台服务与请求状态测试（28 项）、Chrome/Edge 工作台运行时与三档布局、Chrome 真实关闭进程交互、五类设备框架运行时、`prototype_guard.py`、功能五打包回归、移动端离线单文件运行时、`validate_skill.py`、`quick_validate.py`、JavaScript 语法检查和 `git diff --check`。Playwright Chromium/Firefox 因当前环境 `spawn EPERM` 未完成；Firefox、移动端真机和完整 Agent 对话评估仍未验证。`release_audit.py` 当前会提示交付目录包含测试产物和 `scripts/__pycache__/`，发布前需清理或按审计规则处理。
 
 ## 文档索引
 
