@@ -32,6 +32,8 @@ HOST = "127.0.0.1"
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 ASSET_ROOT = SKILL_ROOT / "assets" / "workbench"
 ALLOWED_OPERATIONS = {"annotation", "style", "text", "image-replace", "css", "sync-pages"}
+ACTIVE_REQUEST_STATUSES = {"pending", "processing"}
+TERMINAL_REQUEST_STATUSES = {"success", "partial", "failed", "aborted"}
 PROJECT_HTML_DIRS = ("pages", "previews", "runtime-pages")
 HTML_MIME = "text/html; charset=utf-8"
 FONT_STYLE_SUFFIX = re.compile(r"\s+(?:regular|bold|italic|oblique|light|medium|semi\s*bold|demi\s*bold|extra\s*bold|extra\s*light|black|thin)(?:\s+(?:italic|oblique))?$", re.I)
@@ -499,7 +501,9 @@ class WorkbenchService:
         self.stale_draft_file_ids: set[str] = set()
         self.revision = 0
         self._revision_lock = threading.Lock()
+        self._request_lock = threading.RLock()
         self._stop = threading.Event()
+        self.shutdown_requested = threading.Event()
         self._known_sha = {item["id"]: item.get("sha256") for item in self.workspace.data["files"]}
         self._watcher = threading.Thread(target=self._watch_files, name="ycet-workbench-watch", daemon=True)
         self._watcher.start()
@@ -530,22 +534,46 @@ class WorkbenchService:
         self._stop.set()
         self._watcher.join(timeout=2)
 
+    def request_shutdown(self) -> None:
+        """通知主线程优雅停止服务，避免 HTTP 请求线程直接关闭服务器。"""
+        self.shutdown_requested.set()
+
     def create_request(self, payload: dict[str, Any]) -> dict[str, Any]:
-        if self.paths["lock"].exists():
-            raise WorkbenchError("功能五打包锁已启用，暂时不能发送修改")
-        if self.stale_draft_file_ids:
-            raise WorkbenchError("源文件已变化，必须刷新并重新编辑后才能发送")
-        package = validate_request(self.workspace, payload)
-        path = self.paths["requests"] / f"{package['requestId']}.json"
-        atomic_json(path, package)
-        self.dirty_file_ids.clear()
-        self.stale_draft_file_ids.clear()
-        self.bump()
-        return {
-            "requestId": package["requestId"],
-            "path": str(path),
-            "instruction": request_instruction(self.workspace.project_root, package["requestId"]),
-        }
+        with self._request_lock:
+            if self.paths["lock"].exists():
+                raise WorkbenchError("功能五打包锁已启用，暂时不能发送修改")
+            if self.stale_draft_file_ids:
+                raise WorkbenchError("源文件已变化，必须刷新并重新编辑后才能发送")
+            active = active_request_summary(self.workspace.project_root)
+            if active:
+                raise WorkbenchError(f"请求 {active['requestId'][:8]} 尚未完成，暂时不能再次发送")
+            package = validate_request(self.workspace, payload)
+            path = request_path(self.workspace.project_root, package["requestId"])
+            state_path = request_state_path(self.workspace.project_root, package["requestId"])
+            try:
+                atomic_json(path, package)
+                write_request_state(self.workspace.project_root, package["requestId"], "pending")
+            except Exception:
+                path.unlink(missing_ok=True)
+                state_path.unlink(missing_ok=True)
+                raise
+            self.dirty_file_ids.clear()
+            self.stale_draft_file_ids.clear()
+            self.bump()
+            summary = request_summary(self.workspace.project_root, package["requestId"])
+            return {
+                "requestId": package["requestId"],
+                "path": str(path),
+                "instruction": summary["instruction"],
+                "request": summary,
+                "revision": self.revision,
+            }
+
+    def cancel_request(self, request_id: str) -> dict[str, Any]:
+        with self._request_lock:
+            summary = cancel_request(self.workspace.project_root, request_id)
+            self.bump()
+            return summary
 
 
 def handler_factory(service: WorkbenchService):
@@ -675,6 +703,13 @@ def handler_factory(service: WorkbenchService):
                     self._send_json(service.workspace.scan())
                 elif path == "/api/fonts":
                     self._send_json({"families": service.fonts})
+                elif path == "/api/requests":
+                    summaries = list_request_summaries(service.workspace.project_root)
+                    self._send_json({
+                        "activeRequest": next((item for item in summaries if item["status"] in ACTIVE_REQUEST_STATUSES), None),
+                        "requests": summaries[:20],
+                        "revision": service.revision,
+                    })
                 elif path == "/api/results":
                     results = []
                     for item in sorted(service.paths["requests"].glob("*.result.json"), reverse=True):
@@ -737,6 +772,12 @@ def handler_factory(service: WorkbenchService):
                     self._send_json({"dirtyFileIds": sorted(service.dirty_file_ids), "staleDraftFileIds": sorted(service.stale_draft_file_ids)})
                 elif parsed.path == "/api/requests":
                     self._send_json(service.create_request(payload), 201)
+                elif parsed.path == "/api/shutdown":
+                    self._send_json({"ok": True, "shuttingDown": True}, 202)
+                    service.request_shutdown()
+                elif re.fullmatch(r"/api/requests/[^/]+/cancel", parsed.path):
+                    request_id = urllib.parse.unquote(parsed.path.split("/")[-2])
+                    self._send_json({"request": service.cancel_request(request_id), "revision": service.revision})
                 elif parsed.path == "/api/undo/request":
                     manifest = service.paths["undo"] / "manifest.json"
                     if not manifest.is_file():
@@ -808,7 +849,7 @@ def command_serve(args: argparse.Namespace) -> int:
     server_thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.25}, name="ycet-workbench-http", daemon=True)
     server_thread.start()
     try:
-        while server_thread.is_alive():
+        while server_thread.is_alive() and not service.shutdown_requested.is_set():
             service.dialogs.process_once(timeout=0.1)
     except KeyboardInterrupt:
         pass
@@ -835,13 +876,13 @@ def command_ensure(args: argparse.Namespace) -> int:
         paths["root"].mkdir(parents=True, exist_ok=True)
         token = secrets.token_urlsafe(24)
         command = [sys.executable, str(Path(__file__).resolve()), "serve", "--project-root", str(project_root), "--port", "0", "--token", token]
-        log = paths["log"].open("a", encoding="utf-8")
-        kwargs: dict[str, Any] = {"stdin": subprocess.DEVNULL, "stdout": log, "stderr": log, "cwd": str(project_root)}
-        if os.name == "nt":
-            kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
-        else:
-            kwargs["start_new_session"] = True
-        subprocess.Popen(command, **kwargs)  # noqa: S603 - 命令仅包含受控解释器和脚本参数
+        with paths["log"].open("a", encoding="utf-8") as log:
+            kwargs: dict[str, Any] = {"stdin": subprocess.DEVNULL, "stdout": log, "stderr": log, "cwd": str(project_root)}
+            if os.name == "nt":
+                kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+            else:
+                kwargs["start_new_session"] = True
+            subprocess.Popen(command, **kwargs)  # noqa: S603 - 命令仅包含受控解释器和脚本参数
         deadline = time.time() + 8
         while time.time() < deadline:
             time.sleep(0.1)
@@ -877,7 +918,19 @@ def command_sync(args: argparse.Namespace) -> int:
 
 
 def request_path(project_root: Path, request_id: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", request_id) or request_id in {".", ".."}:
+        raise WorkbenchError("请求 ID 无效")
     return state_paths(project_root)["requests"] / f"{request_id}.json"
+
+
+def request_state_path(project_root: Path, request_id: str) -> Path:
+    request_path(project_root, request_id)
+    return state_paths(project_root)["requests"] / f"{request_id}.state.json"
+
+
+def request_result_path(project_root: Path, request_id: str) -> Path:
+    request_path(project_root, request_id)
+    return state_paths(project_root)["requests"] / f"{request_id}.result.json"
 
 
 def load_request(project_root: Path, request_id: str) -> dict[str, Any]:
@@ -888,20 +941,152 @@ def load_request(project_root: Path, request_id: str) -> dict[str, Any]:
         raise WorkbenchError(f"请求不存在：{request_id}") from exc
 
 
+def load_request_state(project_root: Path, request_id: str) -> dict[str, Any]:
+    """读取动态状态；旧请求按结果文件和事务目录推导，保持向后兼容。"""
+    package = load_request(project_root, request_id)
+    state_path = request_state_path(project_root, request_id)
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        status = state.get("status")
+        if status not in ACTIVE_REQUEST_STATUSES | TERMINAL_REQUEST_STATUSES:
+            raise WorkbenchError(f"请求状态无效：{status}")
+        return state
+    except FileNotFoundError:
+        pass
+    except (json.JSONDecodeError, OSError) as exc:
+        raise WorkbenchError(f"请求状态文件无效：{request_id}") from exc
+
+    result_path = request_result_path(project_root, request_id)
+    if result_path.is_file():
+        try:
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            raise WorkbenchError(f"请求结果文件无效：{request_id}") from exc
+        status = result.get("status", "failed")
+        if status not in TERMINAL_REQUEST_STATUSES:
+            status = "failed"
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "requestId": request_id,
+            "status": status,
+            "createdAt": package.get("createdAt"),
+            "completedAt": result.get("completedAt"),
+            "reason": result.get("reason"),
+        }
+    manifest = state_paths(project_root)["transactions"] / request_id / "manifest.json"
+    if manifest.is_file():
+        try:
+            started_at = json.loads(manifest.read_text(encoding="utf-8")).get("startedAt")
+        except (json.JSONDecodeError, OSError):
+            started_at = None
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "requestId": request_id,
+            "status": "processing",
+            "createdAt": package.get("createdAt"),
+            "startedAt": started_at,
+        }
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "requestId": request_id,
+        "status": "pending",
+        "createdAt": package.get("createdAt"),
+    }
+
+
+def write_request_state(project_root: Path, request_id: str, status: str, **updates: Any) -> dict[str, Any]:
+    if status not in ACTIVE_REQUEST_STATUSES | TERMINAL_REQUEST_STATUSES:
+        raise WorkbenchError(f"请求状态无效：{status}")
+    package = load_request(project_root, request_id)
+    try:
+        current = json.loads(request_state_path(project_root, request_id).read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        current = {}
+    state = {
+        "schemaVersion": SCHEMA_VERSION,
+        "requestId": request_id,
+        "createdAt": current.get("createdAt") or package.get("createdAt") or utc_now(),
+        **current,
+        "status": status,
+        **{key: value for key, value in updates.items() if value is not None},
+    }
+    atomic_json(request_state_path(project_root, request_id), state)
+    return state
+
+
+def request_summary(project_root: Path, request_id: str) -> dict[str, Any]:
+    package = load_request(project_root, request_id)
+    state = load_request_state(project_root, request_id)
+    files = package.get("files", [])
+    locked_file_ids = {item["fileId"] for item in files}
+    for item in files:
+        locked_file_ids.update(
+            str(operation["sourceFileId"])
+            for operation in item.get("operations", [])
+            if operation.get("type") == "sync-pages" and operation.get("sourceFileId")
+        )
+    return {
+        "requestId": request_id,
+        "status": state["status"],
+        "createdAt": state.get("createdAt") or package.get("createdAt"),
+        "startedAt": state.get("startedAt"),
+        "completedAt": state.get("completedAt"),
+        "reason": state.get("reason"),
+        "fileIds": sorted(locked_file_ids),
+        "fileCount": len(files),
+        "operationCount": sum(len(item.get("operations", [])) for item in files),
+        "instruction": request_instruction(project_root.resolve(), request_id),
+    }
+
+
+def list_request_summaries(project_root: Path) -> list[dict[str, Any]]:
+    requests_root = state_paths(project_root)["requests"]
+    summaries = []
+    for path in requests_root.glob("*.json"):
+        if path.name.endswith((".state.json", ".result.json")):
+            continue
+        try:
+            summaries.append(request_summary(project_root, path.name.removesuffix(".json")))
+        except WorkbenchError:
+            continue
+    return sorted(summaries, key=lambda item: item.get("createdAt") or "", reverse=True)
+
+
+def active_request_summary(project_root: Path) -> dict[str, Any] | None:
+    return next((item for item in list_request_summaries(project_root) if item["status"] in ACTIVE_REQUEST_STATUSES), None)
+
+
+def cancel_request(project_root: Path, request_id: str) -> dict[str, Any]:
+    transaction = state_paths(project_root)["transactions"] / request_id
+    try:
+        transaction.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise WorkbenchError("请求已被 Agent 领取，不能从工作台取消") from exc
+    try:
+        state = load_request_state(project_root, request_id)
+        if state["status"] != "pending":
+            raise WorkbenchError("只有等待 Agent 领取的请求可以从工作台取消")
+        completed_at = utc_now()
+        result = {
+            "schemaVersion": SCHEMA_VERSION,
+            "requestId": request_id,
+            "completedAt": completed_at,
+            "status": "aborted",
+            "items": [],
+            "reason": "用户在 Agent 领取前取消请求",
+        }
+        atomic_json(request_result_path(project_root, request_id), result)
+        write_request_state(project_root, request_id, "aborted", completedAt=completed_at, reason=result["reason"])
+        return request_summary(project_root, request_id)
+    finally:
+        shutil.rmtree(transaction, ignore_errors=True)
+
+
 def command_request(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root).resolve()
     paths = state_paths(project_root)
     if args.request_action == "list":
-        items = []
-        for path in sorted(paths["requests"].glob("*.json")):
-            if path.name.endswith((".state.json", ".result.json")):
-                continue
-            try:
-                package = json.loads(path.read_text(encoding="utf-8"))
-                items.append({"requestId": package.get("requestId"), "createdAt": package.get("createdAt"), "status": package.get("status")})
-            except json.JSONDecodeError:
-                continue
-        print(json.dumps(items, ensure_ascii=False, indent=2))
+        print(json.dumps(list_request_summaries(project_root), ensure_ascii=False, indent=2))
         return 0
     package = load_request(project_root, args.request_id)
     if args.request_action == "show":
@@ -912,57 +1097,79 @@ def command_request(args: argparse.Namespace) -> int:
     if args.request_action == "begin":
         if paths["lock"].exists():
             raise WorkbenchError("功能五打包锁已启用")
+        try:
+            transaction.mkdir(parents=True, exist_ok=False)
+        except FileExistsError as exc:
+            raise WorkbenchError("该请求已经开始执行") from exc
         entries = []
-        before_dir = transaction / "before"
-        if transaction.exists():
-            raise WorkbenchError("该请求已经开始执行")
-        before_dir.mkdir(parents=True)
-        groups: dict[str, list[dict[str, Any]]] = {}
-        for item in package["files"]:
-            key = str(item.get("dependencyGroup") or f"file:{item['fileId']}")
-            groups.setdefault(key, []).append(item)
         conflicts = []
-        ready_items = []
-        for group, items in groups.items():
-            invalid = []
-            for item in items:
+        try:
+            state = load_request_state(project_root, args.request_id)
+            if state["status"] != "pending":
+                raise WorkbenchError(f"请求状态为 {state['status']}，不能重复领取")
+            active = active_request_summary(project_root)
+            if active and active["requestId"] != args.request_id:
+                raise WorkbenchError(f"请求 {active['requestId'][:8]} 尚未完成，请先处理该请求")
+            before_dir = transaction / "before"
+            before_dir.mkdir()
+            groups: dict[str, list[dict[str, Any]]] = {}
+            for item in package["files"]:
+                key = str(item.get("dependencyGroup") or f"file:{item['fileId']}")
+                groups.setdefault(key, []).append(item)
+            ready_items = []
+            for _group, items in groups.items():
+                invalid = []
+                for item in items:
+                    target = Path(item["path"]).resolve()
+                    if not target.is_file() or sha256_file(target) != item["sha256"]:
+                        invalid.append(item["displayPath"])
+                if invalid:
+                    conflicts.extend({"fileId": item["fileId"], "path": item["displayPath"], "status": "conflict", "reason": f"依赖组摘要冲突：{'；'.join(invalid)}"} for item in items)
+                else:
+                    ready_items.extend(items)
+            for item in ready_items:
                 target = Path(item["path"]).resolve()
-                if not target.is_file() or sha256_file(target) != item["sha256"]:
-                    invalid.append(item["displayPath"])
-            if invalid:
-                conflicts.extend({"fileId": item["fileId"], "path": item["displayPath"], "status": "conflict", "reason": f"依赖组摘要冲突：{'；'.join(invalid)}"} for item in items)
-            else:
-                ready_items.extend(items)
-        for item in ready_items:
-            target = Path(item["path"]).resolve()
-            snapshot = before_dir / f"{item['fileId']}.bin"
-            shutil.copy2(target, snapshot)
-            entries.append({"fileId": item["fileId"], "source": item["source"], "path": str(target), "beforeExists": True, "beforeSha256": item["sha256"], "snapshot": str(snapshot), "requested": True})
-        known_paths = {Path(item["path"]).resolve() for item in entries}
-        for raw in getattr(args, "include", None) or []:
-            target = Path(raw).resolve()
-            if not is_within(target, project_root) or is_within(target, paths["root"]):
-                raise WorkbenchError(f"附加事务文件必须位于项目内且不能属于 .ycet-editor：{target}")
-            if target in known_paths:
-                continue
-            identifier = f"extra-{file_id(target)}"
-            before_exists = target.is_file()
-            snapshot = before_dir / f"{identifier}.bin"
-            if before_exists:
+                snapshot = before_dir / f"{item['fileId']}.bin"
                 shutil.copy2(target, snapshot)
-            entries.append({"fileId": identifier, "source": "project", "path": str(target), "beforeExists": before_exists, "beforeSha256": sha256_file(target) if before_exists else None, "snapshot": str(snapshot) if before_exists else None, "requested": False})
-            known_paths.add(target)
-        atomic_json(manifest_path, {"schemaVersion": 1, "requestId": args.request_id, "startedAt": utc_now(), "files": entries, "conflicts": conflicts})
+                entries.append({"fileId": item["fileId"], "source": item["source"], "path": str(target), "beforeExists": True, "beforeSha256": item["sha256"], "snapshot": str(snapshot), "requested": True})
+            known_paths = {Path(item["path"]).resolve() for item in entries}
+            for raw in getattr(args, "include", None) or []:
+                target = Path(raw).resolve()
+                if not is_within(target, project_root) or is_within(target, paths["root"]):
+                    raise WorkbenchError(f"附加事务文件必须位于项目内且不能属于 .ycet-editor：{target}")
+                if target in known_paths:
+                    continue
+                identifier = f"extra-{file_id(target)}"
+                before_exists = target.is_file()
+                snapshot = before_dir / f"{identifier}.bin"
+                if before_exists:
+                    shutil.copy2(target, snapshot)
+                entries.append({"fileId": identifier, "source": "project", "path": str(target), "beforeExists": before_exists, "beforeSha256": sha256_file(target) if before_exists else None, "snapshot": str(snapshot) if before_exists else None, "requested": False})
+                known_paths.add(target)
+            started_at = utc_now()
+            atomic_json(manifest_path, {"schemaVersion": 1, "requestId": args.request_id, "startedAt": started_at, "files": entries, "conflicts": conflicts})
+            write_request_state(project_root, args.request_id, "processing", startedAt=started_at)
+        except Exception:
+            shutil.rmtree(transaction, ignore_errors=True)
+            raise
         print(json.dumps({"ok": True, "transaction": str(transaction), "readyFileIds": [item["fileId"] for item in entries if item["requested"]], "trackedFiles": [{"fileId": item["fileId"], "path": item["path"]} for item in entries], "conflicts": conflicts}, ensure_ascii=False, indent=2))
         return 0
     if args.request_action == "abort":
-        result = {"schemaVersion": 1, "requestId": args.request_id, "completedAt": utc_now(), "status": "aborted", "items": [], "reason": args.reason}
-        atomic_json(paths["requests"] / f"{args.request_id}.result.json", result)
+        state = load_request_state(project_root, args.request_id)
+        if state["status"] not in ACTIVE_REQUEST_STATUSES:
+            raise WorkbenchError(f"请求状态为 {state['status']}，不能中止")
+        completed_at = utc_now()
+        result = {"schemaVersion": 1, "requestId": args.request_id, "completedAt": completed_at, "status": "aborted", "items": [], "reason": args.reason}
+        atomic_json(request_result_path(project_root, args.request_id), result)
+        write_request_state(project_root, args.request_id, "aborted", completedAt=completed_at, reason=args.reason)
         if transaction.exists():
             shutil.rmtree(transaction)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     if args.request_action == "complete":
+        state = load_request_state(project_root, args.request_id)
+        if state["status"] != "processing":
+            raise WorkbenchError(f"请求状态为 {state['status']}，不能完成")
         if not manifest_path.is_file():
             raise WorkbenchError("请先执行 request begin")
         result_path = Path(args.result).resolve()
@@ -1013,7 +1220,8 @@ def command_request(args: argparse.Namespace) -> int:
             undo_files.append({**entry, "snapshot": str(snapshot_target) if snapshot_target else None, "afterSha256": after_by_id[identifier]})
         result.update({"schemaVersion": 1, "requestId": args.request_id, "completedAt": utc_now()})
         result["status"] = "success" if success_items and len(success_items) == len(result.get("items", [])) else ("partial" if success_items else "failed")
-        atomic_json(paths["requests"] / f"{args.request_id}.result.json", result)
+        atomic_json(request_result_path(project_root, args.request_id), result)
+        write_request_state(project_root, args.request_id, result["status"], completedAt=result["completedAt"])
         if undo_files:
             atomic_json(undo_dir / "manifest.json", {"schemaVersion": 1, "requestId": args.request_id, "createdAt": utc_now(), "files": undo_files})
         elif undo_dir.exists():

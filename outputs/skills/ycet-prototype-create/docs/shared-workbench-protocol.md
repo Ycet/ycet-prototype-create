@@ -24,6 +24,10 @@ python <skill目录>/scripts/prototype_workbench.py ensure --project-root <项�
 - 实例不存在时在随机本机端口启动并尝试打开浏览器。
 - 命令 JSON 输出始终包含 URL；`opened: false` 时必须把 URL 发给用户手动打开。
 - 用户可以手动关闭服务。后续功能再次需要工作台时才调用 `ensure`，不得后台自动重启。
+- 顶部“关闭工作台进程”按钮必须始终二次确认；有未发送草稿时列出受影响 HTML 文件数量并明确草稿会丢失。
+- 确认关闭后，网页调用受实例令牌、Host 与 Origin 校验保护的 `POST /api/shutdown`。接口先返回 `202`，再优雅停止 HTTP 服务、文件监听和系统对话框代理，并删除属于当前 PID 的 `server.json`；禁止从网页强杀任意 PID。
+- 关闭成功后清空当前浏览器会话草稿、停止轮询并保留标签页显示“工作台进程已关闭”；不自动关闭标签页。
+- 已生成或正在执行的 Agent 请求、结果和撤回事务不因工作台服务关闭而删除。Agent CLI 可在服务停止后继续执行，重新 `ensure` 后恢复请求状态和结果展示。
 - 可重复提供多个 `--add`；未提供时扫描 `prototype/` 根级 HTML、`pages/`、`previews/` 与 `runtime-pages/`。
 
 明确只做增量同步时可用：
@@ -84,7 +88,9 @@ CSS 与样式值在预览中可自由应用；Agent 落实时必须拒绝远程 
 - “清空批注”只清当前文件的全部批注，保留该文件其他类型草稿和其他文件批注；当前文件没有批注时按钮禁用。
 - 用户可单独编辑或删除批注。
 - “发送给 AI”聚合所有文件草稿。请求包成功写入磁盘后清空全部会话草稿；写入失败时全部保留。
-- 发送仅生成机器可读变更包和可复制执行指令，V1 不直接控制 Codex、Claude Code、OpenCode 或其他 Agent 会话。
+- 发送仅生成机器可读变更包和可复制执行指令，用户须把指令粘贴到当前 Codex、Claude Code、OpenCode 或其他 Agent 会话；V1 不直接控制或启动 Agent。
+- 交接弹窗必须展示请求 ID、文件数、操作数、状态和执行指令。只有浏览器剪贴板写入实际成功时才能提示“已复制”；失败时保留手动复制入口。
+- 右侧状态条持续展示当前或最近请求，工作台重启后从磁盘恢复。
 
 ## 变更包
 
@@ -96,6 +102,27 @@ CSS 与样式值在预览中可自由应用；Agent 落实时必须拒绝远程 
 
 顶层使用 `schemaVersion: 1`，包含请求 ID、项目根、生成时间和文件列表。每个文件包含来源、原始路径、显示路径、原始 SHA-256、操作与可选依赖组。
 
+动态状态独立保存为 `.ycet-editor/requests/<request-id>.state.json`，不得改写原始请求包。状态固定为：
+
+| 状态 | 含义 |
+| --- | --- |
+| `pending` | 变更包已生成，等待用户交给 Agent |
+| `processing` | Agent 已原子执行 `request begin` |
+| `success` | 全部文件成功 |
+| `partial` | 部分文件成功 |
+| `failed` | 没有文件成功或执行失败 |
+| `aborted` | 用户在领取前取消，或 Agent 主动中止 |
+
+旧请求缺少状态文件时，按 `.result.json`、事务清单和请求包依次推导终态、`processing` 或 `pending`。
+
+同一项目同时只允许一个 `pending` 或 `processing` 请求：
+
+- 存在活动请求时禁止再次发送和撤回；活动请求终止后恢复。
+- 活动请求中列出的文件及 `sync-pages` 静态来源文件锁定编辑；其他 HTML 仍可准备新草稿，但必须等待当前请求终止后发送。
+- `pending` 请求可从工作台取消；取消不会恢复发送时已经清空的草稿。
+- `processing` 请求不得由网页强制取消，只能由执行 Agent `complete` 或 `abort`。
+- `request begin` 必须用原子事务目录领取；重复领取、非 `pending` 状态或另一个活动请求存在时拒绝。
+
 领取请求：
 
 ```text
@@ -103,7 +130,7 @@ python <skill目录>/scripts/prototype_workbench.py request show --project-root 
 python <skill目录>/scripts/prototype_workbench.py request begin --project-root <项目根目录> --request-id <请求ID> [--include <项目内图片目标或EditLog路径>]
 ```
 
-`begin` 建立修改前快照并按依赖组校验摘要。独立文件冲突不得阻断其他文件；同一依赖组任一文件冲突时整组不写。图片替换会新增/覆盖的项目内资源和本次需要更新的 `prototype/docs/EditLog.md` 必须在写入前通过重复 `--include` 纳入事务；外部 HTML 不包含 EditLog。新增且尚不存在的资源也要提供目标路径，事务会记录其“修改前不存在”。
+`begin` 原子将状态从 `pending` 更新为 `processing`，建立修改前快照并按依赖组校验摘要。独立文件冲突不得阻断其他文件；同一依赖组任一文件冲突时整组不写。图片替换会新增/覆盖的项目内资源和本次需要更新的 `prototype/docs/EditLog.md` 必须在写入前通过重复 `--include` 纳入事务；外部 HTML 不包含 EditLog。新增且尚不存在的资源也要提供目标路径，事务会记录其“修改前不存在”。
 
 Agent 执行规则：
 
@@ -121,7 +148,7 @@ python <skill目录>/scripts/prototype_workbench.py request complete --project-r
 python <skill目录>/scripts/prototype_workbench.py request abort --project-root <项目根目录> --request-id <请求ID> --reason <原因>
 ```
 
-只有 `complete` 登记为成功的实际文件进入最近一次撤回事务。工作台轮询 `.result.json` 并展示逐文件结果。
+`complete` 将状态更新为 `success`、`partial` 或 `failed`；`abort` 更新为 `aborted`。只有 `complete` 登记为成功的实际文件进入最近一次撤回事务。工作台轮询状态与 `.result.json` 并展示逐文件结果。
 
 ## `同步 pages`
 

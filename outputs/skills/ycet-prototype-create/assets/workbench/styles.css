@@ -34,8 +34,9 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 
 .app-shell { display: grid; grid-template-rows: 54px minmax(0, 1fr); gap: 12px; width: 100%; height: 100%; padding: 12px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; min-width: 0; padding: 0 16px; border-radius: var(--radius); }
-.brand, .status, .icon-actions, .toolbar-end, .zoom-controls, .primary-actions, .section-title, .color-actions { display: flex; align-items: center; }
+.brand, .topbar-actions, .status, .icon-actions, .toolbar-end, .zoom-controls, .primary-actions, .section-title, .color-actions { display: flex; align-items: center; }
 .brand { min-width: 0; gap: 10px; }
+.topbar-actions { gap: 7px; }
 .brand strong { font-size: 14px; }
 .brand .muted { overflow: hidden; max-width: 360px; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .brand-mark { width: 22px; height: 22px; flex: 0 0 auto; border: 4px solid rgba(255,255,255,.55); border-radius: 6px; background: var(--accent); box-shadow: 0 0 0 1px rgba(79,140,255,.22); }
@@ -113,6 +114,18 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .danger-button { border: 0; color: white; background: var(--danger); }
 .sync-button { width: 100%; margin-top: 8px; border: 1px solid rgba(217,119,6,.25); color: var(--warning); background: rgba(245,158,11,.1); }
 .sync-button.synced { border-color: rgba(22,163,74,.25); color: var(--success); background: rgba(22,163,74,.1); }
+.request-status { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; margin-top: 8px; padding: 8px; border: 1px solid rgba(79,140,255,.18); border-radius: 7px; background: rgba(239,246,255,.72); }
+.request-status-copy { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 4px 6px; min-width: 0; }
+.request-status-copy code { overflow: hidden; color: var(--muted); font: 9px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.request-status-copy small { grid-column: 1 / -1; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.request-badge { padding: 3px 5px; border-radius: 4px; color: #2563eb; background: rgba(79,140,255,.12); font-size: 9px; font-weight: 700; white-space: nowrap; }
+.request-badge.processing { color: var(--warning); background: rgba(217,119,6,.12); }
+.request-badge.success { color: var(--success); background: rgba(22,163,74,.11); }
+.request-badge.partial { color: var(--warning); background: rgba(217,119,6,.12); }
+.request-badge.failed, .request-badge.aborted { color: var(--danger); background: rgba(220,38,38,.1); }
+.request-status-actions { display: flex; align-items: center; gap: 4px; }
+.request-status-actions .secondary-button { min-height: 28px; padding: 4px 7px; font-size: 9px; white-space: nowrap; }
+.inspector.request-file-locked .selection-summary::after { display: block; margin-top: 6px; color: var(--warning); content: "当前文件正在等待 Agent 处理，编辑已锁定"; font-size: 9px; }
 .selection-summary { padding: 11px 2px 8px; }
 .selection-summary span, .selection-summary b { display: block; }
 .selection-summary span { font-size: 9px; }
@@ -165,6 +178,13 @@ dialog footer { display: flex; justify-content: flex-end; gap: 7px; }
 dialog textarea { width: 100%; resize: vertical; }
 .request-dialog, .result-dialog { width: 560px; }
 .request-dialog textarea { padding: 9px; border: 1px solid rgba(79,140,255,.2); border-radius: 6px; background: #f7fbff; font: 11px/1.5 var(--mono); }
+.request-meta { display: grid; grid-template-columns: minmax(0,1.6fr) repeat(3,minmax(0,.7fr)); gap: 7px; }
+.request-meta > span { display: grid; gap: 2px; min-width: 0; padding: 7px; border: 1px solid var(--line-dark); border-radius: 6px; background: rgba(255,255,255,.58); }
+.request-meta small { color: var(--muted); font-size: 9px; }
+.request-meta code, .request-meta b { overflow: hidden; color: var(--ink-2); font: 10px/1.35 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.clipboard-status { min-height: 17px; color: var(--muted); font-size: 10px; }
+.clipboard-status.success { color: var(--success); }
+.clipboard-status.warn { color: var(--warning); }
 .result-item { display: grid; grid-template-columns: 74px minmax(0,1fr); gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line-dark); }
 .result-item b.success { color: var(--success); }
 .result-item b.failed, .result-item b.conflict { color: var(--danger); }
@@ -188,12 +208,20 @@ dialog textarea { width: 100%; resize: vertical; }
 .toast { position: fixed; right: 352px; bottom: 26px; z-index: 90; max-width: 420px; padding: 9px 12px; border: 1px solid rgba(22,163,74,.28); border-radius: 7px; color: var(--ink-2); background: rgba(255,255,255,.95); box-shadow: var(--shadow); }
 .toast.warn { border-color: rgba(217,119,6,.32); }
 .toast.error { border-color: rgba(220,38,38,.32); }
+.service-closed { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: rgba(234,243,255,.78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.service-closed-panel { display: grid; width: min(420px,100%); justify-items: center; gap: 10px; padding: 28px; border-radius: 8px; text-align: center; }
+.service-closed-panel > svg { width: 30px; height: 30px; color: var(--accent); }
+.service-closed-panel h2, .service-closed-panel p { margin: 0; }
+.service-closed-panel h2 { font-size: 17px; }
+.service-closed-panel p { color: var(--muted); }
 
 @media (max-width: 1200px) {
   .layout { grid-template-columns: 226px minmax(0,1fr) 310px; }
   .layout.sidebar-collapsed { grid-template-columns: 48px minmax(0,1fr) 310px; }
   .preview-shell { width: 820px; height: 535px; }
   .border-row { grid-template-columns: minmax(0,1fr) 66px 76px; }
+  .request-status { grid-template-columns: 1fr; }
+  .request-status-actions { justify-content: flex-end; }
   .toast { right: 328px; }
 }
 

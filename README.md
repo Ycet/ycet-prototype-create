@@ -4,14 +4,14 @@
 
 ## 当前版本
 
-- 版本：V3.0 开发迭代（功能五）
+- 版本：V3.0 工作台 V1
 - 分支：`V3.0开发迭代dev`
-- 状态：功能五与本地可视化编辑器工作台 V1 已实现；移动端真机仍未验证
+- 状态：核心实现与自动化守卫已完成，发布验收中；Firefox、移动端真机和完整 Agent 对话评估仍未验证
 - 交付目录：`outputs/skills/ycet-prototype-create/`
 - 基线目录：`skill/ycet-prototype-create/`
 - 当前开发基线：`52c50b1`
 
-基线目录用于保留优化前的 Skill；后续使用、验证或安装时应以交付目录为准。
+基线目录用于保留优化前的 Skill；交付、验证或安装时应以交付目录为准。当前全局 `.agents`/`.claude` Skill 尚未切换到交付目录，不能把全局调用结果视为 V3.0 验收结果。
 
 ## 功能范围
 
@@ -102,7 +102,7 @@
 │  ├─ assets/workbench/                # 三栏工作台前端与预览运行时
 │  ├─ docs/                            # 五项功能流程与共享规范
 │  ├─ evals/evals.json                 # Agent 行为评估用例
-│  └─ scripts/                         # 工作台服务、打包器与守卫脚本
+│  └─ scripts/                         # 工作台服务、打包器、守卫与发布审计脚本
 ├─ assets/frames/                      # 本轮框架设计源文件
 ├─ docs/brainstorms/                   # 已确认规格和执行计划
 ├─ V1.0优化想法.txt
@@ -125,7 +125,9 @@ Agent 应先读取 `SKILL.md` 完成功能路由，再按需读取对应功能�
 python outputs\skills\ycet-prototype-create\scripts\prototype_workbench.py ensure --project-root <项目根目录>
 ```
 
-工作台使用 Python 3 标准库与原生 HTML/CSS/JavaScript，状态写入目标项目根 `.ycet-editor/`。该目录不属于 `prototype/` 产物；未发送草稿不会写入磁盘。
+工作台使用 Python 3 标准库与原生 HTML/CSS/JavaScript，状态写入目标项目根 `.ycet-editor/`。该目录不属于 `prototype/` 产物；未发送草稿不会写入磁盘。顶部 Power 按钮可在二次确认后优雅停止当前工作台进程；已生成或正在执行的 Agent 请求仍可由 CLI 继续处理，后续再次运行 `ensure` 会启动新实例。
+
+“发送给 AI”不会直接控制 Agent 会话。工作台生成请求包并尝试复制执行指令，用户将指令粘贴到当前 Codex、Claude Code 或 OpenCode；状态条会跨工作台重启恢复“待交给 Agent”“Agent 处理中”和最终逐文件结果。同一项目同时只允许一个未完成请求。
 
 新原型中的设备框架按以下形式加载产品页面：
 
@@ -154,6 +156,7 @@ python outputs\skills\ycet-prototype-create\scripts\test_prototype_workbench.py
 python outputs\skills\ycet-prototype-create\scripts\test_workbench_runtime.py
 python outputs\skills\ycet-prototype-create\scripts\test_prototype_guard.py
 python outputs\skills\ycet-prototype-create\scripts\test_build_mobile_prototype.py
+python outputs\skills\ycet-prototype-create\scripts\release_audit.py --installed-skill <可选的全局 Skill 目录>
 ```
 
 五类框架运行时验证：
@@ -212,7 +215,8 @@ python outputs\skills\ycet-prototype-create\scripts\prototype_guard.py verify --
 ## 已知限制与注意事项
 
 - 当前自动化脚本验证 Skill 结构、框架配置和浏览器运行时行为，尚未自动执行完整的 Agent 对话评估。
-- 工作台 V1 只生成并复制 Agent 执行指令，不直接控制任意 Agent 会话；浏览器关闭后未发送草稿会按设计丢失。
+- `release_audit.py` 会阻止含有测试截图、Python 缓存、缺失核心文件或全局版本不一致的交付目录进入发布流程。
+- 工作台 V1 通过变更包、可复制指令和持久请求状态与 Agent 交接，不直接控制任意 Agent 会话；浏览器关闭或主动停止工作台后，未发送草稿会按设计丢失。
 - Skill 不会自动安装自身、替换全局 Skill、发布、部署、推送远程仓库或创建 PR。
 - 桌面 Chrome/Edge 移动视口通过不等于 Safari iOS、Chrome Android 或 Edge Android 真机通过；未执行真机测试时必须明确标为“未验证”。
 - 完全自包含会增加手机版文件体积和内存占用；不得通过删除页面或资源降低完整性。动态网络、登录态和真实后端无法离线等价打包时会阻断生成。

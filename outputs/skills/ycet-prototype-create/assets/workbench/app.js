@@ -28,6 +28,13 @@
     activeEffectId: null,
     effectDraft: null,
     color: { h: 0, s: 0, v: 100 },
+    requests: [],
+    activeRequest: null,
+    results: [],
+    undoAvailable: false,
+    pollTimer: null,
+    serviceClosed: false,
+    requestRevision: 0,
   };
 
   const els = {
@@ -36,6 +43,7 @@
     path: $("#current-path"), project: $("#project-name"), selectMode: $("#select-mode"), clearAnnotations: $("#clear-annotations"), sync: $("#sync-pages"),
     selectedPath: $("#selected-path"), selectedName: $("#selected-name"), zoomValue: $("#zoom-value"), zoomInput: $("#zoom-input"),
     toast: $("#toast"), tooltip: $("#tooltip"), connectionDot: $("#connection-dot"), connectionCopy: $("#connection-copy"),
+    inspector: $(".inspector"), requestStatus: $("#request-status"), serviceClosed: $("#service-closed"),
   };
 
   async function api(path, payload) {
@@ -59,6 +67,20 @@
 
   function fileById(identifier) {
     return state.workspace?.files.find((item) => item.id === identifier) || null;
+  }
+
+  function isActiveRequest(request = state.activeRequest) {
+    return Boolean(request && ["pending", "processing"].includes(request.status));
+  }
+
+  function isFileLocked(identifier) {
+    return Boolean(isActiveRequest() && state.activeRequest.fileIds?.includes(identifier));
+  }
+
+  function requireEditable(identifier) {
+    if (!isFileLocked(identifier)) return true;
+    toast("当前文件正在等待 Agent 处理，暂时不能继续编辑。", "warn");
+    return false;
   }
 
   function draftFor(identifier, create = true) {
@@ -89,6 +111,7 @@
   }
 
   function upsertOperation(identifier, operation, key) {
+    if (!requireEditable(identifier)) return;
     const file = fileById(identifier);
     if (!file) {
       toast("该嵌套页面未登记到工作区，当前只能查看。", "warn");
@@ -202,13 +225,15 @@
     const files = state.workspace.files.filter((file) => `${file.name} ${file.path}`.toLocaleLowerCase().includes(query));
     const { root, groups } = groupBuckets(files);
     els.tree.replaceChildren(...root.map(fileRow), ...groups.map(groupNode));
-    els.clearAnnotations.disabled = !(draftFor(state.currentFileId, false)?.annotations.length);
+    els.clearAnnotations.disabled = isFileLocked(state.currentFileId) || !(draftFor(state.currentFileId, false)?.annotations.length);
+    updateEditingLock();
   }
 
-  function confirmAction(title, copy, action) {
+  function confirmAction(title, copy, action, actionCopy = "确认") {
     $("#confirm-title").textContent = title;
     $("#confirm-copy").textContent = copy;
     const button = $("#confirm-action");
+    button.textContent = actionCopy;
     button.onclick = () => Promise.resolve(action()).catch((error) => toast(error.message, "error"));
     $("#confirm-dialog").showModal();
   }
@@ -240,7 +265,17 @@
     updateZoom(false);
     if (!file.missing) els.frame.src = `/preview/${encodeURIComponent(identifier)}/?token=${encodeURIComponent(token)}&v=${Date.now()}`;
     renderTree();
+    updateEditingLock();
     persistPreferences();
+  }
+
+  function updateEditingLock() {
+    const locked = isFileLocked(state.currentFileId);
+    els.inspector.classList.toggle("request-file-locked", locked);
+    $$("input, select, textarea, button", $(".inspector-scroll", els.inspector)).forEach((control) => { control.disabled = locked; });
+    $("#clear-current").disabled = locked;
+    els.sync.disabled = locked;
+    els.clearAnnotations.disabled = locked || !(draftFor(state.currentFileId, false)?.annotations.length);
   }
 
   function clearSelectionPanel() {
@@ -380,6 +415,7 @@
     $("#image-status").textContent = selection.element.tag === "img" ? (imageOperation ? `待替换：${imageOperation.name}` : `当前图片：${selection.element.imageSource || "未设置"}`) : "当前元素不是图片；选择图片元素后可替换。";
     $("#css-property").value = "";
     $("#css-value").value = "";
+    updateEditingLock();
   }
 
   function updateColorButtons(styles) {
@@ -418,6 +454,7 @@
 
   function styleOperation(property, value) {
     if (!state.selection) return;
+    if (!requireEditable(state.selection.fileId)) return;
     const key = `style:${fingerprintKey(state.selection.fingerprint)}:${property}`;
     upsertOperation(state.selection.fileId, { type: "style", fingerprint: state.selection.fingerprint, property, value: String(value) }, key);
   }
@@ -792,6 +829,7 @@
 
   function openAnnotation(selection, annotation = null) {
     state.selection = selection || state.selection;
+    if (!state.selection || !requireEditable(annotation?.fileId || state.selection.fileId)) return;
     state.editingAnnotation = annotation;
     $("#annotation-title").textContent = annotation ? "编辑批注" : "添加批注";
     $("#annotation-copy").value = annotation?.text || "";
@@ -801,6 +839,7 @@
 
   function saveAnnotation() {
     if (!state.selection) return;
+    if (!requireEditable(state.editingAnnotation?.fileId || state.selection.fileId)) return;
     const text = $("#annotation-copy").value.trim();
     if (!text) return;
     const identifier = state.editingAnnotation?.fileId || state.selection.fileId;
@@ -815,6 +854,7 @@
   }
 
   function deleteAnnotation(annotation) {
+    if (!requireEditable(annotation.fileId)) return;
     const draft = draftFor(annotation.fileId, false);
     if (!draft) return;
     draft.annotations = draft.annotations.filter((item) => item.id !== annotation.id);
@@ -822,6 +862,7 @@
   }
 
   function clearCurrentAnnotations() {
+    if (!requireEditable(state.currentFileId)) return;
     const draft = draftFor(state.currentFileId, false);
     if (!draft?.annotations.length) return;
     draft.annotations = [];
@@ -832,6 +873,7 @@
 
   async function chooseImage() {
     if (!state.selection || state.selection.element.tag !== "img") return toast("请先选择图片元素。", "warn");
+    if (!requireEditable(state.selection.fileId)) return;
     try {
       const result = await api("/api/dialog", { kind: "image" });
       if (result.cancelled) return;
@@ -852,6 +894,7 @@
 
   function applyCustomCss() {
     if (!state.selection) return toast("请先选择元素。", "warn");
+    if (!requireEditable(state.selection.fileId)) return;
     const property = $("#css-property").value.trim(); const value = $("#css-value").value.trim();
     if (!property || !value) return toast("请填写 CSS 属性和值。", "warn");
     const key = `css:${fingerprintKey(state.selection.fingerprint)}:${property}`;
@@ -861,6 +904,7 @@
   function syncPages() {
     const runtime = fileById(state.currentFileId);
     if (!runtime || runtime.kind !== "runtime") return;
+    if (!requireEditable(runtime.id)) return;
     const normalized = runtime.name.replace(/--[^.]+(?=\.html$)/, "");
     const source = state.workspace.files.find((file) => file.automaticGroup === "pages" && file.name === normalized);
     if (!source) return toast(`未找到对应静态页 pages/${normalized}。`, "warn");
@@ -873,6 +917,7 @@
   }
 
   function clearCurrent() {
+    if (!requireEditable(state.currentFileId)) return;
     const draft = draftFor(state.currentFileId, false);
     if (!draft) return;
     draft.operations = [];
@@ -902,8 +947,111 @@
     }).filter(Boolean);
   }
 
+  const REQUEST_STATUS_LABELS = {
+    pending: "待交给 Agent",
+    processing: "Agent 处理中",
+    success: "处理成功",
+    partial: "部分成功",
+    failed: "处理失败",
+    aborted: "已中止",
+  };
+
+  function requestStatusNote(request) {
+    if (request.status === "pending") return "请将执行指令粘贴到当前 Agent";
+    if (request.status === "processing") return "请求涉及的文件暂时锁定编辑";
+    return request.reason || `${request.fileCount} 个文件，${request.operationCount} 项操作`;
+  }
+
+  function renderRequestStatus() {
+    const request = state.activeRequest || state.requests[0] || null;
+    els.requestStatus.classList.toggle("hidden", !request);
+    if (request) {
+      const badge = $("#request-status-badge");
+      badge.textContent = REQUEST_STATUS_LABELS[request.status] || request.status;
+      badge.className = `request-badge ${request.status}`;
+      $("#request-status-id").textContent = request.requestId.slice(0, 8);
+      $("#request-status-note").textContent = requestStatusNote(request);
+      $("#request-copy").classList.toggle("hidden", request.status !== "pending");
+      $("#request-cancel").classList.toggle("hidden", request.status !== "pending");
+    }
+    const active = isActiveRequest();
+    const send = $("#send-ai");
+    send.disabled = active;
+    if (active) send.dataset.tooltip = "当前请求完成或中止后才能再次发送";
+    else delete send.dataset.tooltip;
+    $("#undo-ai").disabled = active || !state.undoAvailable;
+    updateEditingLock();
+  }
+
+  function applyRequestListing(listing) {
+    if (Number(listing.revision || 0) < state.requestRevision) return;
+    state.requestRevision = Number(listing.revision || state.requestRevision);
+    state.requests = listing.requests || [];
+    state.activeRequest = listing.activeRequest || null;
+    renderRequestStatus();
+    renderTree();
+  }
+
+  function openRequestDialog(request, title = "变更包已生成", copy = "请将以下执行指令粘贴到当前 Agent。工作台不会直接控制 Agent 会话。") {
+    $("#request-dialog-title").textContent = title;
+    $("#request-dialog-copy").textContent = copy;
+    $("#request-meta").classList.toggle("hidden", !request);
+    if (request) {
+      $("#request-id").textContent = request.requestId;
+      $("#request-dialog-status").textContent = REQUEST_STATUS_LABELS[request.status] || request.status;
+      $("#request-file-count").textContent = String(request.fileCount);
+      $("#request-operation-count").textContent = String(request.operationCount);
+    }
+    $("#request-instruction").value = request?.instruction || "";
+    $("#clipboard-status").textContent = "";
+    $("#clipboard-status").className = "clipboard-status";
+    $("#request-dialog").showModal();
+  }
+
+  async function copyInstruction(instruction = $("#request-instruction").value) {
+    const status = $("#clipboard-status");
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(instruction);
+      status.textContent = "执行指令已复制到剪贴板。";
+      status.className = "clipboard-status success";
+      return true;
+    } catch (_error) {
+      status.textContent = "浏览器未允许自动复制，请点击“复制指令”重试或手动选择文本。";
+      status.className = "clipboard-status warn";
+      return false;
+    }
+  }
+
+  async function refreshRequestListing() {
+    applyRequestListing(await api("/api/requests"));
+  }
+
+  function cancelActiveRequest() {
+    const request = state.activeRequest;
+    if (!request || request.status !== "pending") return;
+    confirmAction("取消待处理请求", "取消后不会恢复发送时已清空的草稿。确定取消这个请求吗？", async () => {
+      await api(`/api/requests/${encodeURIComponent(request.requestId)}/cancel`, {});
+      const results = await api("/api/results");
+      state.results = results.results || [];
+      state.undoAvailable = Boolean(results.undoAvailable);
+      state.latestResultId = request.requestId;
+      await refreshRequestListing();
+      toast("待处理请求已取消；已发送草稿不会恢复。", "warn");
+    });
+  }
+
+  function showRequestDetails() {
+    const request = state.activeRequest || state.requests[0];
+    if (!request) return;
+    const result = state.results.find((item) => item.requestId === request.requestId);
+    if (result && !isActiveRequest(request)) showResults([result]);
+    else openRequestDialog(request, "Agent 请求详情");
+  }
+
   async function sendRequest() {
     if (state.staleDrafts.size) return toast("源文件已在外部变化，请刷新后重新编辑再发送。", "error");
+    if (isActiveRequest()) return toast("当前 Agent 请求尚未完成，暂时不能再次发送。", "warn");
     const files = requestFiles();
     if (!files.length) return toast("当前会话没有待发送修改。", "warn");
     const button = $("#send-ai"); button.disabled = true;
@@ -911,19 +1059,24 @@
       const result = await api("/api/requests", { schemaVersion: 1, files });
       state.drafts.clear(); state.staleDrafts.clear(); renderTree(); applyDrafts(); syncDirtyState();
       selectFile(state.currentFileId, true);
-      $("#request-instruction").value = result.instruction;
-      $("#request-dialog").showModal();
-      navigator.clipboard?.writeText(result.instruction).catch(() => {});
-      toast("变更包已生成，执行指令已复制。" );
+      state.activeRequest = result.request;
+      state.requestRevision = Number(result.revision || state.requestRevision);
+      state.requests = [result.request, ...state.requests.filter((item) => item.requestId !== result.requestId)];
+      renderRequestStatus();
+      openRequestDialog(result.request);
+      const copied = await copyInstruction(result.instruction);
+      toast(copied ? "变更包已生成，执行指令已复制。" : "变更包已生成，请手动复制执行指令。", copied ? "" : "warn");
     } catch (error) { toast(error.message, "error"); }
-    finally { button.disabled = false; }
+    finally { renderRequestStatus(); }
   }
 
   async function requestUndo() {
+    if (isActiveRequest()) return toast("当前 Agent 请求尚未完成，暂时不能撤回。", "warn");
     try {
       const result = await api("/api/undo/request", {});
-      $("#request-instruction").value = result.instruction; $("#request-dialog").showModal();
-      navigator.clipboard?.writeText(result.instruction).catch(() => {});
+      openRequestDialog(null, "撤回指令已生成", "请将以下撤回指令粘贴到当前 Agent。工作台不会直接控制 Agent 会话。");
+      $("#request-instruction").value = result.instruction;
+      await copyInstruction(result.instruction);
     } catch (error) { toast(error.message, "error"); }
   }
 
@@ -941,9 +1094,45 @@
     $("#result-dialog").showModal();
   }
 
-  async function poll() {
+  function enterClosedState() {
+    state.serviceClosed = true;
+    if (state.pollTimer) clearInterval(state.pollTimer);
+    state.pollTimer = null;
+    state.drafts.clear();
+    state.staleDrafts.clear();
+    state.selection = null;
+    state.editingAnnotation = null;
+    clearSelectionPanel();
+    els.connectionDot.classList.add("offline");
+    els.connectionCopy.textContent = "服务已关闭";
+    document.title = "Prototype Studio - 已关闭";
+    els.serviceClosed.classList.remove("hidden");
+  }
+
+  async function shutdownWorkbench() {
+    const button = $("#shutdown-workbench");
+    button.disabled = true;
     try {
-      const [workspace, serviceState, results] = await Promise.all([api("/api/workspace"), api("/api/state"), api("/api/results")]);
+      await api("/api/shutdown", {});
+      enterClosedState();
+    } catch (error) {
+      button.disabled = false;
+      toast(`关闭工作台失败：${error.message}`, "error");
+    }
+  }
+
+  function confirmShutdown() {
+    const dirtyCount = dirtyIds().length;
+    const copy = dirtyCount
+      ? `当前有 ${dirtyCount} 个 HTML 文件包含未发送修改。关闭进程后，这些批注、样式、内容、图片、CSS 和同步草稿将全部丢失；已生成的 Agent 请求不会被取消。`
+      : "关闭后需要通过 Skill 重新启动工作台；已生成或正在执行的 Agent 请求不会被取消。";
+    confirmAction("关闭工作台进程", copy, shutdownWorkbench, "关闭进程");
+  }
+
+  async function poll() {
+    if (state.serviceClosed) return;
+    try {
+      const [workspace, serviceState, requests, results] = await Promise.all([api("/api/workspace"), api("/api/state"), api("/api/requests"), api("/api/results")]);
       els.connectionDot.classList.remove("offline"); els.connectionCopy.textContent = serviceState.locked ? "功能五打包中" : "本地工作区";
       const currentBefore = fileById(state.currentFileId);
       const previousSha = currentBefore?.sha256;
@@ -956,11 +1145,18 @@
         state.lastSha.set(file.id, file.sha256);
       }
       state.workspace = workspace;
+      if (Number(requests.revision || 0) >= state.requestRevision) {
+        state.requestRevision = Number(requests.revision || state.requestRevision);
+        state.requests = requests.requests || [];
+        state.activeRequest = requests.activeRequest || null;
+      }
+      state.results = results.results || [];
+      state.undoAvailable = Boolean(results.undoAvailable);
       if (!previousSha && state.currentFileId && !fileById(state.currentFileId)) selectFile(workspace.currentFileId, true);
       renderTree();
-      $("#undo-ai").disabled = !results.undoAvailable;
-      const latest = results.results?.[0];
-      if (latest?.requestId && latest.requestId !== state.latestResultId) { state.latestResultId = latest.requestId; showResults(results.results); }
+      renderRequestStatus();
+      const latest = state.results[0];
+      if (latest?.requestId && latest.requestId !== state.latestResultId) { state.latestResultId = latest.requestId; showResults(state.results); }
     } catch (_error) {
       els.connectionDot.classList.add("offline"); els.connectionCopy.textContent = "服务已关闭";
     }
@@ -983,6 +1179,7 @@
   }
 
   function bindChrome() {
+    $("#shutdown-workbench").addEventListener("click", confirmShutdown);
     $("#refresh-files").addEventListener("click", refreshProjectFiles);
     $("#refresh-fonts").addEventListener("click", async (event) => {
       const button = event.currentTarget;
@@ -1020,7 +1217,13 @@
     }));
     $("#sync-pages").addEventListener("click", syncPages); $("#clear-current").addEventListener("click", clearCurrent);
     $("#send-ai").addEventListener("click", sendRequest); $("#undo-ai").addEventListener("click", requestUndo);
-    $("#copy-instruction").addEventListener("click", () => navigator.clipboard?.writeText($("#request-instruction").value));
+    $("#copy-instruction").addEventListener("click", () => copyInstruction());
+    $("#request-copy").addEventListener("click", async () => {
+      const copied = await copyInstruction(state.activeRequest?.instruction || state.requests[0]?.instruction || "");
+      toast(copied ? "执行指令已再次复制。" : "无法自动复制，请在详情中手动选择指令。", copied ? "" : "warn");
+    });
+    $("#request-cancel").addEventListener("click", cancelActiveRequest);
+    $("#request-details").addEventListener("click", showRequestDetails);
     $("#save-annotation").addEventListener("click", saveAnnotation); $("#choose-image").addEventListener("click", chooseImage); $("#apply-css").addEventListener("click", applyCustomCss);
     let tooltipTimer;
     document.addEventListener("mousemove", (event) => {
@@ -1082,13 +1285,20 @@
     bindChrome(); bindCanvas(); bindPropertyInputs(); bindColors(); bindEffects();
     new ResizeObserver(() => resizePreviewShell()).observe(els.viewport);
     try {
-      state.workspace = await api("/api/workspace");
+      const [workspace, requests, results] = await Promise.all([api("/api/workspace"), api("/api/requests"), api("/api/results")]);
+      state.workspace = workspace;
+      state.requests = requests.requests || [];
+      state.activeRequest = requests.activeRequest || null;
+      state.requestRevision = Number(requests.revision || 0);
+      state.results = results.results || [];
+      state.undoAvailable = Boolean(results.undoAvailable);
+      state.latestResultId = state.results[0]?.requestId || null;
       await loadSystemFonts(false);
       state.currentFileId = state.workspace.currentFileId;
       state.workspace.files.forEach((file) => state.lastSha.set(file.id, file.sha256));
       els.project.textContent = state.workspace.projectName; renderTree(); selectFile(state.currentFileId, true);
-      const results = await api("/api/results"); $("#undo-ai").disabled = !results.undoAvailable;
-      setInterval(poll, 2000);
+      renderRequestStatus();
+      state.pollTimer = setInterval(poll, 2000);
     } catch (error) { toast(error.message, "error"); els.connectionDot.classList.add("offline"); }
   }
 

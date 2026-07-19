@@ -25,6 +25,7 @@ python <skill目录>/scripts/prototype_workbench.py ensure --project-root <项�
 3. 项目没有 `prototype/` 或没有 HTML 时仍正常启动空工作台；服务保持运行，后续点击左栏刷新按钮即可补入新生成的项目 HTML。
 4. `opened: false` 时必须把命令输出的 URL 发给用户。
 5. 左栏只提供搜索、选择、分组折叠、项目文件刷新和侧栏折叠，不提供新增分组、外部 HTML 选择、拖拽排序或移出文件操作。
+6. 用户可通过顶部 Power 图标打开二次确认并优雅关闭当前项目工作台进程；有未发送草稿时必须提示丢失风险。关闭服务不取消已发送或正在执行的 Agent 请求。
 
 用户明确要求登记其他 HTML 时：
 
@@ -36,12 +37,14 @@ python <skill目录>/scripts/prototype_workbench.py sync --project-root <项目�
 
 1. 从指令取得项目根和请求 ID。
 2. 读取 `shared-workbench-protocol.md`，运行 `request show` 审查全部文件、摘要、指纹、操作与依赖组。
-3. 运行 `request begin`；只修改返回的 `readyFileIds`，冲突文件或冲突依赖组保持原字节。
+3. 运行 `request begin` 原子领取请求并把工作台状态更新为“Agent 处理中”；只修改返回的 `readyFileIds`，冲突文件或冲突依赖组保持原字节。
 4. 每个元素必须用完整指纹唯一定位；匹配为零或多个时记录 `conflict`，不得按视觉或相似文本猜测。
 5. 在暂存内容中应用 `annotation`、`style`、`text`、`image-replace`、`css` 和 `sync-pages` 操作，并执行对应功能守卫。
 6. 项目内成功修改追加 EditLog；外部 HTML 直接修改原始路径，不写永久执行历史。
 7. 写结果 JSON 并运行 `request complete`。互不依赖文件允许部分成功。
 8. 最终回复列出成功文件、失败/冲突文件和逐项原因；工作台结果面板读取同一结果。
+
+同一项目只能有一个 `pending` 或 `processing` 请求。存在活动请求时不得再次发送或撤回；活动请求涉及的文件锁定编辑，其他文件可准备但不能发送新草稿。只有 `pending` 请求可由用户在工作台取消，且取消不会恢复已清空草稿；`processing` 请求只能由 Agent 完成或中止。
 
 ## `同步 pages` 保护
 
@@ -66,3 +69,5 @@ python <skill目录>/scripts/prototype_workbench.py undo --project-root <项目�
 - 部分成功、冲突与失败逐文件报告。
 - 项目内普通修改已记录 EditLog；外部文件没有永久执行历史。
 - 最近一次成功批次可以在摘要仍匹配时跨工作台重启撤回。
+- 工作台正确展示待交给 Agent、处理中和终态；剪贴板失败时不误报已复制。
+- Power 按钮可优雅停止服务、清理 `server.json` 并保留已发送请求，后续 `ensure` 能启动新实例。

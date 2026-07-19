@@ -176,14 +176,29 @@ def main() -> int:
             fail(f"工作台交付文件缺失: {path.relative_to(ROOT)}", failures)
     if workbench_script.is_file():
         script_text = workbench_script.read_text(encoding="utf-8")
-        for token in ("command_ensure", "command_sync", "command_request", "command_undo", "command_lock", "127.0.0.1", "tkinter"):
+        for token in ("command_ensure", "command_sync", "command_request", "command_undo", "command_lock", "request_state_path", "ACTIVE_REQUEST_STATUSES", "/api/shutdown", "shutdown_requested", "127.0.0.1", "tkinter"):
             if token not in script_text:
                 fail(f"工作台脚本缺少能力: {token}", failures)
     if workbench_protocol.is_file():
         protocol_text = workbench_protocol.read_text(encoding="utf-8")
-        for token in ("未发送草稿", "schemaVersion: 1", "sync-pages", "互不依赖文件允许部分成功", ".ycet-editor/undo/latest/", "lock acquire"):
+        for token in ("未发送草稿", "schemaVersion: 1", "sync-pages", "互不依赖文件允许部分成功", ".state.json", "`pending` 请求可从工作台取消", "POST /api/shutdown", ".ycet-editor/undo/latest/", "lock acquire"):
             if token not in protocol_text:
                 fail(f"工作台协议缺少契约: {token}", failures)
+    workbench_html = ROOT / "assets" / "workbench" / "index.html"
+    workbench_js = ROOT / "assets" / "workbench" / "app.js"
+    workbench_icons = ROOT / "assets" / "workbench" / "icons.svg"
+    if workbench_html.is_file():
+        html_text = workbench_html.read_text(encoding="utf-8")
+        for token in ('id="shutdown-workbench"', 'id="request-status"', 'id="request-meta"', 'id="service-closed"'):
+            if token not in html_text:
+                fail(f"工作台前端缺少关闭或 Agent 状态界面: {token}", failures)
+    if workbench_js.is_file():
+        js_text = workbench_js.read_text(encoding="utf-8")
+        for token in ("renderRequestStatus", "requestRevision", "cancelActiveRequest", "confirmShutdown", "enterClosedState"):
+            if token not in js_text:
+                fail(f"工作台前端缺少请求或关闭交互: {token}", failures)
+    if workbench_icons.is_file() and 'id="power"' not in workbench_icons.read_text(encoding="utf-8"):
+        fail("工作台图标库缺少 Power 图标", failures)
 
     function_two = (ROOT / "docs" / "function-2-precision-edit.md").read_text(encoding="utf-8")
     for token in ("可视化工作台", "不再要求用户打开 F12", "request show", "readyFileIds", "外部 HTML 不写 EditLog", "同步 pages"):

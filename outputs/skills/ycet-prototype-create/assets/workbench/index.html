@@ -10,7 +10,10 @@
     <main class="app-shell">
       <header class="topbar glass">
         <div class="brand"><span class="brand-mark" aria-hidden="true"></span><strong>Prototype Studio</strong><span id="project-name" class="mono muted">正在连接...</span></div>
-        <div class="status"><span id="connection-dot" class="status-dot"></span><span id="connection-copy">本地工作区</span></div>
+        <div class="topbar-actions">
+          <div class="status"><span id="connection-dot" class="status-dot"></span><span id="connection-copy">本地工作区</span></div>
+          <button id="shutdown-workbench" class="icon-button danger" type="button" data-tooltip="关闭工作台进程" aria-label="关闭工作台进程"><svg><use href="/assets/icons.svg#power" /></svg></button>
+        </div>
       </header>
 
       <section id="layout" class="layout">
@@ -38,7 +41,7 @@
             <div id="canvas-board" class="canvas-board">
               <div id="preview-shell" class="preview-shell"><iframe id="preview-frame" title="HTML 页面预览" scrolling="yes"></iframe></div>
             </div>
-            <div id="empty-state" class="empty-state hidden"><b>工作区还没有 HTML</b><span>使用左侧“添加外部文件”选择要预览的文件。</span></div>
+            <div id="empty-state" class="empty-state hidden"><b>工作区还没有 HTML</b><span>生成原型 HTML 后，点击左侧刷新按钮加入工作区。</span></div>
             <div id="canvas-hints" class="canvas-hints" role="note" aria-label="画布操作提示">
               <span class="canvas-hint"><svg aria-hidden="true"><use href="/assets/icons.svg#mouse" /></svg><span><kbd>Ctrl</kbd> + 鼠标滚轮：缩放画布</span></span>
               <span class="canvas-hint"><svg aria-hidden="true"><use href="/assets/icons.svg#move" /></svg><span>鼠标中键：拖动画布</span></span>
@@ -48,6 +51,10 @@
 
         <aside class="inspector glass" aria-label="属性编辑器">
           <header class="primary-actions"><button id="send-ai" class="primary-button" type="button">发送给 AI</button><button id="clear-current" class="secondary-button" type="button" data-tooltip="清空当前html文件的样式修改">清空修改</button><button id="undo-ai" class="secondary-button" type="button" data-tooltip="撤回到AI修改前的状态" disabled>撤回</button></header>
+          <section id="request-status" class="request-status hidden" aria-live="polite">
+            <div class="request-status-copy"><span id="request-status-badge" class="request-badge">待交给 Agent</span><code id="request-status-id"></code><small id="request-status-note"></small></div>
+            <div class="request-status-actions"><button id="request-copy" class="icon-button" type="button" data-tooltip="再次复制执行指令" aria-label="再次复制执行指令"><svg><use href="/assets/icons.svg#copy" /></svg></button><button id="request-cancel" class="icon-button danger" type="button" data-tooltip="取消待处理请求" aria-label="取消待处理请求"><svg><use href="/assets/icons.svg#x" /></svg></button><button id="request-details" class="secondary-button" type="button">查看详情</button></div>
+          </section>
           <button id="sync-pages" class="sync-button hidden" type="button">同步 pages</button>
           <section class="selection-summary"><span id="selected-path" class="mono muted">尚未选择元素</span><b id="selected-name">选择预览中的组件</b></section>
           <nav class="tabs" aria-label="属性分类"><button class="tab active" data-tab="design" type="button">设计</button><button class="tab" data-tab="content" type="button">内容</button><button class="tab" data-tab="css" type="button">CSS</button></nav>
@@ -73,10 +80,11 @@
 
     <dialog id="confirm-dialog"><form method="dialog"><h2 id="confirm-title">确认操作</h2><p id="confirm-copy"></p><footer><button value="cancel" class="secondary-button">取消</button><button id="confirm-action" value="default" class="danger-button">确认</button></footer></form></dialog>
     <dialog id="annotation-dialog"><form method="dialog"><h2 id="annotation-title">添加批注</h2><label>修改要求<textarea id="annotation-copy" rows="4" placeholder="输入对当前元素的修改想法"></textarea></label><footer><button value="cancel" class="secondary-button">取消</button><button id="save-annotation" value="default" class="primary-button">保存批注</button></footer></form></dialog>
-    <dialog id="request-dialog"><form method="dialog" class="request-dialog"><h2>变更包已生成</h2><p>将以下执行指令发送给当前 Agent。工作台不会直接控制 Agent 会话。</p><textarea id="request-instruction" rows="7" readonly></textarea><footer><button value="cancel" class="secondary-button">关闭</button><button id="copy-instruction" value="default" class="primary-button"><svg><use href="/assets/icons.svg#copy" /></svg>复制指令</button></footer></form></dialog>
+    <dialog id="request-dialog"><form method="dialog" class="request-dialog"><h2 id="request-dialog-title">变更包已生成</h2><p id="request-dialog-copy">请将以下执行指令粘贴到当前 Agent。工作台不会直接控制 Agent 会话。</p><div id="request-meta" class="request-meta"><span><small>请求 ID</small><code id="request-id"></code></span><span><small>状态</small><b id="request-dialog-status"></b></span><span><small>文件</small><b id="request-file-count"></b></span><span><small>操作</small><b id="request-operation-count"></b></span></div><p id="clipboard-status" class="clipboard-status" aria-live="polite"></p><textarea id="request-instruction" rows="7" readonly></textarea><footer><button value="cancel" class="secondary-button">关闭</button><button id="copy-instruction" type="button" class="primary-button"><svg><use href="/assets/icons.svg#copy" /></svg>复制指令</button></footer></form></dialog>
     <dialog id="result-dialog"><form method="dialog" class="result-dialog"><h2>Agent 执行结果</h2><div id="result-list"></div><footer><button value="cancel" class="secondary-button">关闭</button></footer></form></dialog>
     <dialog id="color-dialog" class="anchored-popover"><form method="dialog" class="color-dialog"><button value="cancel" class="icon-button popover-close" aria-label="关闭"><svg><use href="/assets/icons.svg#x" /></svg></button><div id="color-sv" class="color-sv" role="slider" aria-label="饱和度和明度" tabindex="0"><span id="color-sv-handle"></span></div><div class="color-actions"><button id="eyedropper" type="button" class="icon-button" data-tooltip="吸管取色" aria-label="吸管取色"><svg><use href="/assets/icons.svg#eyedropper" /></svg></button><span id="color-preview"></span><input id="color-hue" type="range" min="0" max="360" aria-label="色相" /></div><div class="color-grid"><label>R<input id="color-r" type="number" min="0" max="255" /></label><label>G<input id="color-g" type="number" min="0" max="255" /></label><label>B<input id="color-b" type="number" min="0" max="255" /></label><label>H<input id="color-h" type="number" min="0" max="360" /></label><label>S<input id="color-s" type="number" min="0" max="100" /></label><label>V<input id="color-v" type="number" min="0" max="100" /></label><label class="hex">HEX<input id="color-hex" maxlength="7" /></label></div><footer><button value="cancel" class="secondary-button">取消</button><button id="apply-color" value="default" class="primary-button">应用</button></footer></form></dialog>
     <dialog id="effect-dialog" class="anchored-popover effect-dialog"><form method="dialog"><h2 id="effect-title">外部投影</h2><div id="shadow-controls"><div class="two-col"><label>X 位移<span><input id="shadow-x" type="number" value="0" /><i>px</i></span></label><label>Y 位移<span><input id="shadow-y" type="number" value="4" /><i>px</i></span></label><label>模糊<span><input id="shadow-blur" type="number" value="8" min="0" /><i>px</i></span></label><label>扩散<span><input id="shadow-spread" type="number" value="0" /><i>px</i></span></label></div><label class="shadow-color-control">投影颜色<button id="shadow-color" class="color-field" type="button"><span></span><em>rgba(15, 23, 42, .25)</em></button></label></div><label id="simple-blur-control" class="hidden">模糊<span><input id="simple-blur" type="number" value="8" min="0" /><i>px</i></span></label><footer><button value="cancel" class="secondary-button">关闭</button><button id="apply-effect" value="default" class="primary-button">应用</button></footer></form></dialog>
+    <section id="service-closed" class="service-closed hidden" role="alert"><div class="service-closed-panel glass"><svg aria-hidden="true"><use href="/assets/icons.svg#power" /></svg><h2>工作台进程已关闭</h2><p>可以关闭此标签页。下次需要时，通过 Skill 重新启动工作台。</p></div></section>
     <div id="tooltip" class="tooltip hidden" role="tooltip"></div><div id="toast" class="toast hidden" role="status"></div>
     <script src="/assets/app.js"></script>
   </body>

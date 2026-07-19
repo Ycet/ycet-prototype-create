@@ -86,6 +86,8 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.goto(url, wait_until="networkidle")
     page.locator("#file-tree .file-row").first.wait_for()
     page.wait_for_timeout(120)
+    if page.locator("#shutdown-workbench use").get_attribute("href") != "/assets/icons.svg#power":
+        regression_failures.append("顶部缺少使用本地 Power 图标的关闭工作台按钮")
     if page.locator("#font-family option").count() <= 4:
         regression_failures.append("字体选择器没有加载本机字体清单")
 
@@ -155,6 +157,9 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     for selector in ("#add-group", "#add-external", "#group-dialog", ".group-remove", ".remove-file"):
         if page.locator(selector).count():
             regression_failures.append(f"文件树仍保留已移除的操作入口：{selector}")
+    empty_state_copy = page.locator("#empty-state").text_content() or ""
+    if "添加外部文件" in empty_state_copy or "刷新" not in empty_state_copy:
+        regression_failures.append(f"空工作区仍在引导已移除的外部文件入口：{empty_state_copy}")
     if page.locator("#file-tree .file-row[draggable='true']").count():
         regression_failures.append("文件行仍可拖拽排序或分组")
     if page.locator("#refresh-files").count() != 1:
@@ -522,6 +527,13 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     if sha256(home) != original:
         raise AssertionError("发送前源 HTML 被工作台改写")
 
+    # 关闭进程始终二次确认，有草稿时必须明确提示丢失范围。
+    page.locator("#shutdown-workbench").click()
+    page.locator("#confirm-dialog[open]").wait_for()
+    if "1 个 HTML 文件" not in page.locator("#confirm-copy").inner_text() or "全部丢失" not in page.locator("#confirm-copy").inner_text():
+        regression_failures.append("关闭工作台确认没有提示未发送草稿数量和丢失风险")
+    page.locator("#confirm-dialog button[value='cancel']").click()
+
     page.get_by_text("index.html", exact=True).click()
     page.locator(".file-row.pending", has_text="home.html").wait_for()
     page.get_by_text("home.html", exact=True).click()
@@ -579,6 +591,10 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.locator("#request-dialog[open]").wait_for()
     if "请求 ID" not in page.locator("#request-instruction").input_value():
         raise AssertionError("发送后未生成 Agent 执行指令")
+    if not page.locator("#request-id").inner_text() or page.locator("#request-file-count").inner_text() != "1":
+        raise AssertionError("Agent 交接弹窗没有展示请求 ID 或文件数量")
+    if not page.locator("#clipboard-status").inner_text():
+        raise AssertionError("工作台没有如实反馈自动复制成功或失败")
     page.locator("#request-dialog button[value='cancel']").click()
     page.wait_for_timeout(80)
     if page.locator(".file-row.pending").count():
@@ -588,6 +604,25 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     requests = [path for path in (project / ".ycet-editor" / "requests").glob("*.json") if not path.name.endswith((".state.json", ".result.json"))]
     if not requests:
         raise AssertionError("变更包未写入 .ycet-editor/requests")
+    page.locator("#request-status").wait_for()
+    if page.locator("#request-status-badge").inner_text() != "待交给 Agent":
+        regression_failures.append("新请求没有显示为待交给 Agent")
+    if not page.locator("#send-ai").is_disabled():
+        regression_failures.append("存在活动请求时仍可再次发送")
+    if "request-file-locked" not in (page.locator(".inspector").get_attribute("class") or "") or not page.locator("#width").is_disabled():
+        regression_failures.append("活动请求涉及的当前文件没有锁定编辑")
+    page.get_by_text("index.html", exact=True).click()
+    page.wait_for_timeout(80)
+    if "request-file-locked" in (page.locator(".inspector").get_attribute("class") or ""):
+        regression_failures.append("活动请求意外锁定了未涉及的 HTML 文件")
+    page.locator("#request-cancel").click()
+    page.locator("#confirm-dialog[open]").wait_for()
+    if "不会恢复" not in page.locator("#confirm-copy").inner_text():
+        regression_failures.append("取消待处理请求没有说明草稿不会恢复")
+    page.locator("#confirm-action").click()
+    page.wait_for_function("document.querySelector('#request-status-badge')?.textContent === '已中止'")
+    if page.locator("#send-ai").is_disabled():
+        regression_failures.append("请求进入终态后没有恢复发送能力")
     if regression_failures:
         raise AssertionError("；".join(regression_failures))
 
@@ -598,6 +633,21 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.screenshot(path=str(screenshot_dir / f"workbench-{name}.png"), full_page=True)
     if errors or http_errors:
         raise AssertionError("浏览器错误：" + "；".join(errors + http_errors))
+    context.close()
+
+
+def exercise_shutdown(browser, url: str) -> None:
+    context = browser.new_context(viewport={"width": 1280, "height": 720})
+    page = context.new_page()
+    page.goto(url, wait_until="networkidle")
+    page.locator("#shutdown-workbench").click()
+    page.locator("#confirm-dialog[open]").wait_for()
+    if "重新启动工作台" not in page.locator("#confirm-copy").inner_text():
+        raise AssertionError("无草稿关闭确认没有说明重新启动方式")
+    page.locator("#confirm-action").click()
+    page.locator("#service-closed:not(.hidden)").wait_for(timeout=5000)
+    if "工作台进程已关闭" not in page.locator("#service-closed").inner_text():
+        raise AssertionError("关闭成功后没有展示工作台已关闭状态")
     context.close()
 
 
@@ -627,6 +677,7 @@ def main() -> int:
             passed = []
             skipped = []
             with sync_playwright() as playwright:
+                passed_targets = []
                 for name, browser_type, executable in browser_targets(playwright):
                     try:
                         options = {"headless": True}
@@ -640,9 +691,21 @@ def main() -> int:
                     try:
                         exercise(browser, name, f"{base_url}/?token={token}", home, project, Path(args.screenshot_dir))
                         passed.append(name)
+                        passed_targets.append((name, browser_type, executable))
                         print(f"[OK] {name}: 工作台运行时与三档布局通过")
                     finally:
                         browser.close()
+                if passed_targets:
+                    shutdown_name, shutdown_type, shutdown_executable = passed_targets[0]
+                    shutdown_options = {"headless": True}
+                    if shutdown_executable:
+                        shutdown_options["executable_path"] = shutdown_executable
+                    shutdown_browser = shutdown_type.launch(**shutdown_options)
+                    try:
+                        exercise_shutdown(shutdown_browser, f"{base_url}/?token={token}")
+                        print(f"[OK] {shutdown_name}: Web 关闭进程交互通过")
+                    finally:
+                        shutdown_browser.close()
             if args.require_firefox and "firefox" not in passed:
                 print("[FAIL] Firefox 未实际通过")
                 return 1
@@ -652,12 +715,13 @@ def main() -> int:
             print(json.dumps({"passed": passed, "skipped": skipped, "screenshots": args.screenshot_dir}, ensure_ascii=False))
             return 0
         finally:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=3)
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=3)
 
 
 if __name__ == "__main__":

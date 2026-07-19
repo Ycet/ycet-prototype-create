@@ -10,6 +10,8 @@ import importlib.util
 import io
 import json
 import os
+import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -18,6 +20,7 @@ import types
 import unittest
 import urllib.error
 import urllib.request
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -302,6 +305,113 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(payload["reused"])
         self.assertEqual(payload["pid"], os.getpid())
 
+    def test_shutdown_requires_token_and_requests_graceful_stop(self) -> None:
+        with self.assertRaises(urllib.error.HTTPError) as denied:
+            self.running.request("/api/shutdown", {}, token="wrong-token")
+        self.assertEqual(denied.exception.code, 403)
+        denied.exception.close()
+        cross_origin = urllib.request.Request(
+            self.running.url + "/api/shutdown",
+            data=b"{}",
+            headers={"Content-Type": "application/json", "X-YCET-Token": self.running.token, "Origin": "https://evil.example"},
+            method="POST",
+        )
+        with self.assertRaises(urllib.error.HTTPError) as denied_origin:
+            urllib.request.urlopen(cross_origin, timeout=3)
+        self.assertEqual(denied_origin.exception.code, 403)
+        denied_origin.exception.close()
+        self.assertFalse(self.running.service.shutdown_requested.is_set())
+
+        status, _headers, body = self.running.request("/api/shutdown", {})
+        self.assertEqual(status, 202)
+        self.assertEqual(body, {"ok": True, "shuttingDown": True})
+        deadline = time.time() + 1
+        while time.time() < deadline and not self.running.service.shutdown_requested.is_set():
+            time.sleep(0.01)
+        self.assertTrue(self.running.service.shutdown_requested.is_set())
+
+    def test_request_api_reports_and_cancels_pending_request(self) -> None:
+        record = self.running.service.workspace.data["files"][0]
+        payload = {
+            "schemaVersion": 1,
+            "files": [{
+                "fileId": record["id"],
+                "sha256": record["sha256"],
+                "operations": [{"type": "annotation", "text": "调整按钮"}],
+            }],
+        }
+        status, _headers, created = self.running.request("/api/requests", payload)
+        self.assertEqual(status, 201)
+        self.assertEqual(created["request"]["status"], "pending")
+        self.assertEqual(created["request"]["fileCount"], 1)
+        self.assertEqual(created["request"]["operationCount"], 1)
+
+        _status, _headers, listing = self.running.request("/api/requests")
+        self.assertEqual(listing["activeRequest"]["requestId"], created["requestId"])
+        self.assertEqual(listing["activeRequest"]["fileIds"], [record["id"]])
+
+        status, _headers, cancelled = self.running.request(f"/api/requests/{created['requestId']}/cancel", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(cancelled["request"]["status"], "aborted")
+        _status, _headers, listing = self.running.request("/api/requests")
+        self.assertIsNone(listing["activeRequest"])
+
+
+class LifecycleTests(unittest.TestCase):
+    def test_real_process_shutdown_cleans_state_and_ensure_restarts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write(root / "prototype" / "index.html", "<!doctype html><title>index</title>")
+            with socket.socket() as probe:
+                probe.bind((workbench.HOST, 0))
+                port = probe.getsockname()[1]
+            token = "shutdown-process-token"
+            process = subprocess.Popen(
+                [sys.executable, str(SCRIPT), "serve", "--project-root", str(root), "--port", str(port), "--token", token],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            try:
+                deadline = time.time() + 6
+                state = None
+                while time.time() < deadline:
+                    state = workbench.live_state(root)
+                    if state:
+                        break
+                    time.sleep(0.05)
+                self.assertIsNotNone(state, "真实工作台进程未启动")
+                workbench.call_api(state, "/api/shutdown", {})
+                process.wait(timeout=6)
+                self.assertFalse(workbench.state_paths(root)["server"].exists())
+                self.assertIsNone(workbench.live_state(root))
+
+                output = io.StringIO()
+                with warnings.catch_warnings(), contextlib.redirect_stdout(output):
+                    warnings.simplefilter("ignore", ResourceWarning)
+                    workbench.command_ensure(argparse.Namespace(project_root=str(root), add=[], no_open=True))
+                restarted = json.loads(output.getvalue())
+                self.assertFalse(restarted["reused"])
+                self.assertNotEqual(restarted["pid"], process.pid)
+                restarted_state = workbench.live_state(root)
+                self.assertIsNotNone(restarted_state)
+                workbench.call_api(restarted_state, "/api/shutdown", {})
+                deadline = time.time() + 6
+                while time.time() < deadline and (workbench.live_state(root) or workbench.state_paths(root)["server"].exists()):
+                    time.sleep(0.05)
+                self.assertIsNone(workbench.live_state(root))
+                time.sleep(0.15)
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=3)
+                live = workbench.live_state(root)
+                if live:
+                    try:
+                        workbench.call_api(live, "/api/shutdown", {})
+                    except OSError:
+                        pass
+
 
 class RequestAndUndoTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -325,6 +435,88 @@ class RequestAndUndoTests(unittest.TestCase):
         record = self.workspace.data["files"][0]
         with self.assertRaises(workbench.WorkbenchError):
             workbench.validate_request(self.workspace, {"files": [{"fileId": record["id"], "sha256": record["sha256"], "operations": [{"type": "css", "property": "background", "value": "url(https://example.com/a.png)"}]}]})
+
+    def test_single_active_request_and_pending_cancel(self) -> None:
+        payload = self.package({"a.html": [{"type": "annotation", "text": "a"}]})
+        service = workbench.WorkbenchService(self.root, "token")
+        try:
+            created = service.create_request({"schemaVersion": 1, "files": [
+                {"fileId": item["fileId"], "sha256": item["sha256"], "operations": item["operations"]}
+                for item in payload["files"]
+            ]})
+            with self.assertRaises(workbench.WorkbenchError):
+                service.create_request({"schemaVersion": 1, "files": [
+                    {"fileId": item["fileId"], "sha256": item["sha256"], "operations": item["operations"]}
+                    for item in payload["files"]
+                ]})
+            cancelled = service.cancel_request(created["requestId"])
+            self.assertEqual(cancelled["status"], "aborted")
+            with self.assertRaises(workbench.WorkbenchError):
+                workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=created["requestId"], request_action="begin", result=None, reason=""))
+            replacement = service.create_request({"schemaVersion": 1, "files": [
+                {"fileId": item["fileId"], "sha256": item["sha256"], "operations": item["operations"]}
+                for item in payload["files"]
+            ]})
+            self.assertNotEqual(replacement["requestId"], created["requestId"])
+        finally:
+            service.stop()
+
+    def test_request_state_tracks_processing_and_rejects_repeat_begin(self) -> None:
+        package = self.package({"a.html": [{"type": "annotation", "text": "a"}]})
+        workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
+        args = argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="begin", result=None, reason="")
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(args)
+        state = workbench.load_request_state(self.root, package["requestId"])
+        self.assertEqual(state["status"], "processing")
+        with self.assertRaises(workbench.WorkbenchError):
+            workbench.command_request(args)
+
+        with self.assertRaises(workbench.WorkbenchError):
+            workbench.cancel_request(self.root, package["requestId"])
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="abort", result=None, reason="Agent 中止测试"))
+        self.assertEqual(workbench.load_request_state(self.root, package["requestId"])["status"], "aborted")
+
+    def test_partial_and_failed_results_update_request_state(self) -> None:
+        package = self.package({"a.html": [{"type": "annotation", "text": "a"}], "b.html": [{"type": "annotation", "text": "b"}]})
+        workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="begin", result=None, reason=""))
+        first_id = next(item["fileId"] for item in package["files"] if item["displayPath"].endswith("a.html"))
+        second_id = next(item["fileId"] for item in package["files"] if item["displayPath"].endswith("b.html"))
+        self.first.write_text("<p id='a'>AA</p>", encoding="utf-8")
+        result_path = self.root / "partial-result.json"
+        result_path.write_text(json.dumps({"items": [
+            {"fileId": first_id, "path": str(self.first), "status": "success"},
+            {"fileId": second_id, "path": str(self.second), "status": "failed", "reason": "测试失败"},
+        ]}), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="complete", result=str(result_path), reason=""))
+        self.assertEqual(workbench.load_request_state(self.root, package["requestId"])["status"], "partial")
+
+        failed = self.package({"b.html": [{"type": "annotation", "text": "b2"}]})
+        workbench.atomic_json(workbench.request_path(self.root, failed["requestId"]), failed)
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=failed["requestId"], request_action="begin", result=None, reason=""))
+        failed_path = self.root / "failed-result.json"
+        failed_path.write_text(json.dumps({"items": [{"fileId": failed["files"][0]["fileId"], "status": "failed", "reason": "无法定位"}]}), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=failed["requestId"], request_action="complete", result=str(failed_path), reason=""))
+        self.assertEqual(workbench.load_request_state(self.root, failed["requestId"])["status"], "failed")
+
+    def test_legacy_request_state_is_inferred_from_result(self) -> None:
+        package = self.package({"a.html": [{"type": "annotation", "text": "legacy"}]})
+        workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
+        workbench.atomic_json(workbench.request_result_path(self.root, package["requestId"]), {
+            "schemaVersion": 1,
+            "requestId": package["requestId"],
+            "status": "failed",
+            "completedAt": workbench.utc_now(),
+            "items": [],
+        })
+        self.assertFalse(workbench.request_state_path(self.root, package["requestId"]).exists())
+        self.assertEqual(workbench.load_request_state(self.root, package["requestId"])["status"], "failed")
 
     def test_independent_conflict_allows_partial_begin(self) -> None:
         package = self.package({"a.html": [{"type": "annotation", "text": "a"}], "b.html": [{"type": "annotation", "text": "b"}]})
@@ -364,6 +556,7 @@ class RequestAndUndoTests(unittest.TestCase):
         complete = argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="complete", result=str(result_path), reason="")
         with contextlib.redirect_stdout(io.StringIO()):
             workbench.command_request(complete)
+        self.assertEqual(workbench.load_request_state(self.root, package["requestId"])["status"], "success")
         self.assertTrue((self.root / ".ycet-editor" / "undo" / "latest" / "manifest.json").is_file())
         with contextlib.redirect_stdout(io.StringIO()):
             workbench.command_undo(argparse.Namespace(project_root=str(self.root)))
