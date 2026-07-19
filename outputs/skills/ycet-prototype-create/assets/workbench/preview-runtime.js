@@ -223,9 +223,12 @@
       .ycet-editor-selected{border:2px solid #16a34a;background:rgba(22,163,74,.06)}
       .ycet-editor-name{padding:4px 6px;border-radius:4px;color:#fff;background:#4f8cff;white-space:nowrap}
       .ycet-editor-annotate{padding:5px 9px;border:0;border-radius:5px;color:#fff;background:#4f8cff;box-shadow:0 4px 16px rgba(0,0,0,.2);pointer-events:auto;cursor:pointer}
-      .ycet-editor-marker{display:grid;width:24px;height:24px;place-items:center;border:2px solid #fff;border-radius:50%;color:#fff;background:#ef4444;box-shadow:0 3px 12px rgba(0,0,0,.25);font-weight:700;pointer-events:auto;cursor:pointer}
-      .ycet-editor-note{display:none;position:absolute;left:28px;top:0;width:240px;padding:9px;border:1px solid #dbeafe;border-radius:6px;color:#102033;background:#fff;box-shadow:0 12px 30px rgba(16,32,51,.18);white-space:normal}
-      .ycet-editor-marker:hover .ycet-editor-note{display:block}
+      .ycet-editor-marker{display:grid;width:24px;height:24px;place-items:center;border:2px solid #fff;border-radius:50%;color:#fff;background:#4f8cff;box-shadow:0 3px 12px rgba(0,0,0,.25);font-weight:700;pointer-events:auto;cursor:pointer}
+      .ycet-editor-note{display:none;position:fixed;width:240px;padding:9px;border:1px solid #dbeafe;border-radius:6px;color:#102033;background:#fff;box-shadow:0 12px 30px rgba(16,32,51,.18);white-space:normal}
+      .ycet-editor-note-actions{display:flex;gap:6px;margin-top:8px}
+      .ycet-editor-note-action{display:grid;width:28px;height:28px;padding:0;place-items:center;border:1px solid #dbeafe;border-radius:4px;color:#31577f;background:#fff;cursor:pointer}
+      .ycet-editor-note-action:hover{color:#2563eb;border-color:#93c5fd;background:#eff6ff}
+      .ycet-editor-note-action svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
     `;
     document.head.appendChild(style);
     hoverBox = overlay("ycet-editor-hover");
@@ -273,14 +276,17 @@
       return;
     }
     place(selectionBox, rect);
+    if (annotations.some((annotation) => findElement(annotation) === element)) {
+      annotateButton.hidden = true;
+      return;
+    }
     place(annotateButton, rect, { width: "auto", height: "auto", left: "0px", top: "0px", visibility: "hidden" });
     const buttonRect = annotateButton.getBoundingClientRect();
     const gap = 6;
+    const alignedRight = rect.left + rect.width - buttonRect.width;
     const candidates = [
-      { left: rect.left, top: rect.top - buttonRect.height - gap },
-      { left: rect.left + rect.width + gap, top: rect.top },
-      { left: rect.left, top: rect.top + rect.height + gap },
-      { left: rect.left - buttonRect.width - gap, top: rect.top },
+      { left: alignedRight, top: rect.top - buttonRect.height - gap },
+      { left: alignedRight, top: rect.top + rect.height + gap },
     ];
     const position = candidates.find((item) => (
       item.left >= 0 && item.top >= 0
@@ -292,6 +298,26 @@
       top: `${Math.max(0, Math.min(window.innerHeight - buttonRect.height, position.top))}px`,
       visibility: "visible",
     });
+  }
+
+  function positionAnnotationNote(marker, note) {
+    const previousDisplay = note.style.display;
+    const previousVisibility = note.style.visibility;
+    note.style.display = "block";
+    note.style.visibility = "hidden";
+    const markerRect = marker.getBoundingClientRect();
+    const noteRect = note.getBoundingClientRect();
+    const gap = 8;
+    const edge = 8;
+    const rightCandidate = markerRect.right + gap;
+    const leftCandidate = markerRect.left - gap - noteRect.width;
+    const left = rightCandidate + noteRect.width <= window.innerWidth - edge ? rightCandidate : leftCandidate;
+    let top = markerRect.top;
+    if (top + noteRect.height > window.innerHeight - edge) top = markerRect.bottom - noteRect.height;
+    note.style.left = `${Math.max(edge, Math.min(window.innerWidth - edge - noteRect.width, left))}px`;
+    note.style.top = `${Math.max(edge, Math.min(window.innerHeight - edge - noteRect.height, top))}px`;
+    note.style.display = previousDisplay || "none";
+    note.style.visibility = previousVisibility;
   }
 
   function scheduleOverlayRefresh() {
@@ -327,10 +353,23 @@
     return { x, y };
   }
 
+  function hideHover() {
+    if (!hoverBox) return;
+    hoverBox.hidden = true;
+    nameBadge.hidden = true;
+  }
+
   function onWheel(event) {
+    // 滚动开始即隐藏旧悬浮框，避免等待 scroll/下一帧时短暂停留。
+    hideHover();
     if (!event.ctrlKey) return;
     event.preventDefault();
     emit("canvas-wheel", { point: rootPoint(event), deltaY: event.deltaY, ctrlKey: true });
+  }
+
+  function onScroll() {
+    hideHover();
+    scheduleOverlayRefresh();
   }
 
   function onMouseDown(event) {
@@ -360,10 +399,7 @@
   }
 
   function onLeave() {
-    if (hoverBox) {
-      hoverBox.hidden = true;
-      nameBadge.hidden = true;
-    }
+    hideHover();
   }
 
   function onClick(event) {
@@ -387,7 +423,7 @@
     doc.addEventListener("mousedown", onMouseDown, true);
     doc.addEventListener("mousemove", onMouseMove, true);
     doc.addEventListener("mouseup", onMouseUp, true);
-    doc.addEventListener("scroll", scheduleOverlayRefresh, true);
+    doc.addEventListener("scroll", onScroll, true);
     [...doc.querySelectorAll("iframe")].forEach((frame, index) => installFrame(frame, [...framePath, index]));
     const observer = new MutationObserver((changes) => {
       for (const change of changes) {
@@ -518,27 +554,43 @@
       const copy = document.createElement("span");
       copy.textContent = annotation.text;
       const actions = document.createElement("span");
-      actions.style.cssText = "display:flex;gap:6px;margin-top:8px";
+      actions.className = "ycet-editor-note-actions";
       const edit = document.createElement("button");
       edit.type = "button";
-      edit.textContent = "编辑";
+      edit.className = "ycet-editor-note-action";
+      edit.setAttribute("aria-label", "编辑批注");
+      edit.title = "编辑批注";
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.textContent = "删除";
-      [edit, remove].forEach((button) => { button.style.cssText = "padding:3px 7px;border:1px solid #dbeafe;border-radius:4px;background:#fff;cursor:pointer"; });
+      remove.className = "ycet-editor-note-action";
+      remove.setAttribute("aria-label", "删除批注");
+      remove.title = "删除批注";
+      [[edit, "pencil"], [remove, "trash"]].forEach(([button, icon]) => {
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("aria-hidden", "true");
+        const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+        use.setAttribute("href", `/assets/icons.svg#${icon}`);
+        svg.appendChild(use);
+        button.appendChild(svg);
+      });
       edit.addEventListener("click", (event) => { event.stopPropagation(); emit("annotation-edit", { annotation }); });
       remove.addEventListener("click", (event) => { event.stopPropagation(); emit("annotation-delete", { annotation }); });
       actions.append(edit, remove);
       note.append(copy, actions);
       marker.append(number, note);
       let hideTimer;
-      marker.addEventListener("mouseenter", () => { clearTimeout(hideTimer); note.style.display = "block"; });
+      marker.addEventListener("mouseenter", () => {
+        clearTimeout(hideTimer);
+        positionAnnotationNote(marker, note);
+        note.style.display = "block";
+      });
       marker.addEventListener("mouseleave", () => {
         note.style.display = "block";
-        hideTimer = setTimeout(() => { note.style.display = "none"; }, 1000);
+        hideTimer = setTimeout(() => { note.style.display = "none"; }, 200);
       });
       document.documentElement.appendChild(marker);
     });
+    if (selectMode && selected?.isConnected) drawSelection(selected);
   }
 
   window.addEventListener("message", (event) => {
@@ -548,6 +600,15 @@
     if (message.type === "select-mode") {
       selectMode = Boolean(message.active);
       if (!selectMode && hoverBox) {
+        selected = null;
+        hoverBox.hidden = true;
+        nameBadge.hidden = true;
+        selectionBox.hidden = true;
+        annotateButton.hidden = true;
+      }
+    } else if (message.type === "clear-selection") {
+      selected = null;
+      if (hoverBox) {
         hoverBox.hidden = true;
         nameBadge.hidden = true;
         selectionBox.hidden = true;

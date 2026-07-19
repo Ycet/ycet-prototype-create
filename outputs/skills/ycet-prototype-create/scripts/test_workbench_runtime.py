@@ -89,6 +89,68 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     if page.locator("#font-family option").count() <= 4:
         regression_failures.append("字体选择器没有加载本机字体清单")
 
+    # 画布操作提示必须常驻画布内，且不得拦截缩放、滚动或中键拖动。
+    canvas_hints = page.locator("#canvas-hints")
+    if canvas_hints.count() != 1:
+        regression_failures.append("中央画布缺少操作提示")
+    else:
+        hint_copy = canvas_hints.locator(".canvas-hint").all_inner_texts()
+        if hint_copy != ["Ctrl + 鼠标滚轮：缩放画布", "鼠标中键：拖动画布"]:
+            regression_failures.append(f"画布操作提示内容不正确：{hint_copy}")
+        hint_icons = canvas_hints.locator("use").evaluate_all(
+            "nodes => nodes.map((node) => node.getAttribute('href'))"
+        )
+        if hint_icons != ["/assets/icons.svg#mouse", "/assets/icons.svg#move"]:
+            regression_failures.append(f"画布操作提示没有使用本地图标：{hint_icons}")
+        hint_metrics = canvas_hints.evaluate("""
+            element => {
+              const rect = element.getBoundingClientRect();
+              const viewport = document.querySelector("#canvas-viewport").getBoundingClientRect();
+              return {
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                viewportLeft: viewport.left,
+                viewportTop: viewport.top,
+                viewportRight: viewport.right,
+                viewportBottom: viewport.bottom,
+                pointerEvents: getComputedStyle(element).pointerEvents,
+              };
+            }
+        """)
+        if hint_metrics["pointerEvents"] != "none":
+            regression_failures.append(f"画布操作提示会拦截鼠标事件：{hint_metrics}")
+        if (
+            hint_metrics["left"] < hint_metrics["viewportLeft"]
+            or hint_metrics["top"] < hint_metrics["viewportTop"]
+            or hint_metrics["right"] > hint_metrics["viewportRight"]
+            or hint_metrics["bottom"] > hint_metrics["viewportBottom"]
+        ):
+            regression_failures.append(f"画布操作提示超出中央画布：{hint_metrics}")
+
+    # 右侧操作提示必须完整单行显示，并始终限制在视口范围内。
+    page.locator("#clear-current").hover()
+    tooltip = page.locator("#tooltip:not(.hidden)")
+    tooltip.wait_for()
+    tooltip_metrics = tooltip.evaluate("""
+        element => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const rect = element.getBoundingClientRect();
+          return {
+            lineCount: range.getClientRects().length,
+            left: rect.left,
+            right: rect.right,
+            viewportWidth: innerWidth,
+          };
+        }
+    """)
+    if tooltip_metrics["lineCount"] != 1:
+        regression_failures.append(f"功能提示文字发生异常换行：{tooltip_metrics}")
+    if tooltip_metrics["left"] < 0 or tooltip_metrics["right"] > tooltip_metrics["viewportWidth"] + 1:
+        regression_failures.append(f"功能提示超出浏览器视口：{tooltip_metrics}")
+
     # 文件树只保留项目扫描与查看能力，不得暴露增删、分组或拖拽排序入口。
     for selector in ("#add-group", "#add-external", "#group-dialog", ".group-remove", ".remove-file"):
         if page.locator(selector).count():
@@ -97,6 +159,46 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         regression_failures.append("文件行仍可拖拽排序或分组")
     if page.locator("#refresh-files").count() != 1:
         regression_failures.append("左侧文件栏缺少项目文件刷新按钮")
+    refresh_icons = page.locator("#refresh-files use, #refresh-preview use, #refresh-fonts use").evaluate_all(
+        "nodes => nodes.map((node) => node.getAttribute('href'))"
+    )
+    if refresh_icons != ["/assets/icons.svg#refresh-cw"] * 3:
+        regression_failures.append(f"刷新类按钮没有统一使用新的 RefreshCw 图标：{refresh_icons}")
+    group_icon_state = page.locator(".group-toggle").evaluate_all("""
+        nodes => nodes.map((node) => node.querySelector("svg use")?.getAttribute("href") || null)
+    """)
+    if not group_icon_state or any(icon != "/assets/icons.svg#folder" for icon in group_icon_state):
+        regression_failures.append(f"文件分组标题没有统一显示文件夹图标：{group_icon_state}")
+    clear_annotations_button = page.locator("#clear-annotations")
+    if clear_annotations_button.count() != 1:
+        regression_failures.append("选择元素按钮旁缺少清空批注按钮")
+    elif clear_annotations_button.evaluate("button => button.nextElementSibling?.id") != "select-mode":
+        regression_failures.append("清空批注按钮没有紧邻选择元素按钮")
+
+    # 折叠时边缘触发区必须不可见，临时展开后移出 0.2 秒自动收起。
+    layout = page.locator(".layout")
+    page.locator("#collapse-sidebar").click()
+    if "sidebar-collapsed" not in (layout.get_attribute("class") or ""):
+        regression_failures.append("左侧文件栏没有进入折叠状态")
+    edge_visual = page.locator("#edge-reveal").evaluate("""
+        element => {
+          const style = getComputedStyle(element, "::after");
+          return { content: style.content, opacity: style.opacity };
+        }
+    """)
+    if edge_visual["content"] not in ("none", "normal") and float(edge_visual["opacity"]) > 0:
+        regression_failures.append(f"侧栏折叠后仍显示左侧蓝色组件：{edge_visual}")
+    if name == "chrome":
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(screenshot_dir / "sidebar-collapsed-chrome.png"))
+    page.locator("#edge-reveal").hover()
+    page.locator("#file-tree").hover()
+    page.locator(".workspace-toolbar").hover()
+    page.wait_for_timeout(260)
+    if "sidebar-collapsed" not in (layout.get_attribute("class") or ""):
+        regression_failures.append("鼠标移出临时展开的左侧文件栏 0.2 秒后没有折叠")
+    page.locator("#collapse-sidebar").click()
+
     refreshed = write(project / "prototype/pages/refreshed.html", "<!doctype html><p>刷新补入</p>")
     page.locator("#refresh-files").click()
     page.get_by_text("refreshed.html", exact=True).wait_for()
@@ -152,14 +254,43 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     if shell_box["height"] < canvas_box["height"] - 90:
         regression_failures.append(f"预览高度未使用画布空间：shell={shell_box['height']} canvas={canvas_box['height']}")
 
+    # 滚轮开始时必须同步隐藏悬浮框，不能让旧框停留到 scroll 或下一帧。
+    preview = page.frame_locator("#preview-frame")
+    hover_box = preview.locator(".ycet-editor-hover")
+    target.hover()
+    hover_box.wait_for(state="visible")
+    hidden_during_wheel = target.evaluate("""
+        element => new Promise((resolve) => {
+          const doc = element.ownerDocument;
+          const hover = doc.querySelector(".ycet-editor-hover");
+          doc.addEventListener("wheel", () => resolve(hover.hidden), { once: true });
+          element.dispatchEvent(new WheelEvent("wheel", {
+            bubbles: true,
+            cancelable: true,
+            deltaY: 120,
+            view: doc.defaultView,
+          }));
+        })
+    """)
+    if not hidden_during_wheel:
+        regression_failures.append("页面滚轮开始后蓝色悬浮框仍短暂停留在原位置")
+
     target.click()
     if not page.locator("#font-family").input_value():
         regression_failures.append("选择元素后字体下拉框显示为空")
 
     # 批注入口必须位于选区外，避免遮挡正在检查的组件。
-    preview = page.frame_locator("#preview-frame")
     selection_box = preview.locator(".ycet-editor-selected")
     annotate_button = preview.locator(".ycet-editor-annotate")
+    selection_box.wait_for()
+    page.locator("#canvas-board").click(position={"x": 5, "y": 5})
+    page.wait_for_timeout(60)
+    if selection_box.is_visible() or page.locator("#selected-path").inner_text() != "尚未选择元素":
+        regression_failures.append("点击 HTML 页面外的空白画布后没有取消元素选择")
+    if "active" not in (page.locator("#select-mode").get_attribute("class") or ""):
+        regression_failures.append("取消元素选择时意外关闭了选择元素模式")
+    target.click()
+    selection_box.wait_for()
     selected_bounds = selection_box.bounding_box()
     annotate_bounds = annotate_button.bounding_box()
     overlaps = not (
@@ -217,6 +348,17 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         if abs(target_bounds[key] - selected_bounds[key]) > 2:
             regression_failures.append(f"变换后选区未跟随元素：target={target_bounds} selection={selected_bounds}")
             break
+    annotate_bounds = annotate_button.bounding_box()
+    right_aligned = abs(
+        annotate_bounds["x"] + annotate_bounds["width"]
+        - selected_bounds["x"] - selected_bounds["width"]
+    ) <= 2
+    vertically_outside = (
+        annotate_bounds["y"] + annotate_bounds["height"] <= selected_bounds["y"] + 1
+        or annotate_bounds["y"] >= selected_bounds["y"] + selected_bounds["height"] - 1
+    )
+    if not right_aligned or not vertically_outside:
+        regression_failures.append(f"批注按钮没有位于选区框外的右上角或右下角：selection={selected_bounds} annotate={annotate_bounds}")
 
     # 颜色面板与效果面板必须锚定触发按钮，并支持多个独立效果。
     color_button = page.locator('[data-color-property="background-color"]')
@@ -278,7 +420,105 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.frame_locator("#preview-frame").locator(".ycet-editor-annotate").click()
     page.locator("#annotation-copy").fill("按钮宽度改为 320px")
     page.locator("#save-annotation").click()
-    page.frame_locator("#preview-frame").locator(".ycet-editor-marker").wait_for()
+    marker = page.frame_locator("#preview-frame").locator(".ycet-editor-marker")
+    marker.wait_for()
+    if annotate_button.is_visible():
+        regression_failures.append("已添加批注的元素仍显示添加批注按钮")
+    if clear_annotations_button.count() == 1:
+        if not clear_annotations_button.is_enabled():
+            regression_failures.append("当前文件存在批注时清空批注按钮没有激活")
+        secondary.click()
+        annotate_button.wait_for(state="visible")
+        annotate_button.click()
+        page.locator("#annotation-copy").fill("第二条批注")
+        page.locator("#save-annotation").click()
+        if marker.count() != 2:
+            regression_failures.append("测试无法为当前文件建立两个独立批注")
+        clear_annotations_button.click()
+        marker.wait_for(state="detached")
+        if not clear_annotations_button.is_disabled():
+            regression_failures.append("清空当前文件批注后按钮没有恢复禁用状态")
+        if target.evaluate("element => element.style.width") != "320px":
+            regression_failures.append("清空批注时误清除了当前文件的样式草稿")
+        annotate_button.wait_for(state="visible")
+        target.click()
+        annotate_button.wait_for(state="visible")
+        annotate_button.click()
+        page.locator("#annotation-copy").fill("按钮宽度改为 320px")
+        page.locator("#save-annotation").click()
+        marker.wait_for()
+        if annotate_button.is_visible():
+            regression_failures.append("重新添加批注后该元素仍显示添加批注按钮")
+    marker_ui = marker.evaluate("""
+        element => ({
+          background: getComputedStyle(element).backgroundColor,
+          actions: [...element.querySelectorAll(".ycet-editor-note button")].map((button) => ({
+            text: button.textContent.trim(),
+            label: button.getAttribute("aria-label"),
+            iconCount: button.querySelectorAll("svg use").length,
+          })),
+        })
+    """)
+    if marker_ui["background"] != "rgb(79, 140, 255)":
+        regression_failures.append(f"批注图标没有使用蓝色主题：{marker_ui['background']}")
+    if marker_ui["actions"] != [
+        {"text": "", "label": "编辑批注", "iconCount": 1},
+        {"text": "", "label": "删除批注", "iconCount": 1},
+    ]:
+        regression_failures.append(f"批注编辑/删除操作没有使用对应图标：{marker_ui['actions']}")
+    marker.hover()
+    note = marker.locator(".ycet-editor-note")
+    note.wait_for(state="visible")
+    if name == "chrome":
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(screenshot_dir / "annotation-marker-chrome.png"))
+    for _ in range(5):
+        page.locator("#zoom-out").click()
+    target.evaluate("""
+        element => {
+          Object.assign(element.style, {
+            position: "fixed",
+            left: "auto",
+            right: "24px",
+            top: "80px",
+            transform: "none",
+          });
+          element.ownerDocument.dispatchEvent(new Event("scroll", { bubbles: true }));
+        }
+    """)
+    page.wait_for_timeout(80)
+    page.locator("#current-path").hover()
+    marker.hover()
+    note.wait_for(state="visible")
+    edge_note = marker.evaluate("""
+        element => {
+          const rect = element.querySelector(".ycet-editor-note").getBoundingClientRect();
+          return {
+            left: rect.left,
+            right: rect.right,
+            top: rect.top,
+            bottom: rect.bottom,
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+          };
+        }
+    """)
+    if name == "chrome":
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(screenshot_dir / "annotation-edge-chrome.png"))
+    if (
+        edge_note["left"] < 0
+        or edge_note["top"] < 0
+        or edge_note["right"] > edge_note["viewportWidth"] + 1
+        or edge_note["bottom"] > edge_note["viewportHeight"] + 1
+    ):
+        regression_failures.append(f"画布边缘批注内容没有完整显示：{edge_note}")
+    for _ in range(5):
+        page.locator("#zoom-in").click()
+    page.locator("#current-path").hover()
+    page.wait_for_timeout(260)
+    if note.is_visible():
+        regression_failures.append("鼠标移出批注内容框 0.2 秒后仍未隐藏")
     if sha256(home) != original:
         raise AssertionError("发送前源 HTML 被工作台改写")
 

@@ -33,7 +33,7 @@
   const els = {
     layout: $("#layout"), sidebar: $("#sidebar"), tree: $("#file-tree"), search: $("#file-search"),
     frame: $("#preview-frame"), shell: $("#preview-shell"), viewport: $("#canvas-viewport"), empty: $("#empty-state"),
-    path: $("#current-path"), project: $("#project-name"), selectMode: $("#select-mode"), sync: $("#sync-pages"),
+    path: $("#current-path"), project: $("#project-name"), selectMode: $("#select-mode"), clearAnnotations: $("#clear-annotations"), sync: $("#sync-pages"),
     selectedPath: $("#selected-path"), selectedName: $("#selected-name"), zoomValue: $("#zoom-value"), zoomInput: $("#zoom-input"),
     toast: $("#toast"), tooltip: $("#tooltip"), connectionDot: $("#connection-dot"), connectionCopy: $("#connection-copy"),
   };
@@ -114,7 +114,7 @@
   }
 
   function annotationsForPreview() {
-    return [...state.drafts.values()].flatMap((draft) => draft.annotations);
+    return draftFor(state.currentFileId, false)?.annotations || [];
   }
 
   function applyDrafts() {
@@ -184,7 +184,9 @@
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "group-toggle";
-    toggle.innerHTML = `<span>${group.name}</span><span>${group.files.length}</span>`;
+    toggle.innerHTML = '<span class="group-label"><svg aria-hidden="true"><use href="/assets/icons.svg#folder"></use></svg><span></span></span><span class="group-count"></span>';
+    toggle.querySelector(".group-label span").textContent = group.name;
+    toggle.querySelector(".group-count").textContent = group.files.length;
     toggle.addEventListener("click", () => section.classList.toggle("collapsed"));
     row.append(toggle);
     const files = document.createElement("div");
@@ -200,6 +202,7 @@
     const files = state.workspace.files.filter((file) => `${file.name} ${file.path}`.toLocaleLowerCase().includes(query));
     const { root, groups } = groupBuckets(files);
     els.tree.replaceChildren(...root.map(fileRow), ...groups.map(groupNode));
+    els.clearAnnotations.disabled = !(draftFor(state.currentFileId, false)?.annotations.length);
   }
 
   function confirmAction(title, copy, action) {
@@ -258,6 +261,13 @@
     $("#flip-y").classList.remove("pressed");
     renderEffects();
     updateCssSummary();
+  }
+
+  function clearCurrentSelection() {
+    if (!state.selection) return;
+    state.selection = null;
+    clearSelectionPanel();
+    postPreview("clear-selection");
   }
 
   function number(value, fallback = 0) {
@@ -512,6 +522,10 @@
         postPreview("scroll-page", { deltaX: event.deltaX, deltaY: event.deltaY });
       }
     }, { passive: false });
+    els.viewport.addEventListener("click", (event) => {
+      if (!state.selectMode || !state.selection || event.target.closest("#preview-shell")) return;
+      clearCurrentSelection();
+    });
     let panning = false; let last = null;
     els.viewport.addEventListener("mousedown", (event) => {
       if (event.button !== 1) return;
@@ -807,6 +821,15 @@
     renderTree(); applyDrafts(); syncDirtyState();
   }
 
+  function clearCurrentAnnotations() {
+    const draft = draftFor(state.currentFileId, false);
+    if (!draft?.annotations.length) return;
+    draft.annotations = [];
+    state.editingAnnotation = null;
+    renderTree(); applyDrafts(); syncDirtyState();
+    toast("已清空当前 HTML 的全部批注。");
+  }
+
   async function chooseImage() {
     if (!state.selection || state.selection.element.tag !== "img") return toast("请先选择图片元素。", "warn");
     try {
@@ -977,7 +1000,7 @@
     els.sidebar.addEventListener("mouseenter", () => clearTimeout(sidebarTimer));
     els.sidebar.addEventListener("mouseleave", () => {
       if (!state.sidebarCollapsed || !state.temporarySidebar) return;
-      sidebarTimer = setTimeout(() => { state.temporarySidebar = false; els.layout.classList.add("sidebar-collapsed"); }, 1000);
+      sidebarTimer = setTimeout(() => { state.temporarySidebar = false; els.layout.classList.add("sidebar-collapsed"); }, 200);
     });
     $("#refresh-preview").addEventListener("click", () => {
       if (state.staleDrafts.has(state.currentFileId)) {
@@ -990,6 +1013,7 @@
       selectFile(state.currentFileId, true);
     });
     els.selectMode.addEventListener("click", () => { state.selectMode = !state.selectMode; els.selectMode.classList.toggle("active", state.selectMode); postPreview("select-mode", { active: state.selectMode }); });
+    els.clearAnnotations.addEventListener("click", clearCurrentAnnotations);
     $$(".tab").forEach((button) => button.addEventListener("click", () => {
       $$(".tab").forEach((item) => item.classList.toggle("active", item === button));
       $$(".tab-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== button.dataset.tab));
@@ -1003,7 +1027,21 @@
       const target = event.target.closest?.("[data-tooltip]");
       clearTimeout(tooltipTimer);
       if (!target) return els.tooltip.classList.add("hidden");
-      tooltipTimer = setTimeout(() => { els.tooltip.textContent = target.dataset.tooltip; els.tooltip.style.left = `${event.clientX + 10}px`; els.tooltip.style.top = `${event.clientY + 10}px`; els.tooltip.classList.remove("hidden"); }, 500);
+      const point = { x: event.clientX, y: event.clientY };
+      tooltipTimer = setTimeout(() => {
+        els.tooltip.textContent = target.dataset.tooltip;
+        els.tooltip.style.left = "0px";
+        els.tooltip.style.top = "0px";
+        els.tooltip.classList.remove("hidden");
+        const rect = els.tooltip.getBoundingClientRect();
+        const gap = 10;
+        const edge = 8;
+        // 靠近视口边缘时反向放置，避免提示被压缩后异常换行。
+        const left = point.x + gap + rect.width <= innerWidth - edge ? point.x + gap : point.x - gap - rect.width;
+        const top = point.y + gap + rect.height <= innerHeight - edge ? point.y + gap : point.y - gap - rect.height;
+        els.tooltip.style.left = `${Math.max(edge, Math.min(innerWidth - edge - rect.width, left))}px`;
+        els.tooltip.style.top = `${Math.max(edge, Math.min(innerHeight - edge - rect.height, top))}px`;
+      }, 500);
     });
   }
 
