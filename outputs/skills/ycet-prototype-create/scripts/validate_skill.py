@@ -159,6 +159,37 @@ def main() -> int:
         failures,
     )
 
+    workbench_script = ROOT / "scripts" / "prototype_workbench.py"
+    workbench_protocol = ROOT / "docs" / "shared-workbench-protocol.md"
+    for path in (
+        workbench_script,
+        workbench_protocol,
+        ROOT / "assets" / "workbench" / "index.html",
+        ROOT / "assets" / "workbench" / "styles.css",
+        ROOT / "assets" / "workbench" / "app.js",
+        ROOT / "assets" / "workbench" / "preview-runtime.js",
+        ROOT / "assets" / "workbench" / "icons.svg",
+        ROOT / "scripts" / "test_prototype_workbench.py",
+        ROOT / "scripts" / "test_workbench_runtime.py",
+    ):
+        if not path.is_file():
+            fail(f"工作台交付文件缺失: {path.relative_to(ROOT)}", failures)
+    if workbench_script.is_file():
+        script_text = workbench_script.read_text(encoding="utf-8")
+        for token in ("command_ensure", "command_sync", "command_request", "command_undo", "command_lock", "127.0.0.1", "tkinter"):
+            if token not in script_text:
+                fail(f"工作台脚本缺少能力: {token}", failures)
+    if workbench_protocol.is_file():
+        protocol_text = workbench_protocol.read_text(encoding="utf-8")
+        for token in ("未发送草稿", "schemaVersion: 1", "sync-pages", "互不依赖文件允许部分成功", ".ycet-editor/undo/latest/", "lock acquire"):
+            if token not in protocol_text:
+                fail(f"工作台协议缺少契约: {token}", failures)
+
+    function_two = (ROOT / "docs" / "function-2-precision-edit.md").read_text(encoding="utf-8")
+    for token in ("可视化工作台", "不再要求用户打开 F12", "request show", "readyFileIds", "外部 HTML 不写 EditLog", "同步 pages"):
+        if token not in function_two:
+            fail(f"功能二缺少工作台执行规则: {token}", failures)
+
     function_one = (ROOT / "docs" / "function-1-static-prototype.md").read_text(encoding="utf-8")
     if "brainstorming-solo" not in function_one or "superpowers:brainstorming" in function_one:
         fail("功能一未正确切换到 brainstorming-solo", failures)
@@ -386,17 +417,19 @@ def main() -> int:
             fail(f"EditLog 规则缺少功能五只写例外: {token}", failures)
 
     openai_yaml = (ROOT / "agents" / "openai.yaml").read_text(encoding="utf-8")
-    if "离线手机预览单文件" not in openai_yaml:
-        fail("agents/openai.yaml 未体现功能五手机单文件能力", failures)
+    if "离线手机预览单文件" not in openai_yaml or "可视化编辑" not in openai_yaml:
+        fail("agents/openai.yaml 未体现工作台或功能五手机单文件能力", failures)
 
     evals_path = ROOT / "evals" / "evals.json"
     try:
         evals = json.loads(evals_path.read_text(encoding="utf-8"))
         eval_items = evals.get("evals", [])
-        if len(eval_items) < 14:
-            fail("评估用例少于 14 个，未完整覆盖功能一至五", failures)
+        if len(eval_items) < 18:
+            fail("评估用例少于 18 个，未完整覆盖功能一至五及工作台", failures)
         if not any("prototype-mobile" in str(item.get("prompt", "")) for item in eval_items):
             fail("评估用例缺少功能五 prototype-mobile 场景", failures)
+        if not any("工作台" in str(item.get("prompt", "")) for item in eval_items):
+            fail("评估用例缺少工作台变更包场景", failures)
     except Exception as exc:  # noqa: BLE001
         fail(f"评估 JSON 无效: {exc}", failures)
 

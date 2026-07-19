@@ -154,6 +154,50 @@
         {"name": "no-silent-degradation", "description": "不删除功能、不替换占位、不保留网络依赖"},
         {"name": "no-network-in-builder", "description": "确定性打包器不访问网络"}
       ]
+    },
+    {
+      "id": 15,
+      "prompt": "使用功能二打开当前项目的可视化原型编辑器，我不想再复制 F12 选择器。",
+      "expected_output": "读取工作台协议，调用 prototype_workbench.py ensure；健康实例存在时复用并扫描 prototype HTML，空项目仍保持服务运行，自动打开失败时返回 URL。",
+      "files": [],
+      "assertions": [
+        {"name": "visual-workbench-route", "description": "功能二不再要求 F12 或手工复制选择器"},
+        {"name": "reuse-project-instance", "description": "同项目健康实例复用，不重复启动"},
+        {"name": "empty-workspace-valid", "description": "缺少 prototype 和 HTML 时仍启动空工作台"}
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "请执行工作台请求 ID 123。两个独立文件中一个摘要冲突，另一个正常；正常文件仍要改。",
+      "expected_output": "以请求包为唯一事实来源，运行 request show/begin，跳过冲突文件并继续独立正常文件；完成后逐文件报告成功、冲突和原因。",
+      "files": [],
+      "assertions": [
+        {"name": "request-is-source-of-truth", "description": "按 schemaVersion 1 请求包和元素指纹执行"},
+        {"name": "partial-success", "description": "独立文件冲突不阻断其他文件"},
+        {"name": "per-file-report", "description": "回复与结果 JSON 都逐文件说明状态和原因"}
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "工作台里给 runtime-pages/home--prototype.html 点了同步 pages，并发送给 AI。",
+      "expected_output": "把静态源页与运行时页作为依赖组，在暂存副本受控合并，保留 navigate、set-screen、screen-changed、注册表和 prototype.html 交互；验证失败整组不写。",
+      "files": [],
+      "assertions": [
+        {"name": "sync-after-send-only", "description": "同步草稿只有发送后才允许实际修改"},
+        {"name": "no-runtime-overwrite", "description": "不以 pages 文件直接覆盖 runtime-pages"},
+        {"name": "preserve-demo-protocol", "description": "重新验证功能三消息协议和 Demo 交互"}
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "工作台中 runtime-pages 还有未发送草稿，现在执行功能五打包。",
+      "expected_output": "lock acquire 检测到草稿后阻止打包，不自动发送或清空；草稿处理完成后获取锁，确定性打包只新增一个离线文件，finally 释放锁并增量同步新增文件。",
+      "files": [],
+      "assertions": [
+        {"name": "draft-gate", "description": "相关未发送草稿阻止功能五"},
+        {"name": "package-lock", "description": "打包全程持有并最终释放工作台锁"},
+        {"name": "sync-only-new-mobile", "description": "成功后只把新增 prototype-mobile 文件加入工作台"}
+      ]
     }
   ]
 }

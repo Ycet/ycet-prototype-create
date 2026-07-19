@@ -1,6 +1,6 @@
 ---
 name: ycet-prototype-create
-description: Create high-fidelity static product prototypes, precisely edit prototype elements, generate interactive multi-page demos, normalize existing HTML/image prototypes, or package runtime pages as one offline mobile-preview HTML. Use when a user needs product requirements turned into prototype pages, wants UI design skills discovered and applied, provides CSS selectors plus HTML for a targeted edit, requests complete page-to-page interaction, needs an existing prototype migrated to the bundled Manifest-driven device-frame system, or asks for phone preview, mobile preview, a self-contained prototype-mobile.html, or an offline single-file prototype.
+description: Create high-fidelity static product prototypes, visually inspect and precisely edit HTML through a local workbench, generate interactive multi-page demos, normalize existing HTML/image prototypes, or package runtime pages as one offline mobile-preview HTML. Use when a user needs product requirements turned into prototype pages, wants a Figma-like local HTML editing workflow, submits a workbench change request, requests complete page-to-page interaction, needs an existing prototype migrated to the bundled Manifest-driven device-frame system, or asks for phone preview, mobile preview, a self-contained prototype-mobile.html, or an offline single-file prototype.
 ---
 
 # YCET Prototype Creator
@@ -14,7 +14,7 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 - 用户明确要求手机预览、移动端预览、离线单文件、单 HTML 文件或 `prototype-mobile.html`：读取 `docs/function-5-mobile-single-file.md`。
 - 用户提供非本 Skill 生成的完整 HTML 原型文件并要求增加/修改页面或交互：读取 `docs/function-4-existing-prototype-edit.md`；即使同时提供 CSS 选择器或 HTML 片段，本规则也优先于功能二。
 - 用户提供 PNG、JPG、JPEG、WebP 等整页原型图片并要求接管、编辑或生成交互原型：读取 `docs/function-4-existing-prototype-edit.md`。
-- 用户同时提供 CSS 选择器、HTML 片段和明确元素修改要求：读取 `docs/function-2-precision-edit.md`。
+- 用户要求可视化选择/批注/修改现有 HTML、明确选择功能二、提供工作台请求 ID，或同时提供 CSS 选择器、HTML 片段和明确元素修改要求：读取 `docs/function-2-precision-edit.md`。
 - 用户明确指定功能一/二/三/四/五或对应名称：直接读取对应文件。
 
 ### 默认选择
@@ -24,7 +24,7 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 | 选项 | 功能 | 文件 |
 | --- | --- | --- |
 | A | 从产品需求到高保真静态原型 | `docs/function-1-static-prototype.md` |
-| B | 通过浏览器开发者工具精准修改原型 | `docs/function-2-precision-edit.md` |
+| B | 通过本地可视化工作台精准修改原型 | `docs/function-2-precision-edit.md` |
 | C | 从静态页面到可交互原型 Demo | `docs/function-3-interactive-demo.md` |
 | D | 现有 HTML 或图片原型规范化与编辑 | `docs/function-4-existing-prototype-edit.md` |
 | E | 生成可单独发送到手机的离线单文件原型 | `docs/function-5-mobile-single-file.md` |
@@ -54,6 +54,8 @@ description: Create high-fidelity static product prototypes, precisely edit prot
 19. 功能四编辑非本 Skill 生成的 HTML 时，必须解析入口 HTML 及关联 HTML/CSS/JS/资源，直接生成 `prototype/docs/Spec.md`；不得调用 `brainstorming-solo` 或 `grill-me`。Spec 确认后复用功能一阶段二、阶段三；静态高保真原型完成后必须停止，只有再次获得用户明确确认才进入功能三。
 20. 功能四接管 PNG/JPG 等整页图片时，必须将用户原图及确认后的固定区位图片段保存到 `prototype/assets/images/`，静态 `pages/**/*.html` 与功能三 `runtime-pages/**/*.html` 均从该目录使用同层级相对路径引用；不得继续把图片放在或引用为 `pages/source-images/`。默认先生成仅以完整原图为视觉内容的承载页和 `index.html`；只有用户明确提出固定区域并确认边界时，才可将原图无损位图分割为固定区与可滚动区，禁止将图片解构、OCR 还原或重绘为页面元素。图片运行时热区只写入副本，默认透明，鼠标悬停或键盘聚焦时必须显示半透明虚线轮廓。生成 `prototype.html` 前必须在静态产物完成后再次获得用户确认。
 21. 功能五复用功能三的运行时页面和 `ycet-prototype` 消息协议。已有 `runtime-pages/**/*.html`、`pages/**/*.html`、`index.html`、`prototype.html`、框架、资源和其他项目文件均为只读输入；打包阶段只允许新增一个递增命名的 `prototype-mobile*.html`，不得覆盖旧版本或更新 EditLog。只有完全缺少运行时页面且已向用户确认页面跳转逻辑时，才可在打包前创建全新的 `runtime-pages/`；部分存在、目标悬空或来源冲突必须停止。
+22. 功能一至五需要展示或同步 HTML 时读取 `docs/shared-workbench-protocol.md`，调用 `scripts/prototype_workbench.py ensure/sync` 复用同项目健康实例；实例未运行时才启动。工作台草稿不得写源文件或绕过任何确认、只读和打包门禁。
+23. 收到工作台执行指令时以请求包为唯一事实来源，运行 `request show/begin/complete`；按文件摘要、元素指纹和依赖组执行。互不依赖文件允许部分成功，最终必须逐文件说明成功、失败、冲突和原因。
 
 ## 框架资产
 

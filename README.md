@@ -6,7 +6,7 @@
 
 - 版本：V3.0 开发迭代（功能五）
 - 分支：`V3.0开发迭代dev`
-- 状态：功能五已实现并通过结构、守卫、打包器及 Chrome/Edge 运行时验证；移动端真机尚未验证
+- 状态：功能五与本地可视化编辑器工作台 V1 已实现；移动端真机仍未验证
 - 交付目录：`outputs/skills/ycet-prototype-create/`
 - 基线目录：`skill/ycet-prototype-create/`
 - 当前开发基线：`52c50b1`
@@ -26,9 +26,12 @@
 
 ### 功能二：原型页面精准修改
 
-- 根据 CSS 选择器、HTML 片段和修改要求定位目标元素。
-- 只修改目标范围，并按共享日志规范记录变更。
-- V2.1 未改变该功能的业务流程。
+- 启动或复用项目级本地可视化工作台，直接在真实 HTML 和嵌套 iframe 中选择元素、批注并预览属性修改，不再要求用户打开 F12。
+- 左侧文件树只提供搜索、查看和项目扫描刷新；刷新时补入 `prototype/` 中尚未登记的 HTML，不提供网页内新增分组、外部 HTML 登记、拖拽排序或移出操作。
+- 元素选区按当前页面与嵌套 iframe 的可见区域裁剪，元素滚出视口或失效后自动隐藏；字体属性可加载当前电脑已安装的字体族。
+- 工作台使用普通滚轮滚动 HTML、`Ctrl+滚轮`缩放和中键二维平移；预览宽高根据页面内容与画布空间调整，避免固定尺寸裁切。
+- 未发送草稿只保存在浏览器内存；“发送给 AI”生成带 SHA-256、元素指纹和依赖组的标准变更包，Agent 才能修改源文件。
+- 支持独立文件部分成功、`runtime-pages` 受控同步、逐文件结果和最近一次跨重启安全撤回；外部文件在原路径修改且不写永久执行历史。
 
 ### 功能三：可交互原型 Demo
 
@@ -96,9 +99,10 @@
 │  ├─ SKILL.md                         # V3.0 总入口与五项功能路由
 │  ├─ agents/openai.yaml               # Codex 展示与调用元数据
 │  ├─ assets/frames/                   # Manifest 和五类设备框架
+│  ├─ assets/workbench/                # 三栏工作台前端与预览运行时
 │  ├─ docs/                            # 五项功能流程与共享规范
 │  ├─ evals/evals.json                 # Agent 行为评估用例
-│  └─ scripts/                         # 静态与运行时校验脚本
+│  └─ scripts/                         # 工作台服务、打包器与守卫脚本
 ├─ assets/frames/                      # 本轮框架设计源文件
 ├─ docs/brainstorms/                   # 已确认规格和执行计划
 ├─ V1.0优化想法.txt
@@ -114,6 +118,14 @@ outputs/skills/ycet-prototype-create
 ```
 
 Agent 应先读取 `SKILL.md` 完成功能路由，再按需读取对应功能文档、共享规范及 `assets/frames/manifest.json`。生成的原型统一写入目标项目的 `prototype/` 目录，不得依赖本 Skill 的绝对安装路径。
+
+启动或复用可视化工作台：
+
+```powershell
+python outputs\skills\ycet-prototype-create\scripts\prototype_workbench.py ensure --project-root <项目根目录>
+```
+
+工作台使用 Python 3 标准库与原生 HTML/CSS/JavaScript，状态写入目标项目根 `.ycet-editor/`。该目录不属于 `prototype/` 产物；未发送草稿不会写入磁盘。
 
 新原型中的设备框架按以下形式加载产品页面：
 
@@ -138,6 +150,8 @@ Agent 应先读取 `SKILL.md` 完成功能路由，再按需读取对应功能�
 
 ```powershell
 python outputs\skills\ycet-prototype-create\scripts\validate_skill.py
+python outputs\skills\ycet-prototype-create\scripts\test_prototype_workbench.py
+python outputs\skills\ycet-prototype-create\scripts\test_workbench_runtime.py
 python outputs\skills\ycet-prototype-create\scripts\test_prototype_guard.py
 python outputs\skills\ycet-prototype-create\scripts\test_build_mobile_prototype.py
 ```
@@ -187,15 +201,18 @@ python outputs\skills\ycet-prototype-create\scripts\prototype_guard.py verify --
 - `outputs/skills/ycet-prototype-create/docs/function-5-mobile-single-file.md`：移动端离线单文件的输入状态、确认门禁、打包和验收流程。
 - `outputs/skills/ycet-prototype-create/docs/shared-prototype-standards.md`：目录、框架、画布和页面规范。
 - `outputs/skills/ycet-prototype-create/docs/shared-editlog-rules.md`：原型变更日志规则。
+- `outputs/skills/ycet-prototype-create/docs/shared-workbench-protocol.md`：工作台生命周期、草稿、变更包、同步、撤回和打包锁协议。
 - `outputs/skills/ycet-prototype-create/assets/frames/README.md`：设备框架使用说明。
 - `outputs/skills/ycet-prototype-create/scripts/prototype_guard.py`：功能一静态跨页禁令、功能三只读输入 SHA-256，以及功能四图片和功能五单文件检查。
 - `outputs/skills/ycet-prototype-create/scripts/build_mobile_prototype.py`：功能五确定性离线单文件打包器。
+- `outputs/skills/ycet-prototype-create/scripts/prototype_workbench.py`：项目级本地工作台服务与 Agent 变更事务 CLI。
 - `docs/brainstorms/specs/`：已确认的版本需求规格。
 - `docs/brainstorms/plan/`：对应实施计划与验证结果。
 
 ## 已知限制与注意事项
 
 - 当前自动化脚本验证 Skill 结构、框架配置和浏览器运行时行为，尚未自动执行完整的 Agent 对话评估。
+- 工作台 V1 只生成并复制 Agent 执行指令，不直接控制任意 Agent 会话；浏览器关闭后未发送草稿会按设计丢失。
 - Skill 不会自动安装自身、替换全局 Skill、发布、部署、推送远程仓库或创建 PR。
 - 桌面 Chrome/Edge 移动视口通过不等于 Safari iOS、Chrome Android 或 Edge Android 真机通过；未执行真机测试时必须明确标为“未验证”。
 - 完全自包含会增加手机版文件体积和内存占用；不得通过删除页面或资源降低完整性。动态网络、登录态和真实后端无法离线等价打包时会阻断生成。

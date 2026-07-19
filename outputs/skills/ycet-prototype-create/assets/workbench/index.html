@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Prototype Studio</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar glass">
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><strong>Prototype Studio</strong><span id="project-name" class="mono muted">正在连接...</span></div>
+        <div class="status"><span id="connection-dot" class="status-dot"></span><span id="connection-copy">本地工作区</span></div>
+      </header>
+
+      <section id="layout" class="layout">
+        <aside id="sidebar" class="sidebar glass" aria-label="文件列表">
+          <header class="panel-head"><b>文件</b><div class="icon-actions">
+            <button id="refresh-files" class="icon-button" type="button" data-tooltip="刷新项目文件" aria-label="刷新项目文件"><svg><use href="/assets/icons.svg#refresh" /></svg></button>
+            <button id="collapse-sidebar" class="icon-button collapse-icon" type="button" aria-label="折叠文件栏"><svg><use href="/assets/icons.svg#chevron-left" /></svg></button>
+          </div></header>
+          <input id="file-search" class="search" type="search" placeholder="搜索文件" aria-label="搜索文件" />
+          <div id="file-tree" class="file-tree"></div>
+        </aside>
+
+        <section class="workspace">
+          <header class="workspace-toolbar glass">
+            <span id="current-path" class="path mono">未选择文件</span>
+            <div class="zoom-controls" aria-label="预览缩放">
+              <button id="zoom-out" class="toolbar-icon" type="button" aria-label="缩小"><svg><use href="/assets/icons.svg#minus" /></svg></button>
+              <button id="zoom-value" class="zoom-value" type="button">100%</button>
+              <input id="zoom-input" class="zoom-input hidden" type="number" min="25" max="200" aria-label="精确缩放百分比" />
+              <button id="zoom-in" class="toolbar-icon" type="button" aria-label="放大"><svg><use href="/assets/icons.svg#plus" /></svg></button>
+            </div>
+            <div class="toolbar-end"><button id="refresh-preview" class="toolbar-icon" type="button" data-tooltip="刷新预览" aria-label="刷新预览"><svg><use href="/assets/icons.svg#refresh" /></svg></button><button id="select-mode" class="select-button active" type="button"><svg><use href="/assets/icons.svg#mouse-pointer" /></svg>选择元素</button></div>
+          </header>
+          <div id="canvas-viewport" class="canvas-viewport">
+            <div id="canvas-board" class="canvas-board">
+              <div id="preview-shell" class="preview-shell"><iframe id="preview-frame" title="HTML 页面预览" scrolling="yes"></iframe></div>
+            </div>
+            <div id="empty-state" class="empty-state hidden"><b>工作区还没有 HTML</b><span>使用左侧“添加外部文件”选择要预览的文件。</span></div>
+          </div>
+        </section>
+
+        <aside class="inspector glass" aria-label="属性编辑器">
+          <header class="primary-actions"><button id="send-ai" class="primary-button" type="button">发送给 AI</button><button id="clear-current" class="secondary-button" type="button" data-tooltip="清空当前html文件的样式修改">清空修改</button><button id="undo-ai" class="secondary-button" type="button" data-tooltip="撤回到AI修改前的状态" disabled>撤回</button></header>
+          <button id="sync-pages" class="sync-button hidden" type="button">同步 pages</button>
+          <section class="selection-summary"><span id="selected-path" class="mono muted">尚未选择元素</span><b id="selected-name">选择预览中的组件</b></section>
+          <nav class="tabs" aria-label="属性分类"><button class="tab active" data-tab="design" type="button">设计</button><button class="tab" data-tab="content" type="button">内容</button><button class="tab" data-tab="css" type="button">CSS</button></nav>
+
+          <div class="inspector-scroll">
+            <section class="tab-panel" data-panel="design">
+              <section class="property-section"><h3>位置</h3><div class="two-col"><label>X<span><input id="position-x" data-css="left" type="number" /><i>px</i></span></label><label>Y<span><input id="position-y" data-css="top" type="number" /><i>px</i></span></label></div><div class="transform-row"><label>旋转<span><input id="rotation" type="number" value="0" /><i>deg</i></span></label><button id="rotate-90" class="icon-button" type="button" data-tooltip="顺时针旋转 90 度" aria-label="顺时针旋转90度"><svg><use href="/assets/icons.svg#rotate" /></svg></button><button id="flip-x" class="icon-button" type="button" data-tooltip="水平翻转" aria-label="水平翻转"><svg><use href="/assets/icons.svg#flip-horizontal" /></svg></button><button id="flip-y" class="icon-button" type="button" data-tooltip="垂直翻转" aria-label="垂直翻转"><svg><use href="/assets/icons.svg#flip-vertical" /></svg></button></div></section>
+              <section class="property-section"><h3>布局</h3><div class="two-col"><label>宽度<span><input id="width" data-css="width" type="number" min="1" /><i>px</i></span></label><label>高度<span><input id="height" data-css="height" type="number" min="1" /><i>px</i></span></label></div><div id="layout-context" class="two-col hidden"><label>方向<select id="flex-direction" data-css="flex-direction"><option value="row">横向</option><option value="column">纵向</option></select></label><label>间距<span><input id="gap" data-css="gap" type="number" min="0" /><i>px</i></span></label><label>主轴<select id="justify-content" data-css="justify-content"><option value="flex-start">起点</option><option value="center">居中</option><option value="space-between">两端</option><option value="flex-end">终点</option></select></label><label>交叉轴<select id="align-items" data-css="align-items"><option value="stretch">拉伸</option><option value="flex-start">起点</option><option value="center">居中</option><option value="flex-end">终点</option></select></label></div></section>
+              <section class="property-section"><h3>外观</h3><div class="two-col"><label>不透明度<span><input id="opacity" data-css="opacity" type="number" min="0" max="100" /><i>%</i></span></label><label>圆角<span><input id="radius-all" type="number" min="0" /><i>px</i></span></label></div><div class="corner-grid"><label><span><input id="radius-tl" data-css="border-top-left-radius" type="number" min="0" /><i>px</i></span></label><label><span><input id="radius-tr" data-css="border-top-right-radius" type="number" min="0" /><i>px</i></span></label><label><span><input id="radius-bl" data-css="border-bottom-left-radius" type="number" min="0" /><i>px</i></span></label><label><span><input id="radius-br" data-css="border-bottom-right-radius" type="number" min="0" /><i>px</i></span></label></div><button id="link-radius" class="icon-button pressed" type="button" aria-pressed="true" aria-label="联动四角"><svg><use href="/assets/icons.svg#link" /></svg></button></section>
+              <section class="property-section"><h3>文本</h3><div class="font-control"><label>字体<select id="font-family" data-css="font-family"><option value="system-ui, sans-serif">System UI</option><option value="'Microsoft YaHei', sans-serif">Microsoft YaHei</option><option value="Georgia, serif">Georgia</option><option value="Arial, sans-serif">Arial</option></select></label><button id="refresh-fonts" class="icon-button" type="button" data-tooltip="刷新本机字体" aria-label="刷新本机字体"><svg><use href="/assets/icons.svg#refresh" /></svg></button></div><div class="two-col"><label>字重<select id="font-weight" data-css="font-weight"><option value="300">Light</option><option value="400">Normal</option><option value="500">Medium</option><option value="600">Semi Bold</option><option value="700">Bold</option><option value="800">Extra Bold</option><option value="900">Black</option></select></label><label>字号<span><input id="font-size" data-css="font-size" type="number" min="8" /><i>px</i></span></label></div><label>文字颜色<button class="color-field" type="button" data-color-property="color"><span></span><em>选择颜色</em></button></label><div class="two-col"><label>行高<span><input id="line-height" data-css="line-height" type="number" step=".1" /><i>倍</i></span></label><label>字间距<span><input id="letter-spacing" data-css="letter-spacing" type="number" step=".1" /><i>px</i></span></label></div><div class="alignment"><button data-align="left" type="button" aria-label="左对齐"><svg><use href="/assets/icons.svg#align-left" /></svg></button><button data-align="center" type="button" aria-label="居中对齐"><svg><use href="/assets/icons.svg#align-center" /></svg></button><button data-align="right" type="button" aria-label="右对齐"><svg><use href="/assets/icons.svg#align-right" /></svg></button><button data-align="justify" type="button" aria-label="两端对齐"><svg><use href="/assets/icons.svg#align-justify" /></svg></button></div></section>
+              <section class="property-section"><h3>填充</h3><div class="paint-row"><button class="color-field compact" type="button" data-color-property="background-color"><span></span><em>填充颜色</em></button><label>透明度<span><input id="fill-opacity" type="number" min="0" max="100" value="100" /><i>%</i></span></label></div></section>
+              <section class="property-section"><h3>边框</h3><div class="border-row"><button class="color-field compact" type="button" data-color-property="border-color"><span></span><em>边框颜色</em></button><label>粗细<span><input id="border-width" data-css="border-width" type="number" min="0" /><i>px</i></span></label><label>类型<select id="border-style" data-css="border-style"><option value="solid">实线</option><option value="dashed">虚线</option><option value="dotted">点线</option></select></label></div></section>
+              <section class="property-section"><header class="section-title"><h3>阴影与模糊</h3><button id="add-effect" class="icon-button" type="button" data-tooltip="添加效果" aria-label="添加效果"><svg><use href="/assets/icons.svg#plus" /></svg></button></header><div id="effect-list" class="effect-list" aria-live="polite"></div></section>
+            </section>
+
+            <section class="tab-panel hidden" data-panel="content"><section class="content-section"><h3>文本内容</h3><div id="text-fields" class="text-fields"><p class="muted">选择包含文本的元素后显示。</p></div></section><section class="content-section"><h3>图片</h3><p id="image-status" class="muted">选择本地图片作为待替换资源；发送前仅用于预览。</p><button id="choose-image" class="secondary-button wide" type="button"><svg><use href="/assets/icons.svg#image" /></svg>选择替换图片</button><img id="image-preview" class="image-preview hidden" alt="待替换图片预览" /></section></section>
+            <section class="tab-panel hidden" data-panel="css"><section class="content-section"><h3>自定义 CSS</h3><label>属性<input id="css-property" placeholder="例如 letter-spacing" /></label><label>值<input id="css-value" placeholder="例如 1px" /></label><button id="apply-css" class="secondary-button wide" type="button">应用到预览</button></section><section class="content-section"><h3>待发送说明</h3><div id="css-summary" class="summary-note">尚未添加 CSS 覆盖。</div></section></section>
+          </div>
+        </aside>
+      </section>
+      <div id="edge-reveal" class="edge-reveal" aria-hidden="true"></div>
+    </main>
+
+    <dialog id="confirm-dialog"><form method="dialog"><h2 id="confirm-title">确认操作</h2><p id="confirm-copy"></p><footer><button value="cancel" class="secondary-button">取消</button><button id="confirm-action" value="default" class="danger-button">确认</button></footer></form></dialog>
+    <dialog id="annotation-dialog"><form method="dialog"><h2 id="annotation-title">添加批注</h2><label>修改要求<textarea id="annotation-copy" rows="4" placeholder="输入对当前元素的修改想法"></textarea></label><footer><button value="cancel" class="secondary-button">取消</button><button id="save-annotation" value="default" class="primary-button">保存批注</button></footer></form></dialog>
+    <dialog id="request-dialog"><form method="dialog" class="request-dialog"><h2>变更包已生成</h2><p>将以下执行指令发送给当前 Agent。工作台不会直接控制 Agent 会话。</p><textarea id="request-instruction" rows="7" readonly></textarea><footer><button value="cancel" class="secondary-button">关闭</button><button id="copy-instruction" value="default" class="primary-button"><svg><use href="/assets/icons.svg#copy" /></svg>复制指令</button></footer></form></dialog>
+    <dialog id="result-dialog"><form method="dialog" class="result-dialog"><h2>Agent 执行结果</h2><div id="result-list"></div><footer><button value="cancel" class="secondary-button">关闭</button></footer></form></dialog>
+    <dialog id="color-dialog" class="anchored-popover"><form method="dialog" class="color-dialog"><button value="cancel" class="icon-button popover-close" aria-label="关闭"><svg><use href="/assets/icons.svg#x" /></svg></button><div id="color-sv" class="color-sv" role="slider" aria-label="饱和度和明度" tabindex="0"><span id="color-sv-handle"></span></div><div class="color-actions"><button id="eyedropper" type="button" class="icon-button" data-tooltip="吸管取色" aria-label="吸管取色"><svg><use href="/assets/icons.svg#eyedropper" /></svg></button><span id="color-preview"></span><input id="color-hue" type="range" min="0" max="360" aria-label="色相" /></div><div class="color-grid"><label>R<input id="color-r" type="number" min="0" max="255" /></label><label>G<input id="color-g" type="number" min="0" max="255" /></label><label>B<input id="color-b" type="number" min="0" max="255" /></label><label>H<input id="color-h" type="number" min="0" max="360" /></label><label>S<input id="color-s" type="number" min="0" max="100" /></label><label>V<input id="color-v" type="number" min="0" max="100" /></label><label class="hex">HEX<input id="color-hex" maxlength="7" /></label></div><footer><button value="cancel" class="secondary-button">取消</button><button id="apply-color" value="default" class="primary-button">应用</button></footer></form></dialog>
+    <dialog id="effect-dialog" class="anchored-popover effect-dialog"><form method="dialog"><h2 id="effect-title">外部投影</h2><div id="shadow-controls"><div class="two-col"><label>X 位移<span><input id="shadow-x" type="number" value="0" /><i>px</i></span></label><label>Y 位移<span><input id="shadow-y" type="number" value="4" /><i>px</i></span></label><label>模糊<span><input id="shadow-blur" type="number" value="8" min="0" /><i>px</i></span></label><label>扩散<span><input id="shadow-spread" type="number" value="0" /><i>px</i></span></label></div><label class="shadow-color-control">投影颜色<button id="shadow-color" class="color-field" type="button"><span></span><em>rgba(15, 23, 42, .25)</em></button></label></div><label id="simple-blur-control" class="hidden">模糊<span><input id="simple-blur" type="number" value="8" min="0" /><i>px</i></span></label><footer><button value="cancel" class="secondary-button">关闭</button><button id="apply-effect" value="default" class="primary-button">应用</button></footer></form></dialog>
+    <div id="tooltip" class="tooltip hidden" role="tooltip"></div><div id="toast" class="toast hidden" role="status"></div>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>

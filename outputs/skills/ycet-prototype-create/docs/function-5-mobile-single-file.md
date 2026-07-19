@@ -69,6 +69,8 @@
 
 ## 离线打包
 
+开始打包前读取 `shared-workbench-protocol.md`，先运行 `prototype_workbench.py lock acquire --project-root <项目根目录>`。健康工作台对本次打包输入存在未发送草稿时必须阻止打包，要求用户先发送或清空；不得自动发送、清除或把预览草稿混入输入。获取成功后保存锁令牌，并在成功、失败或取消的 `finally` 路径运行 `lock release`。锁期间工作台只读预览，不接受新的变更包。
+
 使用确定性脚本，不手写或临时拼接单文件：
 
 ```text
@@ -107,6 +109,8 @@ python <skill目录>/scripts/build_mobile_prototype.py --prototype-dir <prototyp
 - 本次开始时尚不存在、最终新增的一个手机版文件。
 
 脚本内部执行全集合 SHA-256 保护。不得在成功后追加 EditLog，因为这会违反“只新增一个手机版文件”的强约束；将构建信息写入最终完成说明。
+
+确定性打包和全部守卫通过后，调用 `prototype_workbench.py sync --project-root <项目根目录> --add <新增prototype-mobile绝对路径>`。只同步本次新增文件；健康实例存在时不重启，实例不存在时按统一协议启动。不得同步草稿到运行时页、修改旧离线版本或自动触发下一次打包。
 
 ## 验证
 
@@ -152,3 +156,4 @@ python <skill目录>/scripts/test_mobile_prototype_runtime.py
 - 原型内部跳转、直接选页和浏览器返回复用功能三协议并通过白名单校验。
 - 既有输入文件集合与 SHA-256 完全不变，失败场景无半成品。
 - 完成说明列出输出文件、集成页面数、内联资源数、文件大小、只读校验结果、浏览器结果、真机未验证项和已知限制。
+- 打包前工作台草稿门禁与锁均已通过，锁已释放；新增离线文件已加入工作台，既有文件和 EditLog 字节未变化。

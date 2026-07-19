@@ -128,6 +128,7 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 4. 按共享规范的字段映射，将选中 Manifest 条目、Manifest 顶层路径字段和已确认端口/宿主合并写入 `prototype/assets/frames/frame-config.json`；`frameFile` 保留 Manifest `file` 中已有的 `.html` 扩展名。
 5. 生成 `prototype/previews/home-preview.html`；页面只包含产品 UI，并按 `safeArea` 避让系统 UI。
 6. 生成 `prototype/design-direction.html`。
+7. 读取 `shared-workbench-protocol.md`，调用 `prototype_workbench.py ensure --project-root <项目根目录> --add <design-direction.html绝对路径>`。健康实例存在时只增量加入文件；自动打开失败时把命令输出 URL 发给用户。
 
 `design-direction.html` 至少包含色彩、字体、按钮、反馈组件、必要补充组件和一个合并后的“首页预览”。首页预览通过以下模式加载：
 
@@ -171,6 +172,7 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - 建议维护 `assets/images/images-manifest.json`。
 - 阶段二已下载的图可在阶段三复用；缺图按语义阶梯补齐。
 - `prototype/index.html` 使用选中框架的 `?screen=pages/<file>.html` 加载每个页面，并设置 `data-ycet-frame-id`。
+- 每生成一个 `pages/**/*.html`、`previews/**/*.html` 或 `index.html`，调用 `prototype_workbench.py sync --project-root <项目根目录> --add <新增HTML绝对路径>`；工作台未运行时命令按统一协议启动，已运行时不得重启。
 - `index.html` 与 `design-direction.html` 中的框架 iframe 宽高必须等于 `frame-config.json.preview` 固定像素；禁止百分比、外层 scale 或 overflow 小盒二次适配；滚动分层遵守 `shared-prototype-standards.md`「`index.html`」专节。
 - 默认列数读取 Manifest：手机/微信宿主 4、iPad 2、Browser/MacBook 1；小屏幕可减少列数，不改变逻辑画布与 preview 像素。
 - 每张页面卡片保留页面名、文件名和“打开页面html”链接。
@@ -191,6 +193,7 @@ Spec 重点记录页面、组件、页面内交互、页面间流程、异常、
 - 框架 iframe 尺寸等于 preview 固定像素；无框架原生滚动条、裁剪或留白；产品页仅内部容器滚动。
 - Chrome、Edge 与 Firefox 中均不显示浏览器原生滚动条；需要滚动的阵列和页面内部容器仍可通过滚轮、触控与键盘滚动。
 - 静态交互验收通过；`pages/**/*.html` 与 `previews/**/*.html` 不含主动跨页实现，跨页控件仅保留安全的 `data-ycet-nav-target`。
+- `design-direction.html`、正式静态页与 `index.html` 已加入同项目工作台；工作台预览或草稿操作未改变其源文件摘要。
 - 内容图与网络图标已本地化；无未授权外链与占位图。
 - 断开外网后页面内容图与图标仍可显示。
 - 语义降级/近似顶替（若有）已在完成说明列出。

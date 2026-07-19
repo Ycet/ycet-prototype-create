@@ -1,7 +1,7 @@
 interface:
   display_name: "YCET Prototype Create"
-  short_description: "生成、编辑、迁移产品原型，并打包离线手机预览单文件"
-  default_prompt: "Use $ycet-prototype-create to choose the correct workflow and create or update my product prototype."
+  short_description: "生成、可视化编辑、迁移产品原型，并打包离线手机预览单文件"
+  default_prompt: "Use $ycet-prototype-create to choose the correct workflow, open the local visual workbench when needed, and create or update my product prototype."
 
 policy:
   allow_implicit_invocation: true

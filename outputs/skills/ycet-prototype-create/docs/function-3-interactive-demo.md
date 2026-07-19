@@ -6,7 +6,7 @@
 
 `prototype/index.html` 与功能一交付的 `prototype/pages/**/*.html` 是只读基线。功能三只能读取它们，不得注入脚本、修改属性或链接、格式化、重命名、删除、覆盖或新增 `pages/` 内的 HTML。跨页面逻辑只允许写入 `runtime-pages/` 和本次 `prototype*.html`。
 
-开始前读取 `shared-prototype-standards.md`、`shared-editlog-rules.md` 与 `../assets/frames/manifest.json`。
+开始前读取 `shared-prototype-standards.md`、`shared-editlog-rules.md`、`shared-workbench-protocol.md` 与 `../assets/frames/manifest.json`。生成每个 `runtime-pages/**/*.html`、可预览的运行时框架副本和 `prototype*.html` 后，调用 `prototype_workbench.py sync --project-root <项目根目录> --add <新增HTML绝对路径>`；健康实例存在时只增量同步，未运行时才启动。工作台同步不得改变本功能对 `index.html` 与 `pages/**/*.html` 的只读保护。
 
 ## 前置条件
 
@@ -180,3 +180,4 @@ python <skill目录>/scripts/prototype_guard.py verify --prototype-dir <prototyp
 - 生成前后 `index.html`、`pages/**/*.html` 的文件集合与 SHA-256 完全一致。
 - 若本次包含功能四图片承载页，静态与运行时页面中的图片均可从 `assets/images/` 本地加载；每个跨页图片热区默认透明，鼠标悬停或键盘聚焦时显示半透明虚线轮廓，并通过 `scripts/prototype_guard.py image --prototype-dir <prototype目录> --require-runtime` 校验通过。
 - EditLog 已记录 Demo、运行时副本和使用的框架 ID/兼容模式，未声称修改静态页。
+- 新运行时页与 Demo 入口已增量加入工作台；若用户通过“同步 pages”提交变更包，必须按共享协议在依赖组暂存合并并重新验证 `navigate`、`set-screen`、`screen-changed` 和 `prototype.html` 交互，禁止直接覆盖运行时文件。
