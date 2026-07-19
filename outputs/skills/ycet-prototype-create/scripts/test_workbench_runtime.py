@@ -124,6 +124,16 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         or nested_selection_bounds["y"] + nested_selection_bounds["height"] > nested_frame_bounds["y"] + nested_frame_bounds["height"] + 2
     ):
         regression_failures.append(f"嵌套页面选区没有按 iframe 可见区域裁剪：frame={nested_frame_bounds} selection={nested_selection_bounds}")
+
+    # CSS transform 缩放后的 iframe 必须同步缩放子页面元素的选区坐标和尺寸。
+    scaled_target = page.frame_locator("#preview-frame").frame_locator("#scaled-page").locator("#scaled-target")
+    scaled_target.click()
+    page.wait_for_timeout(60)
+    scaled_target_bounds = scaled_target.bounding_box()
+    scaled_selection_bounds = page.frame_locator("#preview-frame").locator(".ycet-editor-selected").bounding_box()
+    if any(abs(scaled_target_bounds[key] - scaled_selection_bounds[key]) > 2 for key in ("x", "y", "width", "height")):
+        regression_failures.append(f"缩放 iframe 内选区与元素位置不一致：target={scaled_target_bounds} selection={scaled_selection_bounds}")
+
     page.frame_locator("#preview-frame").frame_locator("#inline-page").locator("#srcdoc-action").click()
     page.locator("#selected-path").filter(has_text="index.html").wait_for()
 
@@ -365,7 +375,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as temp:
         project = Path(temp)
         home = write(project / "prototype/pages/home.html", "<!doctype html><html><head><style>html,body{margin:0;min-width:1400px}main{height:1800px;padding:24px}#secondary{display:block;width:180px;margin-top:120px;font-size:22px;color:rgb(170,0,0)}</style></head><body><main><button id='buy' style='height:42px'>购买</button><button id='secondary'>次要操作</button><img id='cover' alt='封面' src='data:image/gif;base64,R0lGODlhAQABAAAAACw='></main></body></html>")
-        write(project / "prototype/index.html", "<!doctype html><html><body><iframe id='nested-page' src='pages/home.html'></iframe><iframe id='inline-page' srcdoc=\"<button id='srcdoc-action'>内联操作</button>\"></iframe></body></html>")
+        write(project / "prototype/pages/scaled.html", "<!doctype html><html><head><style>html,body{margin:0}#scaled-target{display:block;width:160px;height:60px;margin:80px 0 0 120px}</style></head><body><button id='scaled-target'>缩放目标</button></body></html>")
+        write(project / "prototype/index.html", "<!doctype html><html><body><iframe id='nested-page' src='pages/home.html'></iframe><iframe id='inline-page' srcdoc=\"<button id='srcdoc-action'>内联操作</button>\"></iframe><iframe id='scaled-page' src='pages/scaled.html' style='display:block;width:400px;height:300px;border:0;transform:scale(.5);transform-origin:top left'></iframe></body></html>")
         write(project / "prototype/runtime-pages/home--prototype.html", "<!doctype html><button>运行时</button><script>const type='navigate'</script>")
         port = free_port()
         token = "runtime-test-token"

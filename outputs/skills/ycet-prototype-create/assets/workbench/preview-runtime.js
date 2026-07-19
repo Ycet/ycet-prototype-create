@@ -179,13 +179,25 @@
       const frame = currentWindow.frameElement;
       if (!frame) break;
       const frameRect = frame.getBoundingClientRect();
-      visible = {
-        left: visible.left + frameRect.left,
-        top: visible.top + frameRect.top,
-        width: visible.width,
-        height: visible.height,
+      const layoutWidth = frame.offsetWidth;
+      const layoutHeight = frame.offsetHeight;
+      if (!layoutWidth || !layoutHeight || !frameRect.width || !frameRect.height) return null;
+      const scaleX = frameRect.width / layoutWidth;
+      const scaleY = frameRect.height / layoutHeight;
+      const contentBounds = {
+        left: frameRect.left + frame.clientLeft * scaleX,
+        top: frameRect.top + frame.clientTop * scaleY,
+        width: frame.clientWidth * scaleX,
+        height: frame.clientHeight * scaleY,
       };
-      visible = intersectRect(visible, { left: frameRect.left, top: frameRect.top, width: frameRect.width, height: frameRect.height });
+      // 子文档坐标必须经过当前 iframe 的实际显示比例，再映射到父文档视口。
+      visible = {
+        left: contentBounds.left + visible.left * scaleX,
+        top: contentBounds.top + visible.top * scaleY,
+        width: visible.width * scaleX,
+        height: visible.height * scaleY,
+      };
+      visible = intersectRect(visible, contentBounds);
       if (!visible) return null;
       currentWindow = frame.ownerDocument.defaultView;
       visible = intersectRect(visible, { left: 0, top: 0, width: currentWindow.innerWidth, height: currentWindow.innerHeight });
