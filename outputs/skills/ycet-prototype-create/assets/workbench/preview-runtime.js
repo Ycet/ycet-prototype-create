@@ -7,7 +7,7 @@
   const CHANNEL = "ycet-editor";
   const config = window.__YCET_EDITOR_CONFIG__ || {};
   const contexts = new Map();
-  let selectMode = true;
+  let selectMode = false;
   let selected = null;
   let hoverBox = null;
   let selectionBox = null;

@@ -50,6 +50,40 @@ def wait_server(url: str, token: str) -> None:
     raise RuntimeError("工作台服务启动超时")
 
 
+def api_json(url: str, token: str, path: str, payload: dict | None = None) -> dict:
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = urllib.request.Request(
+        url + path,
+        data=data,
+        headers={"X-YCET-Token": token, "Content-Type": "application/json"},
+        method="POST" if payload is not None else "GET",
+    )
+    with urllib.request.urlopen(request, timeout=3) as response:
+        return json.loads(response.read())
+
+
+def seed_completed_page_style_request(url: str, token: str, project: Path, home: Path) -> None:
+    workspace = api_json(url, token, "/api/workspace")
+    source = next(item for item in workspace["files"] if item["path"].endswith("pages/home.html"))
+    created = api_json(url, token, "/api/requests", {"schemaVersion": 1, "files": [{
+        "fileId": source["id"],
+        "sha256": source["sha256"],
+        "operations": [{
+            "type": "style",
+            "fingerprint": {"framePath": [], "selector": "#buy"},
+            "property": "background-color",
+            "value": "rgb(1, 2, 3)",
+        }],
+    }]})
+    request_id = created["requestId"]
+    subprocess.run([sys.executable, str(SCRIPT), "request", "begin", "--project-root", str(project), "--request-id", request_id], check=True, capture_output=True, text=True)
+    home.write_text(home.read_text(encoding="utf-8").replace("style='height:42px'", "style='height:42px;background-color:rgb(1, 2, 3)'"), encoding="utf-8")
+    result_path = project / "page-style-result.json"
+    result_path.write_text(json.dumps({"items": [{"fileId": source["id"], "path": "prototype/pages/home.html", "status": "success"}]}), encoding="utf-8")
+    subprocess.run([sys.executable, str(SCRIPT), "request", "complete", "--project-root", str(project), "--request-id", request_id, "--result", str(result_path)], check=True, capture_output=True, text=True)
+    api_json(url, token, "/api/workspace")
+
+
 def browser_targets(playwright):
     chrome = Path(os.environ.get("PROGRAMFILES", "C:/Program Files")) / "Google/Chrome/Application/chrome.exe"
     edge = Path(os.environ.get("PROGRAMFILES(X86)", "C:/Program Files (x86)")) / "Microsoft/Edge/Application/msedge.exe"
@@ -88,10 +122,95 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.goto(url, wait_until="networkidle")
     page.locator("#file-tree .file-row").first.wait_for()
     page.wait_for_timeout(120)
+    select_button = page.locator("#select-mode")
+    default_select_active = "active" in (select_button.get_attribute("class") or "")
+    if default_select_active:
+        regression_failures.append("进入工作台后选择元素按钮仍默认激活")
+    if page.locator("#request-status-badge").inner_text() in {"待交给 Agent", "Agent 处理中"} or page.locator("#send-ai").is_disabled():
+        regression_failures.append("Agent 成功完成上一轮请求后，工作台仍保留待处理状态或继续禁用发送")
+    page.set_viewport_size({"width": 1024, "height": 768})
+    page.locator("#request-details").click()
+    result_dialog = page.locator("#result-dialog[open]")
+    result_dialog.wait_for()
+    result_dialog_metrics = result_dialog.evaluate("""
+        dialog => {
+          const rect = dialog.getBoundingClientRect();
+          const form = dialog.querySelector("form").getBoundingClientRect();
+          const copy = dialog.querySelector(".result-item span");
+          const copyStyle = copy ? getComputedStyle(copy) : null;
+          return {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+            scrollWidth: dialog.scrollWidth,
+            clientWidth: dialog.clientWidth,
+            formRight: form.right,
+            hasCopy: Boolean(copy),
+            copyWrap: copyStyle?.overflowWrap || "",
+          };
+        }
+    """)
+    if (
+        result_dialog_metrics["left"] < 0
+        or result_dialog_metrics["top"] < 0
+        or result_dialog_metrics["right"] > result_dialog_metrics["viewportWidth"] + 1
+        or result_dialog_metrics["bottom"] > result_dialog_metrics["viewportHeight"] + 1
+        or result_dialog_metrics["scrollWidth"] > result_dialog_metrics["clientWidth"] + 1
+        or result_dialog_metrics["formRight"] > result_dialog_metrics["right"] + 1
+        or (result_dialog_metrics["hasCopy"] and result_dialog_metrics["copyWrap"] not in {"anywhere", "break-word"})
+    ):
+        regression_failures.append(f"Agent 结果弹窗发生裁切、横向溢出或长文本不换行：{result_dialog_metrics}")
+    if name == "chrome":
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(screenshot_dir / "result-dialog-chrome.png"))
+    result_dialog.locator("button[value='cancel']").click()
+    dismiss_status = page.locator("#request-dismiss")
+    if page.locator("#request-status-badge").inner_text() == "处理成功" and not dismiss_status.is_visible():
+        regression_failures.append("处理成功状态卡缺少关闭消息按钮")
+    elif dismiss_status.is_visible():
+        dismiss_bounds = dismiss_status.bounding_box()
+        details_bounds = page.locator("#request-details").bounding_box()
+        if dismiss_bounds["x"] + dismiss_bounds["width"] > details_bounds["x"] + 1:
+            regression_failures.append("关闭消息按钮没有位于查看详情按钮左侧")
+        if name == "chrome":
+            screenshot_dir.mkdir(parents=True, exist_ok=True)
+            page.locator("#request-status").screenshot(path=str(screenshot_dir / "request-dismiss-chrome.png"))
+        dismiss_status.click()
+        page.wait_for_timeout(2200)
+        if page.locator("#request-status").is_visible():
+            regression_failures.append("关闭处理成功消息后，轮询又重新显示了同一状态卡")
+    page.set_viewport_size({"width": 1440, "height": 900})
+    group_indent = page.locator(".file-group", has_text="pages").first.evaluate("section => ({ group: section.querySelector('.group-label svg').getBoundingClientRect().left, file: section.querySelector('.file-row .file-icon').getBoundingClientRect().left })")
+    if group_indent["file"] - group_indent["group"] < 14:
+        regression_failures.append(f"文件夹内文件没有形成清晰缩进：{group_indent}")
+    if page.locator("#undo-ai").count():
+        regression_failures.append("右侧主操作区仍保留已移除的 AI 撤回按钮")
     if page.locator("#shutdown-workbench use").get_attribute("href") != "/assets/icons.svg#power":
         regression_failures.append("顶部缺少使用本地 Power 图标的关闭工作台按钮")
     if page.locator("#font-family option").count() <= 4:
         regression_failures.append("字体选择器没有加载本机字体清单")
+
+    # 只有对应静态页上一轮被 Agent 真实修改成功后，运行时页才提供同步入口。
+    page.get_by_text("home--prototype.html", exact=True).click()
+    if not page.locator("#sync-pages").is_visible():
+        regression_failures.append("静态页真实修改成功后，对应运行时页没有显示同步 pages")
+    else:
+        page.locator("#sync-pages").click()
+        page.wait_for_timeout(100)
+        runtime_button = page.frame_locator("#preview-frame").locator("#buy")
+        runtime_button.wait_for()
+        if runtime_button.evaluate("element => getComputedStyle(element).backgroundColor") != "rgb(1, 2, 3)":
+            regression_failures.append("点击同步 pages 后运行时预览没有同步上一轮静态页样式")
+        if page.locator("#sync-pages").inner_text() != "已同步" or "synced" not in (page.locator("#sync-pages").get_attribute("class") or ""):
+            regression_failures.append("同步 pages 草稿没有切换为绿色已同步状态")
+        page.locator("#clear-current").click()
+    page.get_by_text("scaled--prototype.html", exact=True).click()
+    if page.locator("#sync-pages").is_visible():
+        regression_failures.append("静态页未真实修改时仍显示同步 pages")
+    page.get_by_text("home.html", exact=True).click()
 
     # 画布操作提示必须常驻画布内，且不得拦截缩放、滚动或中键拖动。
     canvas_hints = page.locator("#canvas-hints")
@@ -225,6 +344,14 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     framed_image.wait_for()
     if not framed_image.evaluate("element => element.complete && element.naturalWidth > 0"):
         regression_failures.append("功能四图片承载页的相对图片资源没有通过设备框架加载")
+    if not default_select_active:
+        nested.hover()
+        page.wait_for_timeout(60)
+        if page.frame_locator("#preview-frame").locator(".ycet-editor-hover").is_visible():
+            regression_failures.append("选择元素默认关闭时仍显示悬浮选区")
+        select_button.click()
+        if "active" not in (select_button.get_attribute("class") or ""):
+            regression_failures.append("点击选择元素后没有进入激活状态")
     nested.click()
     page.locator("#selected-name").filter(has_text="button").wait_for()
     nested_frame = page.frame_locator("#preview-frame").locator("#nested-page")
@@ -335,7 +462,28 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.locator("#select-mode").click()
     target.click()
 
+    # 已有绝对定位值的元素从 X=299 调到 X=300 时只能移动 1 CSS 像素。
+    positioned = page.frame_locator("#preview-frame").locator("#positioned")
+    positioned.click()
+    positioned_before = positioned.bounding_box()
+    positioned_selection_before = selection_box.bounding_box()
+    positioned_x = float(page.locator("#position-x").input_value())
+    if abs(positioned_x - 299) > 0.5:
+        regression_failures.append(f"绝对定位元素的 X 输入没有显示现有 left 值：{positioned_x}")
+    page.locator("#position-x").fill(str(positioned_x + 1))
+    page.locator("#position-x").dispatch_event("input")
+    page.wait_for_timeout(100)
+    positioned_after = positioned.bounding_box()
+    positioned_selection_after = selection_box.bounding_box()
+    positioned_delta = positioned_after["x"] - positioned_before["x"]
+    positioned_selection_delta = positioned_selection_after["x"] - positioned_selection_before["x"]
+    if abs(positioned_delta - 1) > 0.5 or abs(positioned_selection_delta - 1) > 0.5:
+        regression_failures.append(
+            f"绝对定位元素 X 增加 1 时元素或选区没有只移动 1px：target={positioned_delta} selection={positioned_selection_delta}"
+        )
+
     # static 元素的 X/Y 修改也必须改变实际位置。
+    target.click()
     before_position = target.bounding_box()
     inspector_x = float(page.locator("#position-x").input_value())
     inspector_y = float(page.locator("#position-y").input_value())
@@ -391,6 +539,23 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         regression_failures.append("颜色面板没有显示在颜色按钮附近")
     if not color_dialog.locator("#color-sv").count() or not color_dialog.locator("#color-hue").count():
         regression_failures.append("颜色面板缺少 SV 色板或色相滑杆")
+    hue_metrics = color_dialog.evaluate("""
+        dialog => {
+          const hue = dialog.querySelector("#color-hue");
+          const preview = dialog.querySelector("#color-preview");
+          const hueRect = hue.getBoundingClientRect();
+          const previewRect = preview.getBoundingClientRect();
+          const style = getComputedStyle(hue);
+          return {
+            hueCenter: hueRect.top + hueRect.height / 2,
+            previewCenter: previewRect.top + previewRect.height / 2,
+            hueHeight: hueRect.height,
+            accentColor: style.accentColor,
+          };
+        }
+    """)
+    if hue_metrics["accentColor"] != "rgb(255, 255, 255)" or abs(hue_metrics["hueCenter"] - hue_metrics["previewCenter"]) > 1 or hue_metrics["hueHeight"] != 16:
+        regression_failures.append(f"色相滑块指示点不是白色或没有与色相轨道居中对齐：{hue_metrics}")
     if name == "chrome":
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         color_dialog.screenshot(path=str(screenshot_dir / "color-picker-chrome.png"))
@@ -597,6 +762,7 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         raise AssertionError("中键二维平移没有更新画布")
 
     # 仅剩批注也应生成请求，成功写入后清空全部会话草稿。
+    page.set_viewport_size({"width": 1024, "height": 768})
     page.locator("#send-ai").click()
     page.locator("#request-dialog[open]").wait_for()
     if "请求 ID" not in page.locator("#request-instruction").input_value():
@@ -605,7 +771,50 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         raise AssertionError("Agent 交接弹窗没有展示请求 ID 或文件数量")
     if not page.locator("#clipboard-status").inner_text():
         raise AssertionError("工作台没有如实反馈自动复制成功或失败")
-    page.locator("#request-dialog button[value='cancel']").click()
+    request_dialog = page.locator("#request-dialog")
+    dialog_metrics = request_dialog.evaluate("""
+        dialog => {
+          const rect = dialog.getBoundingClientRect();
+          const close = dialog.querySelector("button[value='cancel']");
+          const copy = dialog.querySelector("#copy-instruction");
+          const closeRect = close.getBoundingClientRect();
+          const copyRect = copy.getBoundingClientRect();
+          const closeStyle = getComputedStyle(close);
+          return {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+            scrollWidth: dialog.scrollWidth,
+            clientWidth: dialog.clientWidth,
+            actionGap: copyRect.left - closeRect.right,
+            closeBorderWidth: parseFloat(closeStyle.borderLeftWidth),
+            closeBorderStyle: closeStyle.borderLeftStyle,
+            closeBorderColor: closeStyle.borderLeftColor,
+          };
+        }
+    """)
+    if (
+        dialog_metrics["left"] < 0
+        or dialog_metrics["top"] < 0
+        or dialog_metrics["right"] > dialog_metrics["viewportWidth"] + 1
+        or dialog_metrics["bottom"] > dialog_metrics["viewportHeight"] + 1
+        or dialog_metrics["scrollWidth"] > dialog_metrics["clientWidth"] + 1
+    ):
+        regression_failures.append(f"Agent 交接弹窗没有完整显示在视口内：{dialog_metrics}")
+    if dialog_metrics["actionGap"] < 12:
+        regression_failures.append(f"交接弹窗关闭与复制按钮间距不足：{dialog_metrics['actionGap']}")
+    if dialog_metrics["closeBorderStyle"] == "none" or dialog_metrics["closeBorderWidth"] < 1:
+        regression_failures.append("交接弹窗关闭按钮缺少清晰边框")
+    if "255, 255, 255" in dialog_metrics["closeBorderColor"]:
+        regression_failures.append(f"交接弹窗关闭按钮边框与白色表面区分不足：{dialog_metrics['closeBorderColor']}")
+    page.locator("#copy-instruction").click()
+    page.wait_for_timeout(100)
+    if request_dialog.is_visible():
+        regression_failures.append("点击复制指令后交接弹窗没有关闭")
+        request_dialog.locator("button[value='cancel']").click()
     page.wait_for_timeout(80)
     if page.locator(".file-row.pending").count():
         raise AssertionError("请求写入成功后仍保留草稿红点")
@@ -677,17 +886,19 @@ def main() -> int:
         image = project / "prototype/assets/images/cover.gif"
         image.parent.mkdir(parents=True, exist_ok=True)
         image.write_bytes(base64.b64decode("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="))
-        home = write(project / "prototype/pages/home.html", "<!doctype html><html><head><style>html,body{margin:0;min-width:1400px}main{height:1800px;padding:24px}#secondary{display:block;width:180px;margin-top:120px;font-size:22px;color:rgb(170,0,0)}</style></head><body><main><button id='buy' style='height:42px'>购买</button><button id='secondary'>次要操作</button><img id='cover' alt='封面' src='../assets/images/cover.gif'></main></body></html>")
+        home = write(project / "prototype/pages/home.html", "<!doctype html><html><head><style>html,body{margin:0;min-width:1400px}main{height:1800px;padding:24px}#positioned-shell{position:absolute;left:299px;top:36px;width:200px;height:80px}#positioned{position:absolute;left:0;top:0;width:120px;height:36px}#secondary{display:block;width:180px;margin-top:120px;font-size:22px;color:rgb(170,0,0)}</style></head><body><main><button id='buy' style='height:42px'>购买</button><div id='positioned-shell'><button id='positioned'>定位按钮</button></div><button id='secondary'>次要操作</button><img id='cover' alt='封面' src='../assets/images/cover.gif'></main></body></html>")
         write(project / "prototype/assets/frames/iphone-15-pro.html", IPHONE_FRAME.read_text(encoding="utf-8"))
         write(project / "prototype/pages/scaled.html", "<!doctype html><html><head><style>html,body{margin:0}#scaled-target{display:block;width:160px;height:60px;margin:80px 0 0 120px}</style></head><body><button id='scaled-target'>缩放目标</button></body></html>")
         write(project / "prototype/index.html", "<!doctype html><html><body><iframe id='nested-page' src='pages/home.html'></iframe><iframe id='device-frame' src='assets/frames/iphone-15-pro.html?screen=pages/home.html' width='414' height='868'></iframe><iframe id='inline-page' srcdoc=\"<button id='srcdoc-action'>内联操作</button>\"></iframe><iframe id='scaled-page' src='pages/scaled.html' style='display:block;width:400px;height:300px;border:0;transform:scale(.5);transform-origin:top left'></iframe></body></html>")
-        write(project / "prototype/runtime-pages/home--prototype.html", "<!doctype html><button>运行时</button><script>const type='navigate'</script>")
+        write(project / "prototype/runtime-pages/home--prototype.html", "<!doctype html><button id='buy' style='height:42px'>运行时</button><script>const type='navigate'</script>")
+        write(project / "prototype/runtime-pages/scaled--prototype.html", "<!doctype html><button id='scaled-target'>缩放运行时</button><script>const type='navigate'</script>")
         port = free_port()
         token = "runtime-test-token"
         base_url = f"http://127.0.0.1:{port}"
         process = subprocess.Popen([sys.executable, str(SCRIPT), "serve", "--project-root", str(project), "--port", str(port), "--token", token], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             wait_server(base_url, token)
+            seed_completed_page_style_request(base_url, token, project, home)
             passed = []
             skipped = []
             with sync_playwright() as playwright:

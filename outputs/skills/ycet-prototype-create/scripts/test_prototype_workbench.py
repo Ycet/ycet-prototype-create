@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""原型可视化编辑器工作区、服务、变更包与撤回回归测试。"""
+"""原型可视化编辑器工作区、服务与变更包回归测试。"""
 
 from __future__ import annotations
 
@@ -387,6 +387,36 @@ class ServiceTests(unittest.TestCase):
         _status, _headers, listing = self.running.request("/api/requests")
         self.assertIsNone(listing["activeRequest"])
 
+    def test_request_api_releases_success_when_agent_scratch_result_remains(self) -> None:
+        record = self.running.service.workspace.data["files"][0]
+        status, _headers, created = self.running.request("/api/requests", {
+            "schemaVersion": 1,
+            "files": [{
+                "fileId": record["id"],
+                "sha256": record["sha256"],
+                "operations": [{"type": "style", "property": "color", "value": "red"}],
+            }],
+        })
+        self.assertEqual(status, 201)
+        request_id = created["requestId"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=request_id, request_action="begin", result=None, reason=""))
+        self.home.write_text("<button id='buy' style='color:red'>购买</button>", encoding="utf-8")
+        scratch = self.running.service.paths["requests"] / f"{request_id}.result.pending.json"
+        scratch.write_text(json.dumps({"items": [{"fileId": record["id"], "status": "success"}]}), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=request_id, request_action="complete", result=str(scratch), reason=""))
+
+        _status, _headers, listing = self.running.request("/api/requests")
+        self.assertIsNone(listing["activeRequest"])
+        self.assertEqual(listing["requests"][0]["status"], "success")
+
+    def test_removed_undo_endpoint_returns_not_found(self) -> None:
+        with self.assertRaises(urllib.error.HTTPError) as denied:
+            self.running.request("/api/undo/request", {})
+        self.assertEqual(denied.exception.code, 404)
+        denied.exception.close()
+
 
 class LifecycleTests(unittest.TestCase):
     def test_real_process_shutdown_cleans_state_and_ensure_restarts(self) -> None:
@@ -444,7 +474,7 @@ class LifecycleTests(unittest.TestCase):
                         pass
 
 
-class RequestAndUndoTests(unittest.TestCase):
+class RequestTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
@@ -549,6 +579,72 @@ class RequestAndUndoTests(unittest.TestCase):
         self.assertFalse(workbench.request_state_path(self.root, package["requestId"]).exists())
         self.assertEqual(workbench.load_request_state(self.root, package["requestId"])["status"], "failed")
 
+    def test_request_listing_ignores_agent_result_scratch_file_after_success(self) -> None:
+        package = self.package({"a.html": [{"type": "style", "property": "color", "value": "red"}]})
+        workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="begin", result=None, reason=""))
+        self.first.write_text("<p id='a' style='color:red'>A</p>", encoding="utf-8")
+        result_path = workbench.state_paths(self.root)["requests"] / f"{package['requestId']}.result.pending.json"
+        result_path.write_text(json.dumps({"items": [{"fileId": package["files"][0]["fileId"], "status": "success"}]}), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="complete", result=str(result_path), reason=""))
+
+        summaries = workbench.list_request_summaries(self.root)
+        self.assertEqual([item["requestId"] for item in summaries], [package["requestId"]])
+        self.assertEqual(summaries[0]["status"], "success")
+        self.assertIsNone(workbench.active_request_summary(self.root))
+
+    def test_sync_pages_opportunity_requires_real_page_change_and_is_consumed(self) -> None:
+        runtime = write(self.root / "prototype" / "runtime-pages" / "a--prototype.html", "<p id='a'>A runtime</p><script>const type='navigate'</script>")
+        workspace = workbench.Workspace(self.root)
+        source = next(item for item in workspace.data["files"] if item["path"].endswith("pages/a.html"))
+        runtime_record = next(item for item in workspace.data["files"] if item["path"].endswith("runtime-pages/a--prototype.html"))
+        package = workbench.validate_request(workspace, {"schemaVersion": 1, "files": [{
+            "fileId": source["id"],
+            "sha256": source["sha256"],
+            "operations": [{"type": "style", "fingerprint": {"selector": "#a", "framePath": []}, "property": "color", "value": "red"}],
+        }]})
+        workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="begin", result=None, reason=""))
+        self.first.write_text("<p id='a' style='color:red'>A</p>", encoding="utf-8")
+        result_path = self.root / "page-result.json"
+        result_path.write_text(json.dumps({"items": [{"fileId": source["id"], "status": "success"}]}), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="complete", result=str(result_path), reason=""))
+
+        workspace.scan()
+        opportunities = workbench.sync_page_opportunities(self.root, workspace)
+        self.assertEqual(len(opportunities), 1)
+        self.assertEqual(opportunities[0]["runtimeFileId"], runtime_record["id"])
+        self.assertEqual(opportunities[0]["sourceFileId"], source["id"])
+        self.assertEqual(opportunities[0]["sourceRequestId"], package["requestId"])
+        self.assertEqual(opportunities[0]["previewOperations"][0]["property"], "color")
+
+        sync_package = workbench.validate_request(workspace, {"schemaVersion": 1, "files": [{
+            "fileId": runtime_record["id"],
+            "sha256": workbench.sha256_file(runtime),
+            "operations": [{
+                "type": "sync-pages",
+                "sourceFileId": source["id"],
+                "sourceRequestId": package["requestId"],
+                "sourceSha256": workbench.sha256_file(self.first),
+                "runtimeSha256": workbench.sha256_file(runtime),
+            }],
+        }]})
+        workbench.atomic_json(workbench.request_path(self.root, sync_package["requestId"]), sync_package)
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=sync_package["requestId"], request_action="begin", result=None, reason=""))
+        runtime.write_text("<p id='a' style='color:red'>A runtime</p><script>const type='navigate'</script>", encoding="utf-8")
+        sync_result_path = self.root / "sync-result.json"
+        sync_result_path.write_text(json.dumps({"items": [{"fileId": runtime_record["id"], "status": "success"}]}), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=sync_package["requestId"], request_action="complete", result=str(sync_result_path), reason=""))
+
+        workspace.scan()
+        self.assertEqual(workbench.sync_page_opportunities(self.root, workspace), [])
+
     def test_independent_conflict_allows_partial_begin(self) -> None:
         package = self.package({"a.html": [{"type": "annotation", "text": "a"}], "b.html": [{"type": "annotation", "text": "b"}]})
         workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
@@ -573,13 +669,12 @@ class RequestAndUndoTests(unittest.TestCase):
         self.assertEqual(result["readyFileIds"], [])
         self.assertEqual(len(result["conflicts"]), 2)
 
-    def test_complete_creates_cross_restart_undo_and_restores(self) -> None:
+    def test_complete_does_not_create_undo_state(self) -> None:
         package = self.package({"a.html": [{"type": "text", "index": 0, "value": "AA"}]})
         workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
         args = argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="begin", result=None, reason="")
         with contextlib.redirect_stdout(io.StringIO()):
             workbench.command_request(args)
-        before = self.first.read_bytes()
         self.first.write_text("<p id='a'>AA</p>", encoding="utf-8")
         file_id = package["files"][0]["fileId"]
         result_path = self.root / "agent-result.json"
@@ -588,23 +683,9 @@ class RequestAndUndoTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             workbench.command_request(complete)
         self.assertEqual(workbench.load_request_state(self.root, package["requestId"])["status"], "success")
-        self.assertTrue((self.root / ".ycet-editor" / "undo" / "latest" / "manifest.json").is_file())
-        with contextlib.redirect_stdout(io.StringIO()):
-            workbench.command_undo(argparse.Namespace(project_root=str(self.root)))
-        self.assertEqual(self.first.read_bytes(), before)
+        self.assertFalse((self.root / ".ycet-editor" / "undo").exists())
 
-    def test_undo_refuses_after_digest_conflict(self) -> None:
-        self.test_complete_creates_cross_restart_undo_and_restores()
-        # 上一个辅助测试已撤回并删除事务，这里重新建立一个最小冲突事务。
-        paths = workbench.state_paths(self.root)
-        snapshot = paths["undo"] / "before" / "a.bin"
-        snapshot.parent.mkdir(parents=True)
-        snapshot.write_bytes(b"before")
-        workbench.atomic_json(paths["undo"] / "manifest.json", {"schemaVersion": 1, "requestId": "undo-conflict", "files": [{"path": str(self.first), "snapshot": str(snapshot), "afterSha256": "0" * 64}]})
-        with self.assertRaises(workbench.WorkbenchError):
-            workbench.command_undo(argparse.Namespace(project_root=str(self.root)))
-
-    def test_added_image_and_editlog_can_join_undo_transaction(self) -> None:
+    def test_added_image_and_editlog_can_join_request_transaction(self) -> None:
         package = self.package({"a.html": [{"type": "image-replace", "path": str(self.root / "source.png")}]})
         workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
         image = self.root / "prototype" / "assets" / "images" / "cover.png"
@@ -624,11 +705,15 @@ class RequestAndUndoTests(unittest.TestCase):
         complete = argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="complete", result=str(result_path), reason="")
         with contextlib.redirect_stdout(io.StringIO()):
             workbench.command_request(complete)
-        with contextlib.redirect_stdout(io.StringIO()):
-            workbench.command_undo(argparse.Namespace(project_root=str(self.root)))
-        self.assertFalse(image.exists())
-        self.assertEqual(editlog.read_text(encoding="utf-8"), "# EditLog\n")
-        self.assertEqual(self.first.read_text(encoding="utf-8"), "<p id='a'>A</p>")
+        self.assertTrue(image.exists())
+        self.assertIn("替换图片", editlog.read_text(encoding="utf-8"))
+        self.assertEqual(self.first.read_text(encoding="utf-8"), "<img src='../assets/images/cover.png'>")
+        self.assertFalse((workbench.state_paths(self.root)["transactions"] / package["requestId"]).exists())
+
+    def test_removed_undo_cli_is_rejected(self) -> None:
+        with self.assertRaises(SystemExit) as denied:
+            workbench.main(["undo", "--project-root", str(self.root)])
+        self.assertEqual(denied.exception.code, 2)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""YCET 原型可视化工作台：本地服务、工作区、变更包和撤回事务。"""
+"""YCET 原型可视化工作台：本地服务、工作区和变更包。"""
 
 from __future__ import annotations
 
@@ -58,13 +58,6 @@ def atomic_json(path: Path, payload: Any) -> None:
     os.replace(temporary, path)
 
 
-def atomic_bytes(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    temporary.write_bytes(payload)
-    os.replace(temporary, path)
-
-
 def is_within(path: Path, root: Path) -> bool:
     try:
         path.resolve().relative_to(root.resolve())
@@ -85,7 +78,6 @@ def state_paths(project_root: Path) -> dict[str, Path]:
         "server": root / "server.json",
         "requests": root / "requests",
         "transactions": root / "transactions",
-        "undo": root / "undo" / "latest",
         "lock": root / "mobile-pack.lock.json",
         "log": root / "server.log",
     }
@@ -457,6 +449,16 @@ def validate_request(workspace: Workspace, payload: dict[str, Any]) -> dict[str,
                 value = str(operation.get("value", ""))
                 if re.search(r"url\s*\(|@import|javascript:|expression\s*\(|-moz-binding|behavior\s*:", value, re.I):
                     raise WorkbenchError("CSS 草稿包含网络、路径或危险值")
+            if operation.get("type") == "sync-pages":
+                opportunity = next((candidate for candidate in sync_page_opportunities(workspace.project_root, workspace) if candidate["runtimeFileId"] == record["id"]), None)
+                if not opportunity:
+                    raise WorkbenchError("对应静态页没有尚未同步的成功修改")
+                if (
+                    operation.get("sourceFileId") != opportunity["sourceFileId"]
+                    or operation.get("sourceRequestId") != opportunity["sourceRequestId"]
+                    or operation.get("sourceSha256") != opportunity["sourceAfterSha256"]
+                ):
+                    raise WorkbenchError("同步 pages 草稿与最近一次静态页成功修改不一致")
         normalized_files.append(
             {
                 "fileId": record["id"],
@@ -711,16 +713,11 @@ def handler_factory(service: WorkbenchService):
                     self._send_json({
                         "activeRequest": next((item for item in summaries if item["status"] in ACTIVE_REQUEST_STATUSES), None),
                         "requests": summaries[:20],
+                        "syncPages": sync_page_opportunities(service.workspace.project_root, service.workspace),
                         "revision": service.revision,
                     })
                 elif path == "/api/results":
-                    results = []
-                    for item in sorted(service.paths["requests"].glob("*.result.json"), reverse=True):
-                        try:
-                            results.append(json.loads(item.read_text(encoding="utf-8")))
-                        except (OSError, json.JSONDecodeError):
-                            continue
-                    self._send_json({"results": results[:20], "undoAvailable": (service.paths["undo"] / "manifest.json").is_file(), "revision": service.revision})
+                    self._send_json({"results": list_request_results(service.workspace.project_root)[:20], "revision": service.revision})
                 elif path == "/api/state":
                     self._send_json({"dirtyFileIds": sorted(service.dirty_file_ids), "staleDraftFileIds": sorted(service.stale_draft_file_ids), "locked": service.paths["lock"].exists(), "revision": service.revision})
                 elif path.startswith("/api/selected/"):
@@ -781,17 +778,6 @@ def handler_factory(service: WorkbenchService):
                 elif re.fullmatch(r"/api/requests/[^/]+/cancel", parsed.path):
                     request_id = urllib.parse.unquote(parsed.path.split("/")[-2])
                     self._send_json({"request": service.cancel_request(request_id), "revision": service.revision})
-                elif parsed.path == "/api/undo/request":
-                    manifest = service.paths["undo"] / "manifest.json"
-                    if not manifest.is_file():
-                        raise WorkbenchError("没有可撤回的最近一次修改")
-                    request = json.loads(manifest.read_text(encoding="utf-8"))
-                    instruction = (
-                        "请调用 $ycet-prototype-create 撤回原型工作台最近一次 AI 修改。"
-                        f"项目根目录：{service.workspace.project_root}；事务 ID：{request.get('requestId')}。"
-                        "执行 prototype_workbench.py undo，并报告恢复或冲突文件。"
-                    )
-                    self._send_json({"instruction": instruction, "requestId": request.get("requestId")})
                 else:
                     self._error(404, "接口不存在")
             except WorkbenchError as exc:
@@ -1042,17 +1028,128 @@ def request_summary(project_root: Path, request_id: str) -> dict[str, Any]:
     }
 
 
-def list_request_summaries(project_root: Path) -> list[dict[str, Any]]:
-    requests_root = state_paths(project_root)["requests"]
-    summaries = []
-    for path in requests_root.glob("*.json"):
-        if path.name.endswith((".state.json", ".result.json")):
+def request_packages(project_root: Path) -> list[tuple[Path, dict[str, Any]]]:
+    """只返回文件名与包内 requestId 一致的正式请求，忽略 Agent 临时结果文件。"""
+    packages = []
+    for path in state_paths(project_root)["requests"].glob("*.json"):
+        try:
+            package = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
             continue
+        request_id = path.name.removesuffix(".json")
+        if package.get("requestId") != request_id or not isinstance(package.get("files"), list):
+            continue
+        packages.append((path, package))
+    return packages
+
+
+def list_request_summaries(project_root: Path) -> list[dict[str, Any]]:
+    summaries = []
+    for path, _package in request_packages(project_root):
         try:
             summaries.append(request_summary(project_root, path.name.removesuffix(".json")))
         except WorkbenchError:
             continue
     return sorted(summaries, key=lambda item: item.get("createdAt") or "", reverse=True)
+
+
+def list_request_results(project_root: Path) -> list[dict[str, Any]]:
+    """按正式请求读取结果，防止 *.result.pending.json 被当成请求或结果。"""
+    results = []
+    for _path, package in request_packages(project_root):
+        request_id = package["requestId"]
+        path = request_result_path(project_root, request_id)
+        if not path.is_file():
+            continue
+        try:
+            result = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if result.get("requestId") == request_id:
+            results.append(result)
+    return sorted(results, key=lambda item: item.get("completedAt") or "", reverse=True)
+
+
+def sync_page_opportunities(project_root: Path, workspace: Workspace) -> list[dict[str, Any]]:
+    """返回尚未同步到运行时页的最近一次真实静态页修改。"""
+    records = {item["id"]: item for item in workspace.data["files"]}
+    events = []
+    for _path, package in request_packages(project_root):
+        result_path = request_result_path(project_root, package["requestId"])
+        if not result_path.is_file():
+            continue
+        try:
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if result.get("status") not in {"success", "partial"}:
+            continue
+        events.append((result.get("completedAt") or "", package, result))
+
+    latest_changes: dict[str, dict[str, Any]] = {}
+    successful_syncs: dict[tuple[str, str], tuple[str | None, str | None]] = {}
+    for _completed_at, package, result in sorted(events, key=lambda item: item[0]):
+        success_items = {str(item.get("fileId")): item for item in result.get("items", []) if item.get("status") == "success"}
+        for file_item in package.get("files", []):
+            file_id_value = str(file_item.get("fileId"))
+            result_item = success_items.get(file_id_value)
+            if not result_item:
+                continue
+            record = records.get(file_id_value)
+            if record and record.get("automaticGroup") == "pages":
+                before_sha = result_item.get("beforeSha256")
+                after_sha = result_item.get("afterSha256")
+                if before_sha and after_sha and before_sha != after_sha:
+                    preview_operations = [
+                        {key: value for key, value in operation.items() if key not in {"fileId", "_key", "previewUrl"}}
+                        for operation in file_item.get("operations", [])
+                        if operation.get("type") in {"style", "css", "text"}
+                    ]
+                    latest_changes[file_id_value] = {
+                        "sourceRequestId": package["requestId"],
+                        "sourceBeforeSha256": before_sha,
+                        "sourceAfterSha256": after_sha,
+                        "previewOperations": preview_operations,
+                    }
+                else:
+                    # 最近一次成功任务没有真实改写该静态页时，不沿用更早批次的同步入口。
+                    latest_changes.pop(file_id_value, None)
+            for operation in file_item.get("operations", []):
+                if operation.get("type") != "sync-pages":
+                    continue
+                source_id = str(operation.get("sourceFileId") or "")
+                successful_syncs[(file_id_value, source_id)] = (
+                    operation.get("sourceRequestId"),
+                    operation.get("sourceSha256"),
+                )
+
+    opportunities = []
+    pages_by_name = {
+        item["name"]: item
+        for item in workspace.data["files"]
+        if item.get("automaticGroup") == "pages" and not item.get("missing")
+    }
+    for runtime in workspace.data["files"]:
+        if runtime.get("automaticGroup") != "runtime-pages" or runtime.get("missing"):
+            continue
+        source_name = re.sub(r"--[^.]+(?=\.html$)", "", runtime["name"])
+        source = pages_by_name.get(source_name)
+        if not source:
+            continue
+        change = latest_changes.get(source["id"])
+        if not change or source.get("sha256") != change["sourceAfterSha256"]:
+            continue
+        synced_request_id, synced_source_sha = successful_syncs.get((runtime["id"], source["id"]), (None, None))
+        if synced_request_id == change["sourceRequestId"] or synced_source_sha == change["sourceAfterSha256"]:
+            continue
+        opportunities.append({
+            "runtimeFileId": runtime["id"],
+            "sourceFileId": source["id"],
+            "sourcePath": source["path"],
+            "runtimePath": runtime["path"],
+            **change,
+        })
+    return opportunities
 
 
 def active_request_summary(project_root: Path) -> dict[str, Any] | None:
@@ -1202,64 +1299,18 @@ def command_request(args: argparse.Namespace) -> int:
         unreported = changed_ids - affected_ids
         if unreported:
             raise WorkbenchError(f"存在已变化但未在成功结果中登记的文件：{sorted(unreported)}")
-        undo_files = []
-        undo_dir = paths["undo"]
-        if undo_dir.exists():
-            shutil.rmtree(undo_dir)
-        (undo_dir / "before").mkdir(parents=True)
         for item in success_items:
             entry = transaction_entries[item["fileId"]]
             item["beforeSha256"] = entry["beforeSha256"]
             item["afterSha256"] = after_by_id.get(item["fileId"], entry["beforeSha256"])
-        for identifier in sorted(changed_ids & affected_ids):
-            entry = transaction_entries[identifier]
-            target = Path(entry["path"])
-            if not target.is_file():
-                raise WorkbenchError(f"当前 V1 撤回事务不支持成功操作删除文件：{target}")
-            snapshot_target = None
-            if entry.get("beforeExists", True):
-                snapshot_target = undo_dir / "before" / f"{identifier}.bin"
-                shutil.copy2(entry["snapshot"], snapshot_target)
-            undo_files.append({**entry, "snapshot": str(snapshot_target) if snapshot_target else None, "afterSha256": after_by_id[identifier]})
         result.update({"schemaVersion": 1, "requestId": args.request_id, "completedAt": utc_now()})
         result["status"] = "success" if success_items and len(success_items) == len(result.get("items", [])) else ("partial" if success_items else "failed")
         atomic_json(request_result_path(project_root, args.request_id), result)
         write_request_state(project_root, args.request_id, result["status"], completedAt=result["completedAt"])
-        if undo_files:
-            atomic_json(undo_dir / "manifest.json", {"schemaVersion": 1, "requestId": args.request_id, "createdAt": utc_now(), "files": undo_files})
-        elif undo_dir.exists():
-            shutil.rmtree(undo_dir)
         shutil.rmtree(transaction)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     raise WorkbenchError("未知 request 操作")
-
-
-def command_undo(args: argparse.Namespace) -> int:
-    project_root = Path(args.project_root).resolve()
-    undo_dir = state_paths(project_root)["undo"]
-    manifest_path = undo_dir / "manifest.json"
-    if not manifest_path.is_file():
-        raise WorkbenchError("没有可撤回的最近一次事务")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    conflicts = []
-    for item in manifest["files"]:
-        target = Path(item["path"])
-        if not target.is_file() or sha256_file(target) != item["afterSha256"]:
-            conflicts.append(str(target))
-    if conflicts:
-        raise WorkbenchError("撤回摘要冲突：" + "；".join(conflicts))
-    restored = []
-    for item in manifest["files"]:
-        target = Path(item["path"])
-        if item.get("beforeExists", True):
-            atomic_bytes(target, Path(item["snapshot"]).read_bytes())
-        else:
-            target.unlink()
-        restored.append(str(target))
-    shutil.rmtree(undo_dir)
-    print(json.dumps({"ok": True, "requestId": manifest["requestId"], "restored": restored}, ensure_ascii=False, indent=2))
-    return 0
 
 
 def command_lock(args: argparse.Namespace) -> int:
@@ -1327,10 +1378,6 @@ def build_parser() -> argparse.ArgumentParser:
     request.add_argument("--include", action="append", help="begin 时额外纳入事务的项目内文件，可用于图片资源和 EditLog")
     request.add_argument("--reason", default="Agent 中止执行")
     request.set_defaults(func=command_request)
-
-    undo = subparsers.add_parser("undo", help="安全撤回最近一次成功批次")
-    undo.add_argument("--project-root", required=True)
-    undo.set_defaults(func=command_undo)
 
     lock = subparsers.add_parser("lock", help="管理功能五打包锁")
     lock.add_argument("lock_action", choices=("acquire", "release", "status"))

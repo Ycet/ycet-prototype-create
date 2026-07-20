@@ -6,7 +6,7 @@
 
 - 版本：`V3.0.3`
 - 开发分支：`V3.0开发迭代dev`
-- 状态：工作台、本地服务、请求交接、撤回、功能五锁和自动化守卫已实现，处于发布验收阶段。
+- 状态：工作台、本地服务、请求交接、功能五锁和自动化守卫已实现，处于发布验收阶段。
 - 交付目录：`outputs/skills/ycet-prototype-create/`
 - 优化前基线：`skill/ycet-prototype-create/`
 - 当前开发基线：`52c50b1`
@@ -54,18 +54,18 @@ prototype/
 
 功能二用本地工作台替代 F12 手工复制 CSS 选择器和 HTML 路径。工作台直接展示真实 HTML、嵌套 iframe 和运行时页面，用户可选择元素、添加批注、预览属性修改，最后把变更交给 Agent 执行。
 
-工作台启动时扫描 `prototype/` 根级 HTML、`pages/`、`previews/` 和 `runtime-pages/`；没有 `prototype/` 或没有 HTML 时仍启动空工作台，后续可点击左侧刷新按钮补入项目新文件。左侧文件树按目录自动分组（例如 `pages`、`runtime-pages`），根级文件不分组，默认按文件名升序显示，并提供搜索、分组折叠、项目文件刷新和侧栏折叠。网页端不提供添加文件夹、添加外部文件、删除文件夹、删除文件、拖拽排序或手动排序。
+工作台启动时扫描 `prototype/` 根级 HTML、`pages/`、`previews/` 和 `runtime-pages/`；没有 `prototype/` 或没有 HTML 时仍启动空工作台，后续可点击左侧刷新按钮补入项目新文件。左侧文件树按目录自动分组（例如 `pages`、`runtime-pages`），组内文件相对文件夹标题向右缩进，根级文件不分组，默认按文件名升序显示，并提供搜索、分组折叠、项目文件刷新和侧栏折叠。网页端不提供添加文件夹、添加外部文件、删除文件夹、删除文件、拖拽排序或手动排序。
 
 中央预览区支持：
 
-- “选择元素”激活时，悬浮显示蓝色选区框，点击后显示绿色选区框、元素名称和批注入口；关闭选择模式会清除悬浮框、选区框、元素名称和批注入口。
+- 进入工作台时“选择元素”默认不激活；用户主动点击激活后，悬浮显示蓝色选区框，点击元素显示绿色选区框、元素名称和批注入口；关闭选择模式会清除悬浮框、选区框、元素名称和批注入口。
 - 批注入口位于选区框外的右上或右下侧；同一元素已有批注时不再显示新增入口。批注可编辑、删除或在当前 HTML 页面一键清空，批注草稿不会被“清空修改”删除。
 - 普通鼠标滚轮滚动当前 HTML 页面；`Ctrl + 鼠标滚轮` 以鼠标位置为中心缩放画布；按住鼠标中键可自由二维拖动画布。画布左下角常驻操作提示。
 - 元素滚出当前可视区域、失效或页面滚动时，选区框和悬浮框会重新计算或隐藏，不停留在旧位置。预览运行时上报真实内容宽度和高度，避免页面被固定容器截断。
 
 右侧属性编辑器按当前选中元素刷新，包含：
 
-- 位置：X/Y、旋转角度、顺时针旋转 90 度、水平翻转、垂直翻转；静态元素的位移会转换为可生效的定位或相对位移。
+- 位置：X/Y、旋转角度、顺时针旋转 90 度、水平翻转、垂直翻转；X/Y 以当前视口坐标展示，并以坐标差量叠加到元素原有偏移，因此处于定位容器中的元素数值增加 1 时也只移动 1px；静态元素会转换为可生效的相对定位。
 - 布局：宽度、高度，以及按元素类型显示的 Flex/Grid 或定位控制。
 - 外观：整体透明度、统一圆角和四角独立圆角。
 - 文本：文本 1、文本 2……等文本节点，系统已安装字体族、字体字重、字号、文字颜色、行高、字间距和图标化对齐方式。
@@ -79,7 +79,7 @@ prototype/
 - 草稿只保存在浏览器内存。切换 HTML 文件时保留各文件草稿，关闭标签页、关闭工作台进程或刷新页面时不保证保留。
 - 有修改的文件在左侧文件图标旁显示红点。
 - “清空修改”只清当前文件的样式、文本、图片、CSS 和 `同步 pages` 草稿；“清空批注”只清当前文件批注。
-- 对 `runtime-pages/*.html` 点击“同步 pages”只生成 `sync-pages` 草稿，必须发送给 Agent 后才允许写入运行时文件。Agent 必须保留 `navigate`、`set-screen`、`screen-changed`、页面注册表、目标白名单、事件来源校验和 `prototype.html` 交互。
+- 只有对应 `pages/*.html` 在最近一次 Agent 请求中成功且 SHA-256 确实发生变化时，`runtime-pages/*.html` 才显示“同步 pages”。点击后只生成关联该成功请求的 `sync-pages` 草稿，并在中央画布预览其中可复用的样式、CSS 和文本操作；必须再次发送给 Agent 后才允许写入运行时文件。同步成功后入口隐藏，直到静态页出现新的真实成功修改。Agent 必须保留 `navigate`、`set-screen`、`screen-changed`、页面注册表、目标白名单、事件来源校验和 `prototype.html` 交互。
 
 ### 功能三：可交互原型 Demo
 
@@ -111,14 +111,14 @@ prototype/
 
 工作台由以下部分组成：
 
-- `scripts/prototype_workbench.py`：Python 3 标准库本地服务、文件扫描/轮询、系统图片选择器、请求状态、事务快照、撤回和功能五锁。
+- `scripts/prototype_workbench.py`：Python 3 标准库本地服务、文件扫描/轮询、系统图片选择器、请求状态、执行事务和功能五锁。
 - `assets/workbench/index.html`、`styles.css`、`app.js`：玻璃拟态三栏界面和会话交互。
 - `assets/workbench/preview-runtime.js`：以受限同源方式注入预览页面，负责元素指纹、嵌套 iframe、选区、批注、预览草稿、缩放和平移。
 - `assets/workbench/icons.svg`：本地 SVG 图标集合，不依赖远程图标服务。
 
 服务只绑定 `127.0.0.1`，使用实例令牌、Host/Origin 校验、路径白名单、安全 MIME 和 CSP。源 HTML 字节不会因预览注入而变化。标准库轮询每秒检查已登记文件摘要和项目内新 HTML；无草稿时刷新预览，有草稿时将外部变化标记为冲突并禁止发送旧草稿。
 
-顶部“关闭工作台进程”按钮使用 Power 图标。点击始终二次确认；有未发送草稿时显示受影响 HTML 文件数量和丢失提示。确认后调用受令牌保护的 `POST /api/shutdown`，服务返回 `202` 后优雅停止 HTTP 服务、文件监听和系统对话框代理，清理当前 PID 对应的 `server.json`。网页不强杀 PID、不自动关闭标签页，也不自动重启。已生成或正在执行的 Agent 请求、结果和撤回事务不会因工作台关闭而删除；下次 `ensure` 会恢复请求状态和结果。
+顶部“关闭工作台进程”按钮使用 Power 图标。点击始终二次确认；有未发送草稿时显示受影响 HTML 文件数量和丢失提示。确认后调用受令牌保护的 `POST /api/shutdown`，服务返回 `202` 后优雅停止 HTTP 服务、文件监听和系统对话框代理，清理当前 PID 对应的 `server.json`。网页不强杀 PID、不自动关闭标签页，也不自动重启。已生成或正在执行的 Agent 请求与结果不会因工作台关闭而删除；下次 `ensure` 会恢复请求状态和结果。
 
 ## 命令行入口
 
@@ -145,12 +145,11 @@ python <skill目录>\scripts\prototype_workbench.py status --project-root <项�
 | `GET /api/requests` | 返回当前活动请求和最近请求摘要 |
 | `POST /api/requests` | 校验并落盘不可变变更包 |
 | `POST /api/requests/<id>/cancel` | 取消尚未被 Agent 领取的 `pending` 请求 |
-| `GET /api/results`、`GET /api/state` | 返回逐文件结果、撤回可用性、草稿摘要和打包锁 |
+| `GET /api/results`、`GET /api/state` | 返回逐文件结果、草稿摘要和打包锁 |
 | `POST /api/shutdown` | 二次确认后优雅关闭当前工作台进程，返回 `202` |
-| `POST /api/undo/request` | 生成最近一次 AI 修改的撤回执行指令 |
 | `POST /api/dialog` | 由 Python 主线程打开图片系统文件选择器 |
 
-### Agent 请求与撤回
+### Agent 请求
 
 ```powershell
 python <skill目录>\scripts\prototype_workbench.py request list --project-root <项目根目录>
@@ -158,10 +157,9 @@ python <skill目录>\scripts\prototype_workbench.py request show --project-root 
 python <skill目录>\scripts\prototype_workbench.py request begin --project-root <项目根目录> --request-id <请求ID>
 python <skill目录>\scripts\prototype_workbench.py request complete --project-root <项目根目录> --request-id <请求ID> --result <结果JSON>
 python <skill目录>\scripts\prototype_workbench.py request abort --project-root <项目根目录> --request-id <请求ID> --reason <原因>
-python <skill目录>\scripts\prototype_workbench.py undo --project-root <项目根目录>
 ```
 
-`request begin` 只接受 `pending` 请求，并原子建立事务目录和修改前快照；执行后用 `request complete` 写入逐文件结果。`request abort` 可由 Agent 中止活动请求。`undo` 仅在所有目标仍匹配最近一次修改后的摘要时恢复，发现后续修改则拒绝覆盖。
+`request begin` 只接受 `pending` 请求，并原子建立事务目录和修改前快照；执行后用 `request complete` 写入逐文件结果。`request abort` 可由 Agent 中止活动请求。请求完成或中止后清理执行事务快照，不提供 AI 修改撤回命令。
 
 ### 功能五打包锁
 
@@ -179,10 +177,12 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
 
 1. 工作台校验文件 SHA-256、元素指纹、操作和依赖组，生成不可变请求包。
 2. 请求包成功写入 `.ycet-editor/requests/<request-id>.json` 后，清空本次会话所有已发送草稿；写入失败则保留草稿。
-3. 弹窗展示请求 ID、文件数量、操作数量、当前状态和完整执行指令，并尝试复制指令。
-4. 用户把指令粘贴到当前 Codex、Claude Code、OpenCode 或其他 Agent 会话。剪贴板成功才提示“已复制”，失败时保留手动复制入口。
+3. 弹窗完整展示请求 ID、文件数量、操作数量、当前状态和执行指令，不产生横向滚动；关闭与复制按钮清晰分隔。
+4. 用户点击“复制指令”后弹窗立即关闭，并通过 Toast 获得真实复制结果；成功后把指令粘贴到当前 Codex、Claude Code、OpenCode 或其他 Agent 会话，失败时可从请求详情重试。
 5. Agent 读取共享协议，执行 `request show`、`request begin`、暂存修改、守卫校验和 `request complete`；也可以使用 `request abort` 中止。
 6. 工作台轮询并显示待处理、处理中和逐文件终态；关闭并重新启动工作台后从 `.ycet-editor/requests/` 恢复。
+
+工作台只把文件名与包内 `requestId` 一致、且包含 `files` 的 JSON 识别为正式请求包。Agent 执行期间产生的 `*.result.pending.json` 等临时结果不会形成伪 `pending` 请求；正式请求完成后“发送给 AI”恢复可用。
 
 变更包的操作类型固定为：
 
@@ -201,14 +201,14 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
 | --- | --- | --- |
 | `pending` | 请求已生成，等待 Agent | 可再次复制指令或取消 |
 | `processing` | Agent 已原子领取 | 锁定请求涉及文件，不提供网页强制终止 |
-| `success` | 全部文件成功 | 展示逐文件结果，可生成撤回指令 |
+| `success` | 全部文件成功 | 展示逐文件结果 |
 | `partial` | 部分文件成功 | 展示成功、失败和冲突原因 |
 | `failed` | 没有文件成功或执行失败 | 展示失败原因 |
 | `aborted` | 用户取消或 Agent 中止 | 展示中止原因 |
 
 同一项目同时只允许一个 `pending` 或 `processing` 请求。活动请求涉及的文件以及 `sync-pages` 的静态来源文件会锁定编辑，其他 HTML 仍可准备草稿但必须等当前请求终止后发送。请求完成后，成功的项目内修改按规则追加 `prototype/docs/EditLog.md`；外部文件直接修改原始路径，不写项目执行历史。
 
-## 工作区状态、撤回与文件安全
+## 工作区状态与文件安全
 
 `.ycet-editor/` 的主要内容如下：
 
@@ -219,11 +219,10 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
   server.log                  # 本地服务诊断日志
   requests/                   # 不可变变更包、动态状态和逐文件结果
   transactions/               # Agent 执行中的暂存快照
-  undo/latest/                # 最近一次成功批次的撤回快照
   mobile-pack.lock.json       # 功能五打包锁
 ```
 
-工作台运行状态不写入 `prototype/`，也不会自动修改 `.gitignore`。`workspace.json` 只持久化文件登记、来源、分组、排序兼容数据、当前文件和缩放偏好，绝不保存未发送草稿。外部 HTML 可以登记为 `source: external` 并按原始绝对路径修改，但不写 `EditLog.md`。最近一次撤回跨工作台重启可用，但只保留最近一次成功批次，不构成永久历史。
+工作台运行状态不写入 `prototype/`，也不会自动修改 `.gitignore`。`workspace.json` 只持久化文件登记、来源、分组、排序兼容数据、当前文件和缩放偏好，绝不保存未发送草稿。外部 HTML 可以登记为 `source: external` 并按原始绝对路径修改，但不写 `EditLog.md`，也不建立永久执行历史。
 
 ## 五项功能与工作台同步关系
 
@@ -285,19 +284,19 @@ python outputs\skills\ycet-prototype-create\scripts\build_mobile_prototype.py --
 python outputs\skills\ycet-prototype-create\scripts\prototype_guard.py mobile --prototype-dir <prototype目录> --mobile-file <生成文件>
 ```
 
-当前基线验证已通过工作台服务与请求状态测试（28 项）、Chrome/Edge 工作台运行时与三档布局、Chrome 真实关闭进程交互、五类设备框架运行时、`prototype_guard.py`、功能五打包回归、移动端离线单文件运行时、`validate_skill.py`、`quick_validate.py`、JavaScript 语法检查和 `git diff --check`。Playwright Chromium/Firefox 因当前环境 `spawn EPERM` 未完成；Firefox、移动端真机和完整 Agent 对话评估仍未验证。`release_audit.py` 当前会提示交付目录包含测试产物和 `scripts/__pycache__/`，发布前需清理或按审计规则处理。
+当前基线验证已通过工作台服务与请求状态测试（29 项）、Chrome/Edge 工作台运行时与三档布局、Chrome 真实关闭进程交互、五类设备框架运行时、`prototype_guard.py`、功能五打包回归、移动端离线单文件运行时、`validate_skill.py`、`quick_validate.py`、JavaScript 语法检查和 `git diff --check`。Playwright Chromium/Firefox 因当前环境 `spawn EPERM` 未完成；Firefox、移动端真机和完整 Agent 对话评估仍未验证。`release_audit.py` 当前会提示交付目录包含测试产物和 `scripts/__pycache__/`，发布前需清理或按审计规则处理。
 
 ## 文档索引
 
 - `outputs/skills/ycet-prototype-create/SKILL.md`：Skill 总入口、路由和全局规则。
 - `outputs/skills/ycet-prototype-create/docs/function-1-static-prototype.md`：功能一需求、UI 方向和静态原型流程。
-- `outputs/skills/ycet-prototype-create/docs/function-2-precision-edit.md`：功能二工作台、变更包、同步和撤回流程。
+- `outputs/skills/ycet-prototype-create/docs/function-2-precision-edit.md`：功能二工作台、变更包和同步流程。
 - `outputs/skills/ycet-prototype-create/docs/function-3-interactive-demo.md`：功能三运行时副本、消息协议和只读保护。
 - `outputs/skills/ycet-prototype-create/docs/function-4-existing-prototype-edit.md`：功能四已有 HTML/图片原型接管与迁移。
 - `outputs/skills/ycet-prototype-create/docs/function-5-mobile-single-file.md`：功能五输入门禁、打包锁、单文件生成和验收。
 - `outputs/skills/ycet-prototype-create/docs/shared-prototype-standards.md`：目录、框架、画布、路径和页面规范。
 - `outputs/skills/ycet-prototype-create/docs/shared-editlog-rules.md`：项目内 EditLog 记录规则。
-- `outputs/skills/ycet-prototype-create/docs/shared-workbench-protocol.md`：工作台生命周期、草稿、变更包、请求状态、同步、撤回和功能五锁。
+- `outputs/skills/ycet-prototype-create/docs/shared-workbench-protocol.md`：工作台生命周期、草稿、变更包、请求状态、同步和功能五锁。
 - `outputs/skills/ycet-prototype-create/assets/frames/manifest.json`：设备框架、逻辑画布、预览尺寸和端口映射的唯一数据源。
 - `outputs/skills/ycet-prototype-create/assets/workbench/`：工作台浏览器前端、预览运行时和本地图标。
 - `docs/brainstorms/specs/`：已确认的需求规格。

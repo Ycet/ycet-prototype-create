@@ -26,6 +26,7 @@ python <skill目录>/scripts/prototype_workbench.py ensure --project-root <项�
 4. `opened: false` 时必须把命令输出的 URL 发给用户。
 5. 左栏只提供搜索、选择、分组折叠、项目文件刷新和侧栏折叠，不提供新增分组、外部 HTML 选择、拖拽排序或移出文件操作。
 6. 用户可通过顶部 Power 图标打开二次确认并优雅关闭当前项目工作台进程；有未发送草稿时必须提示丢失风险。关闭服务不取消已发送或正在执行的 Agent 请求。
+7. 进入工作台时“选择元素”默认不激活；只有用户主动点击后才开启悬浮选区、元素选择和批注入口。
 
 用户明确要求登记其他 HTML 时：
 
@@ -44,21 +45,11 @@ python <skill目录>/scripts/prototype_workbench.py sync --project-root <项目�
 7. 写结果 JSON 并运行 `request complete`。互不依赖文件允许部分成功。
 8. 最终回复列出成功文件、失败/冲突文件和逐项原因；工作台结果面板读取同一结果。
 
-同一项目只能有一个 `pending` 或 `processing` 请求。存在活动请求时不得再次发送或撤回；活动请求涉及的文件锁定编辑，其他文件可准备但不能发送新草稿。只有 `pending` 请求可由用户在工作台取消，且取消不会恢复已清空草稿；`processing` 请求只能由 Agent 完成或中止。
+同一项目只能有一个 `pending` 或 `processing` 请求。存在活动请求时不得再次发送；活动请求涉及的文件锁定编辑，其他文件可准备但不能发送新草稿。只有 `pending` 请求可由用户在工作台取消，且取消不会恢复已清空草稿；`processing` 请求只能由 Agent 完成或中止。
 
 ## `同步 pages` 保护
 
-`sync-pages` 不是文件覆盖。Agent 必须在暂存副本中把 `pages/*.html` 的结构、内容和样式受控合并到对应 `runtime-pages/*.html`，同时保留功能三消息协议、页面注册表和 Demo 交互。静态源页与引用它的同步操作按同一依赖组执行；验证 `navigate`、`set-screen`、`screen-changed` 或 `prototype.html` 加载失败时整组不写。
-
-## 撤回
-
-收到撤回指令时运行：
-
-```text
-python <skill目录>/scripts/prototype_workbench.py undo --project-root <项目根目录>
-```
-
-摘要冲突时不得强制覆盖。成功后说明恢复文件；失败时列出冲突文件与原因。
+`sync-pages` 不是文件覆盖。只有对应 `pages/*.html` 在最近一次 Agent 请求中返回成功，并且结果里的 `beforeSha256` 与 `afterSha256` 不同时，运行时页才展示“同步 pages”；未真实改写静态页时不得沿用更早请求生成入口。点击后必须携带该静态请求 ID 和修改后摘要，中央画布只预览该请求中可复用的样式、CSS 与文本操作，仍需再次“发送给 AI”才可落盘。Agent 必须在暂存副本中把 `pages/*.html` 的结构、内容和样式受控合并到对应 `runtime-pages/*.html`，同时保留功能三消息协议、页面注册表和 Demo 交互。同步请求成功后入口隐藏；静态源页与引用它的同步操作按同一依赖组执行，验证 `navigate`、`set-screen`、`screen-changed` 或 `prototype.html` 加载失败时整组不写。
 
 ## 完成标准
 
@@ -68,6 +59,5 @@ python <skill目录>/scripts/prototype_workbench.py undo --project-root <项目�
 - 元素定位唯一，未引入无关修改。
 - 部分成功、冲突与失败逐文件报告。
 - 项目内普通修改已记录 EditLog；外部文件没有永久执行历史。
-- 最近一次成功批次可以在摘要仍匹配时跨工作台重启撤回。
 - 工作台正确展示待交给 Agent、处理中和终态；剪贴板失败时不误报已复制。
 - Power 按钮可优雅停止服务、清理 `server.json` 并保留已发送请求，后续 `ensure` 能启动新实例。

@@ -10,7 +10,7 @@
     currentFileId: null,
     selection: null,
     drafts: new Map(),
-    selectMode: true,
+    selectMode: false,
     zoom: 100,
     pan: { x: 0, y: 0 },
     sidebarCollapsed: false,
@@ -31,10 +31,11 @@
     requests: [],
     activeRequest: null,
     results: [],
-    undoAvailable: false,
     pollTimer: null,
     serviceClosed: false,
     requestRevision: 0,
+    syncPages: [],
+    dismissedRequestIds: new Set(),
   };
 
   const els = {
@@ -133,7 +134,10 @@
   }
 
   function operationsForPreview() {
-    return [...state.drafts.values()].flatMap((draft) => draft.operations.filter((item) => !["sync-pages", "annotation"].includes(item.type)));
+    return [...state.drafts.values()].flatMap((draft) => draft.operations.flatMap((item) => {
+      if (item.type === "sync-pages") return item._previewOperations || [];
+      return item.type === "annotation" ? [] : [item];
+    }));
   }
 
   function annotationsForPreview() {
@@ -198,6 +202,19 @@
     return row;
   }
 
+  function syncOpportunity(identifier) {
+    return state.syncPages.find((item) => item.runtimeFileId === identifier) || null;
+  }
+
+  function renderSyncButton(identifier = state.currentFileId) {
+    const file = fileById(identifier);
+    const synced = draftFor(identifier, false)?.operations.some((item) => item.type === "sync-pages");
+    const visible = Boolean(file?.kind === "runtime" && (synced || syncOpportunity(identifier)));
+    els.sync.classList.toggle("hidden", !visible);
+    els.sync.textContent = synced ? "已同步" : "同步 pages";
+    els.sync.classList.toggle("synced", Boolean(synced));
+  }
+
   function groupNode(group) {
     const section = document.createElement("section");
     section.className = "file-group";
@@ -256,10 +273,7 @@
     els.path.textContent = file.path;
     els.empty.classList.toggle("hidden", !file.missing);
     els.shell.classList.toggle("hidden", file.missing);
-    els.sync.classList.toggle("hidden", file.kind !== "runtime");
-    const synced = draftFor(identifier, false)?.operations.some((item) => item.type === "sync-pages");
-    els.sync.textContent = synced ? "已同步" : "同步 pages";
-    els.sync.classList.toggle("synced", Boolean(synced));
+    renderSyncButton(identifier);
     clearSelectionPanel();
     resizePreviewShell();
     updateZoom(false);
@@ -465,14 +479,13 @@
         let value = input.value;
         if (["position-x", "position-y"].includes(input.id) && state.selection) {
           const axis = input.id === "position-x" ? "x" : "y";
+          const offsetProperty = input.dataset.css;
           const position = state.selection.element.styles.position;
-          if (position === "static" || position === "relative") {
-            if (position === "static") styleOperation("position", "relative");
-            value = `${number(input.value) - state.selection.element.rect[axis]}px`;
-          } else {
-            value = `${input.value}px`;
-          }
-          styleOperation(input.dataset.css, value);
+          const delta = number(input.value) - state.selection.element.rect[axis];
+          // X/Y 展示的是视口坐标，写回时必须把坐标差量叠加到元素原有偏移，不能把绝对坐标直接当作 left/top。
+          if (position === "static") styleOperation("position", "relative");
+          value = `${number(state.selection.element.styles[offsetProperty]) + delta}px`;
+          styleOperation(offsetProperty, value);
           return;
         }
         if (input.type === "number") {
@@ -905,15 +918,18 @@
     const runtime = fileById(state.currentFileId);
     if (!runtime || runtime.kind !== "runtime") return;
     if (!requireEditable(runtime.id)) return;
-    const normalized = runtime.name.replace(/--[^.]+(?=\.html$)/, "");
-    const source = state.workspace.files.find((file) => file.automaticGroup === "pages" && file.name === normalized);
-    if (!source) return toast(`未找到对应静态页 pages/${normalized}。`, "warn");
+    const opportunity = syncOpportunity(runtime.id);
+    if (!opportunity) return toast("对应静态页没有尚未同步的成功样式修改。", "warn");
+    const source = fileById(opportunity.sourceFileId);
+    if (!source) return toast("对应静态页已不在当前工作区。", "warn");
+    const previewOperations = (opportunity.previewOperations || []).map((item) => ({ ...item, fileId: runtime.id }));
     const operation = {
       type: "sync-pages", fileId: runtime.id, sourceFileId: source.id, sourcePath: source.path, runtimePath: runtime.path,
-      sourceSha256: source.sha256, runtimeSha256: runtime.sha256, dependencyGroup: `sync:${runtime.id}`,
+      sourceRequestId: opportunity.sourceRequestId, sourceSha256: opportunity.sourceAfterSha256,
+      runtimeSha256: runtime.sha256, dependencyGroup: `sync:${runtime.id}`, _previewOperations: previewOperations,
     };
     upsertOperation(runtime.id, operation, `sync:${runtime.id}`);
-    els.sync.textContent = "已同步"; els.sync.classList.add("synced");
+    renderSyncButton(runtime.id);
   }
 
   function clearCurrent() {
@@ -922,7 +938,7 @@
     if (!draft) return;
     draft.operations = [];
     state.staleDrafts.delete(state.currentFileId);
-    els.sync.textContent = "同步 pages"; els.sync.classList.remove("synced");
+    renderSyncButton(state.currentFileId);
     renderTree(); applyDrafts(); updateCssSummary(); syncDirtyState();
     postPreview("refresh-selection");
     toast("已清空当前 HTML 的样式、内容、图片、CSS 和同步草稿；批注已保留。" );
@@ -941,7 +957,7 @@
     return [...state.drafts.entries()].map(([identifier, draft]) => {
       const file = fileById(identifier);
       if (!file) return null;
-      const operations = [...draft.annotations, ...draft.operations].map(({ _key, previewUrl, ...operation }) => operation);
+      const operations = [...draft.annotations, ...draft.operations].map(({ _key, previewUrl, _previewOperations, ...operation }) => operation);
       if (!operations.length) return null;
       return { fileId: identifier, sha256: file.sha256, operations, dependencyGroup: dependencyByFile.get(identifier) || null };
     }).filter(Boolean);
@@ -964,7 +980,8 @@
 
   function renderRequestStatus() {
     const request = state.activeRequest || state.requests[0] || null;
-    els.requestStatus.classList.toggle("hidden", !request);
+    const dismissed = Boolean(request?.status === "success" && state.dismissedRequestIds.has(request.requestId));
+    els.requestStatus.classList.toggle("hidden", !request || dismissed);
     if (request) {
       const badge = $("#request-status-badge");
       badge.textContent = REQUEST_STATUS_LABELS[request.status] || request.status;
@@ -973,13 +990,13 @@
       $("#request-status-note").textContent = requestStatusNote(request);
       $("#request-copy").classList.toggle("hidden", request.status !== "pending");
       $("#request-cancel").classList.toggle("hidden", request.status !== "pending");
+      $("#request-dismiss").classList.toggle("hidden", request.status !== "success");
     }
     const active = isActiveRequest();
     const send = $("#send-ai");
     send.disabled = active;
     if (active) send.dataset.tooltip = "当前请求完成或中止后才能再次发送";
     else delete send.dataset.tooltip;
-    $("#undo-ai").disabled = active || !state.undoAvailable;
     updateEditingLock();
   }
 
@@ -988,8 +1005,10 @@
     state.requestRevision = Number(listing.revision || state.requestRevision);
     state.requests = listing.requests || [];
     state.activeRequest = listing.activeRequest || null;
+    state.syncPages = listing.syncPages || [];
     renderRequestStatus();
     renderTree();
+    renderSyncButton();
   }
 
   function openRequestDialog(request, title = "变更包已生成", copy = "请将以下执行指令粘贴到当前 Agent。工作台不会直接控制 Agent 会话。") {
@@ -1034,7 +1053,6 @@
       await api(`/api/requests/${encodeURIComponent(request.requestId)}/cancel`, {});
       const results = await api("/api/results");
       state.results = results.results || [];
-      state.undoAvailable = Boolean(results.undoAvailable);
       state.latestResultId = request.requestId;
       await refreshRequestListing();
       toast("待处理请求已取消；已发送草稿不会恢复。", "warn");
@@ -1047,6 +1065,14 @@
     const result = state.results.find((item) => item.requestId === request.requestId);
     if (result && !isActiveRequest(request)) showResults([result]);
     else openRequestDialog(request, "Agent 请求详情");
+  }
+
+  function dismissRequestStatus() {
+    const request = state.activeRequest || state.requests[0];
+    if (!request || request.status !== "success") return;
+    // 只关闭当前会话中的成功提示，不删除持久化请求和逐文件结果。
+    state.dismissedRequestIds.add(request.requestId);
+    renderRequestStatus();
   }
 
   async function sendRequest() {
@@ -1068,16 +1094,6 @@
       toast(copied ? "变更包已生成，执行指令已复制。" : "变更包已生成，请手动复制执行指令。", copied ? "" : "warn");
     } catch (error) { toast(error.message, "error"); }
     finally { renderRequestStatus(); }
-  }
-
-  async function requestUndo() {
-    if (isActiveRequest()) return toast("当前 Agent 请求尚未完成，暂时不能撤回。", "warn");
-    try {
-      const result = await api("/api/undo/request", {});
-      openRequestDialog(null, "撤回指令已生成", "请将以下撤回指令粘贴到当前 Agent。工作台不会直接控制 Agent 会话。");
-      $("#request-instruction").value = result.instruction;
-      await copyInstruction(result.instruction);
-    } catch (error) { toast(error.message, "error"); }
   }
 
   function showResults(results) {
@@ -1149,9 +1165,9 @@
         state.requestRevision = Number(requests.revision || state.requestRevision);
         state.requests = requests.requests || [];
         state.activeRequest = requests.activeRequest || null;
+        state.syncPages = requests.syncPages || [];
       }
       state.results = results.results || [];
-      state.undoAvailable = Boolean(results.undoAvailable);
       if (!previousSha && state.currentFileId && !fileById(state.currentFileId)) selectFile(workspace.currentFileId, true);
       renderTree();
       renderRequestStatus();
@@ -1216,13 +1232,19 @@
       $$(".tab-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== button.dataset.tab));
     }));
     $("#sync-pages").addEventListener("click", syncPages); $("#clear-current").addEventListener("click", clearCurrent);
-    $("#send-ai").addEventListener("click", sendRequest); $("#undo-ai").addEventListener("click", requestUndo);
-    $("#copy-instruction").addEventListener("click", () => copyInstruction());
+    $("#send-ai").addEventListener("click", sendRequest);
+    $("#copy-instruction").addEventListener("click", async () => {
+      const copyTask = copyInstruction();
+      $("#request-dialog").close();
+      const copied = await copyTask;
+      toast(copied ? "执行指令已复制。" : "无法自动复制，请从请求详情中重试。", copied ? "" : "warn");
+    });
     $("#request-copy").addEventListener("click", async () => {
       const copied = await copyInstruction(state.activeRequest?.instruction || state.requests[0]?.instruction || "");
       toast(copied ? "执行指令已再次复制。" : "无法自动复制，请在详情中手动选择指令。", copied ? "" : "warn");
     });
     $("#request-cancel").addEventListener("click", cancelActiveRequest);
+    $("#request-dismiss").addEventListener("click", dismissRequestStatus);
     $("#request-details").addEventListener("click", showRequestDetails);
     $("#save-annotation").addEventListener("click", saveAnnotation); $("#choose-image").addEventListener("click", chooseImage); $("#apply-css").addEventListener("click", applyCustomCss);
     let tooltipTimer;
@@ -1289,9 +1311,9 @@
       state.workspace = workspace;
       state.requests = requests.requests || [];
       state.activeRequest = requests.activeRequest || null;
+      state.syncPages = requests.syncPages || [];
       state.requestRevision = Number(requests.revision || 0);
       state.results = results.results || [];
-      state.undoAvailable = Boolean(results.undoAvailable);
       state.latestResultId = state.results[0]?.requestId || null;
       await loadSystemFonts(false);
       state.currentFileId = state.workspace.currentFileId;

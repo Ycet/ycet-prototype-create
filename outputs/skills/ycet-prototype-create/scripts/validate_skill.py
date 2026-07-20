@@ -176,12 +176,15 @@ def main() -> int:
             fail(f"工作台交付文件缺失: {path.relative_to(ROOT)}", failures)
     if workbench_script.is_file():
         script_text = workbench_script.read_text(encoding="utf-8")
-        for token in ("command_ensure", "command_sync", "command_request", "command_undo", "command_lock", "request_state_path", "ACTIVE_REQUEST_STATUSES", "/api/shutdown", "shutdown_requested", "127.0.0.1", "tkinter"):
+        for token in ("command_ensure", "command_sync", "command_request", "command_lock", "request_state_path", "ACTIVE_REQUEST_STATUSES", "/api/shutdown", "shutdown_requested", "127.0.0.1", "tkinter"):
             if token not in script_text:
                 fail(f"工作台脚本缺少能力: {token}", failures)
+        for token in ("command_undo", "/api/undo/request", 'add_parser("undo"'):
+            if token in script_text:
+                fail(f"工作台脚本仍包含已移除的撤回能力: {token}", failures)
     if workbench_protocol.is_file():
         protocol_text = workbench_protocol.read_text(encoding="utf-8")
-        for token in ("未发送草稿", "schemaVersion: 1", "sync-pages", "互不依赖文件允许部分成功", ".state.json", "`pending` 请求可从工作台取消", "POST /api/shutdown", ".ycet-editor/undo/latest/", "lock acquire"):
+        for token in ("未发送草稿", "schemaVersion: 1", "sync-pages", "sourceRequestId", "beforeSha256", "*.result.pending.json", "互不依赖文件允许部分成功", ".state.json", "`pending` 请求可从工作台取消", "POST /api/shutdown", "lock acquire"):
             if token not in protocol_text:
                 fail(f"工作台协议缺少契约: {token}", failures)
     workbench_html = ROOT / "assets" / "workbench" / "index.html"
@@ -192,6 +195,8 @@ def main() -> int:
         for token in ('id="shutdown-workbench"', 'id="request-status"', 'id="request-meta"', 'id="service-closed"'):
             if token not in html_text:
                 fail(f"工作台前端缺少关闭或 Agent 状态界面: {token}", failures)
+        if 'id="undo-ai"' in html_text:
+            fail("工作台前端仍包含已移除的撤回 AI 修改按钮", failures)
     if workbench_js.is_file():
         js_text = workbench_js.read_text(encoding="utf-8")
         for token in ("renderRequestStatus", "requestRevision", "cancelActiveRequest", "confirmShutdown", "enterClosedState"):
