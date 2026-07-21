@@ -108,6 +108,12 @@ def assert_layout(page, viewport: dict[str, int]) -> None:
         raise AssertionError("中央预览与右侧属性栏重叠")
     if page.evaluate("document.body.scrollWidth") > viewport["width"] + 1:
         raise AssertionError("页面出现横向溢出")
+    canvas = page.locator("#canvas-viewport").bounding_box()
+    preview = page.locator("#preview-shell").bounding_box()
+    if page.locator("#zoom-value").inner_text() == "100%" and any(
+        abs(preview[key] - canvas[key]) > 2.5 for key in ("x", "y", "width", "height")
+    ):
+        raise AssertionError(f"{viewport['width']}x{viewport['height']} 下预览未占满浏览器区域：canvas={canvas}, preview={preview}")
 
 
 def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot_dir: Path) -> None:
@@ -122,6 +128,47 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.goto(url, wait_until="networkidle")
     page.locator("#file-tree .file-row").first.wait_for()
     page.wait_for_timeout(120)
+    # 100% 时预览必须就是中央区域的内置浏览器视口，不能再嵌套固定尺寸舞台。
+    viewport_box = page.locator("#canvas-viewport").bounding_box()
+    shell_box = page.locator("#preview-shell").bounding_box()
+    frame_box = page.locator("#preview-frame").bounding_box()
+    if page.locator("#zoom-value").inner_text() != "100%":
+        regression_failures.append("首次打开文件没有使用 100% 默认缩放")
+    for label, box in (("预览容器", shell_box), ("HTML iframe", frame_box)):
+        if any(abs(box[key] - viewport_box[key]) > 2 for key in ("x", "y", "width", "height")):
+            regression_failures.append(f"100% 时{label}没有占满中央浏览器区域：viewport={viewport_box}, target={box}")
+
+    # 浏览器式缩放只改变页面逻辑视口，不能缩小中央浏览器窗口本身。
+    inner_width_100 = page.frame_locator("#preview-frame").locator("body").evaluate("() => innerWidth")
+    page.locator("#zoom-out").click()
+    page.wait_for_timeout(80)
+    shell_box_90 = page.locator("#preview-shell").bounding_box()
+    frame_box_90 = page.locator("#preview-frame").bounding_box()
+    inner_width_90 = page.frame_locator("#preview-frame").locator("body").evaluate("() => innerWidth")
+    if any(abs(shell_box_90[key] - viewport_box[key]) > 2.5 for key in ("x", "y", "width", "height")):
+        regression_failures.append(f"缩小到 90% 后预览容器也被缩小：viewport={viewport_box}, target={shell_box_90}")
+    if any(abs(frame_box_90[key] - shell_box_90[key]) > 1 for key in ("x", "y", "width", "height")):
+        regression_failures.append(f"缩小到 90% 后 HTML iframe 没有铺满固定外框：shell={shell_box_90}, frame={frame_box_90}")
+    if inner_width_90 <= inner_width_100:
+        regression_failures.append(f"缩小到 90% 后 HTML 逻辑视口没有像浏览器缩放一样变宽：100%={inner_width_100}, 90%={inner_width_90}")
+    if name == "chrome":
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(screenshot_dir / "browser-zoom-90-chrome.png"))
+    page.locator("#zoom-in").click()
+    page.wait_for_timeout(80)
+
+    # 100% 时中键不得移动页面；只有放大后才允许平移。
+    start_x = frame_box["x"] + frame_box["width"] * 0.5
+    start_y = frame_box["y"] + frame_box["height"] * 0.5
+    frame_before_default_pan = page.locator("#preview-frame").bounding_box()
+    page.mouse.move(start_x, start_y)
+    page.mouse.down(button="middle")
+    page.mouse.move(start_x + 37, start_y + 29)
+    page.mouse.up(button="middle")
+    page.wait_for_timeout(80)
+    frame_after_default_pan = page.locator("#preview-frame").bounding_box()
+    if any(abs(frame_before_default_pan[key] - frame_after_default_pan[key]) > 1 for key in ("x", "y", "width", "height")):
+        regression_failures.append("100% 缩放时仍可使用中键移动 HTML 页面")
     select_button = page.locator("#select-mode")
     default_select_active = "active" in (select_button.get_attribute("class") or "")
     if default_select_active:
@@ -218,7 +265,7 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         regression_failures.append("中央画布缺少操作提示")
     else:
         hint_copy = canvas_hints.locator(".canvas-hint").all_inner_texts()
-        if hint_copy != ["Ctrl + 鼠标滚轮：缩放画布", "鼠标中键：拖动画布"]:
+        if hint_copy != ["Ctrl + 鼠标滚轮：缩放 HTML", "放大后鼠标中键：拖动 HTML"]:
             regression_failures.append(f"画布操作提示内容不正确：{hint_copy}")
         hint_icons = canvas_hints.locator("use").evaluate_all(
             "nodes => nodes.map((node) => node.getAttribute('href'))"
@@ -387,14 +434,22 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     target = page.frame_locator("#preview-frame").locator("#buy")
     target.wait_for()
 
-    # 宽页面不能在 iframe 内发生横向裁切，预览高度应使用画布可用空间。
+    # 红框是完整浏览器视口；宽页面由 HTML 自身滚动，不能靠扩大外层舞台规避。
     shell_box = page.locator("#preview-shell").bounding_box()
     canvas_box = page.locator("#canvas-viewport").bounding_box()
-    page_widths = target.evaluate("element => ({inner: innerWidth, scroll: document.scrollingElement.scrollWidth})")
-    if page_widths["scroll"] > page_widths["inner"] + 1:
-        regression_failures.append(f"HTML 页面横向被裁切：{page_widths}")
-    if shell_box["height"] < canvas_box["height"] - 90:
-        regression_failures.append(f"预览高度未使用画布空间：shell={shell_box['height']} canvas={canvas_box['height']}")
+    page_widths = target.evaluate("""
+        element => {
+          const root = document.scrollingElement;
+          scrollTo({ left: 120, top: 0, behavior: "auto" });
+          const result = { inner: innerWidth, scroll: root.scrollWidth, left: scrollX };
+          scrollTo({ left: 0, top: 0, behavior: "auto" });
+          return result;
+        }
+    """)
+    if page_widths["scroll"] > page_widths["inner"] + 1 and page_widths["left"] <= 0:
+        regression_failures.append(f"宽 HTML 页面无法在内置浏览器中横向滚动：{page_widths}")
+    if any(abs(shell_box[key] - canvas_box[key]) > 2 for key in ("x", "y", "width", "height")):
+        regression_failures.append(f"预览没有占满中央浏览器区域：shell={shell_box} canvas={canvas_box}")
 
     # 滚轮开始时必须同步隐藏悬浮框，不能让旧框停留到 scroll 或下一帧。
     preview = page.frame_locator("#preview-frame")
@@ -425,7 +480,7 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     selection_box = preview.locator(".ycet-editor-selected")
     annotate_button = preview.locator(".ycet-editor-annotate")
     selection_box.wait_for()
-    page.locator("#canvas-board").click(position={"x": 5, "y": 5})
+    page.locator("#current-path").click()
     page.wait_for_timeout(60)
     if selection_box.is_visible() or page.locator("#selected-path").inner_text() != "尚未选择元素":
         regression_failures.append("点击 HTML 页面外的空白画布后没有取消元素选择")
@@ -753,13 +808,75 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.wait_for_timeout(80)
     if page.locator("#zoom-value").inner_text() == zoom_before_scroll:
         regression_failures.append("Ctrl+滚轮没有调整缩放")
-    before_transform = page.locator("#preview-shell").get_attribute("style") or ""
+
+    # 即使页面本身没有横向滚动条，放大后的内部预览也必须支持中键左右拖动。
+    no_overflow = target.evaluate("""
+        element => {
+          document.documentElement.style.minWidth = "0";
+          document.body.style.minWidth = "0";
+          scrollTo({ left: 0, top: scrollY, behavior: "auto" });
+          return { inner: innerWidth, scroll: document.scrollingElement.scrollWidth };
+        }
+    """)
+    frame_before_horizontal_pan = page.locator("#preview-frame").bounding_box()
+    shell_before_horizontal_pan = page.locator("#preview-shell").bounding_box()
+    page.mouse.move(start_x, start_y)
+    page.mouse.down(button="middle")
+    page.mouse.move(start_x + 37, start_y)
+    page.mouse.up(button="middle")
+    page.wait_for_timeout(80)
+    frame_after_horizontal_pan = page.locator("#preview-frame").bounding_box()
+    shell_after_horizontal_pan = page.locator("#preview-shell").bounding_box()
+    if no_overflow["scroll"] > no_overflow["inner"] + 1:
+        regression_failures.append(f"横向拖动回归场景仍存在页面自身横向滚动范围：{no_overflow}")
+    if abs(frame_after_horizontal_pan["x"] - frame_before_horizontal_pan["x"]) < 10:
+        regression_failures.append(
+            f"无横向滚动条的 HTML 放大后无法使用中键左右拖动：before={frame_before_horizontal_pan}, after={frame_after_horizontal_pan}"
+        )
+    if (
+        frame_after_horizontal_pan["x"] > shell_after_horizontal_pan["x"] + 1
+        or frame_after_horizontal_pan["y"] > shell_after_horizontal_pan["y"] + 1
+        or frame_after_horizontal_pan["x"] + frame_after_horizontal_pan["width"] < shell_after_horizontal_pan["x"] + shell_after_horizontal_pan["width"] - 1
+        or frame_after_horizontal_pan["y"] + frame_after_horizontal_pan["height"] < shell_after_horizontal_pan["y"] + shell_after_horizontal_pan["height"] - 1
+    ):
+        regression_failures.append(
+            f"放大后中键拖动使内部预览层未覆盖浏览器外框：shell={shell_after_horizontal_pan}, frame={frame_after_horizontal_pan}"
+        )
+    if any(abs(shell_before_horizontal_pan[key] - shell_after_horizontal_pan[key]) > 2 for key in ("x", "y", "width", "height")):
+        regression_failures.append("中键左右拖动意外移动了浏览器外框")
+    if name == "chrome":
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(screenshot_dir / "browser-zoom-horizontal-pan-chrome.png"))
+    target.evaluate("""
+        element => {
+          document.documentElement.style.removeProperty("min-width");
+          document.body.style.removeProperty("min-width");
+        }
+    """)
+
+    frame_before_pan = page.locator("#preview-frame").bounding_box()
+    shell_before_pan = page.locator("#preview-shell").bounding_box()
     page.mouse.down(button="middle")
     page.mouse.move(start_x + 37, start_y + 29)
     page.mouse.up(button="middle")
-    after_transform = page.locator("#preview-shell").get_attribute("style") or ""
-    if before_transform == after_transform or "translate" not in after_transform:
-        raise AssertionError("中键二维平移没有更新画布")
+    page.wait_for_timeout(80)
+    frame_after_pan = page.locator("#preview-frame").bounding_box()
+    shell_after_pan = page.locator("#preview-shell").bounding_box()
+    if abs(frame_after_pan["y"] - frame_before_pan["y"]) < 10:
+        raise AssertionError("放大后中键拖动没有纵向移动 HTML 页面视图")
+    if any(abs(shell_before_pan[key] - shell_after_pan[key]) > 2 for key in ("x", "y", "width", "height")):
+        regression_failures.append(f"中键拖动意外移动了浏览器外框：before={shell_before_pan}, after={shell_after_pan}")
+    page.locator("#zoom-value").click()
+    page.locator("#zoom-input").fill("100")
+    page.locator("#zoom-input").press("Enter")
+    page.wait_for_timeout(80)
+    reset_viewport = page.locator("#canvas-viewport").bounding_box()
+    reset_shell = page.locator("#preview-shell").bounding_box()
+    reset_frame = page.locator("#preview-frame").bounding_box()
+    if any(abs(reset_shell[key] - reset_viewport[key]) > 2.5 for key in ("x", "y", "width", "height")):
+        regression_failures.append(f"缩放回 100% 后预览容器没有占满浏览器区域：viewport={reset_viewport}, shell={reset_shell}")
+    if any(abs(reset_frame[key] - reset_shell[key]) > 1 for key in ("x", "y", "width", "height")):
+        regression_failures.append(f"缩放回 100% 后 HTML iframe 没有铺满固定外框：shell={reset_shell}, frame={reset_frame}")
 
     # 仅剩批注也应生成请求，成功写入后清空全部会话草稿。
     page.set_viewport_size({"width": 1024, "height": 768})

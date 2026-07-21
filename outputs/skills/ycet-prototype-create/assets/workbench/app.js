@@ -529,32 +529,58 @@
   function setZoom(value, anchor) {
     const previous = state.zoom / 100;
     const next = Math.max(25, Math.min(200, Math.round(value))) / 100;
+    let scrollAdjustment = null;
     if (anchor) {
       const rect = els.shell.getBoundingClientRect();
-      const dx = anchor.x - rect.left;
-      const dy = anchor.y - rect.top;
-      const ratio = next / previous;
-      state.pan.x += dx * (1 - ratio);
-      state.pan.y += dy * (1 - ratio);
+      const offsetX = Math.max(0, Math.min(rect.width, anchor.x - rect.left));
+      const offsetY = Math.max(0, Math.min(rect.height, anchor.y - rect.top));
+      if (next > 1) {
+        const sourceScale = previous > 1 ? previous : 1;
+        state.pan.x = offsetX - (offsetX - state.pan.x) * next / sourceScale;
+        state.pan.y = offsetY - (offsetY - state.pan.y) * next / sourceScale;
+      } else if (previous <= 1) {
+        scrollAdjustment = {
+          deltaX: offsetX * (1 / previous - 1 / next),
+          deltaY: offsetY * (1 / previous - 1 / next),
+        };
+      }
     }
     state.zoom = Math.round(next * 100);
     updateZoom();
+    if (scrollAdjustment) requestAnimationFrame(() => postPreview("scroll-page", scrollAdjustment));
+  }
+
+  function clampPan() {
+    if (state.zoom <= 100) {
+      state.pan = { x: 0, y: 0 };
+      return;
+    }
+    const scale = state.zoom / 100;
+    state.pan.x = Math.max(els.shell.clientWidth * (1 - scale), Math.min(0, state.pan.x));
+    state.pan.y = Math.max(els.shell.clientHeight * (1 - scale), Math.min(0, state.pan.y));
   }
 
   function updateZoom(persist = true) {
+    const scale = state.zoom / 100;
+    clampPan();
     els.zoomValue.textContent = `${state.zoom}%`;
     els.zoomInput.value = state.zoom;
-    els.shell.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom / 100})`;
+    els.shell.style.removeProperty("transform");
+    // 外框始终固定；缩小时扩展逻辑视口，放大时让内部层可在外框内二维平移。
+    els.frame.style.width = scale <= 1 ? `${100 / scale}%` : "100%";
+    els.frame.style.height = scale <= 1 ? `${100 / scale}%` : "100%";
+    els.frame.style.transform = scale <= 1
+      ? `scale(${scale})`
+      : `translate(${state.pan.x}px, ${state.pan.y}px) scale(${scale})`;
+    els.viewport.classList.toggle("can-pan", state.zoom > 100);
     if (persist) persistPreferences();
   }
 
-  function resizePreviewShell(metrics = state.previewMetrics) {
-    const availableHeight = Math.max(360, els.viewport.clientHeight - 68);
-    els.shell.style.height = `${availableHeight}px`;
-    if (metrics?.contentWidth) {
-      const targetWidth = Math.max(320, Math.min(2400, Math.ceil(metrics.contentWidth) + 2));
-      els.shell.style.width = `${targetWidth}px`;
-    }
+  function resizePreviewShell() {
+    // 红框区域本身就是浏览器视口，外框始终占满可用区域。
+    els.shell.style.removeProperty("width");
+    els.shell.style.removeProperty("height");
+    updateZoom(false);
   }
 
   function bindCanvas() {
@@ -576,14 +602,20 @@
       if (!state.selectMode || !state.selection || event.target.closest("#preview-shell")) return;
       clearCurrentSelection();
     });
+    els.path.addEventListener("click", () => {
+      if (state.selectMode && state.selection) clearCurrentSelection();
+    });
     let panning = false; let last = null;
     els.viewport.addEventListener("mousedown", (event) => {
-      if (event.button !== 1) return;
+      if (event.button !== 1 || state.zoom <= 100) return;
       event.preventDefault(); panning = true; last = { x: event.clientX, y: event.clientY }; els.viewport.classList.add("panning");
     });
     window.addEventListener("mousemove", (event) => {
       if (!panning) return;
-      state.pan.x += event.clientX - last.x; state.pan.y += event.clientY - last.y; last = { x: event.clientX, y: event.clientY }; updateZoom(false);
+      state.pan.x += event.clientX - last.x;
+      state.pan.y += event.clientY - last.y;
+      last = { x: event.clientX, y: event.clientY };
+      updateZoom(false);
     });
     window.addEventListener("mouseup", (event) => { if (event.button === 1) { panning = false; els.viewport.classList.remove("panning"); } });
     els.viewport.addEventListener("auxclick", (event) => { if (event.button === 1) event.preventDefault(); });
@@ -1287,7 +1319,7 @@
     else if (message.type === "canvas-wheel") {
       const point = previewPointToPage(message.point);
       setZoom(state.zoom + (message.deltaY < 0 ? 5 : -5), point);
-    } else if (message.type === "canvas-pan-start") {
+    } else if (message.type === "canvas-pan-start" && state.zoom > 100) {
       state.remotePanPoint = previewPointToPage(message.point);
       els.viewport.classList.add("panning");
     } else if (message.type === "canvas-pan-move" && state.remotePanPoint) {
