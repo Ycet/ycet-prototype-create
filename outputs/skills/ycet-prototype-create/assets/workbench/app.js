@@ -86,13 +86,19 @@
 
   function draftFor(identifier, create = true) {
     if (!identifier) return null;
-    if (!state.drafts.has(identifier) && create) state.drafts.set(identifier, { operations: [], annotations: [] });
+    if (!state.drafts.has(identifier) && create) state.drafts.set(identifier, { operations: [], annotations: [], rootFileIds: new Set() });
     return state.drafts.get(identifier) || null;
   }
 
   function hasDraft(identifier) {
     const draft = draftFor(identifier, false);
     return Boolean(draft && (draft.operations.length || draft.annotations.length));
+  }
+
+  function hasRelatedDraft(identifier) {
+    return [...state.drafts.values()].some((draft) => (
+      (draft.operations.length || draft.annotations.length) && draft.rootFileIds?.has(identifier)
+    ));
   }
 
   function dirtyIds() {
@@ -119,13 +125,15 @@
       return;
     }
     const draft = draftFor(identifier);
+    if (state.selection?.fileId === identifier && state.selection.rootFileId && state.selection.rootFileId !== identifier) {
+      draft.rootFileIds.add(state.selection.rootFileId);
+    }
     const index = draft.operations.findIndex((item) => item._key === key);
     operation.fileId = identifier;
     operation._key = key;
     if (index >= 0) draft.operations[index] = operation; else draft.operations.push(operation);
     renderTree();
     applyDrafts();
-    updateCssSummary();
     syncDirtyState();
   }
 
@@ -141,7 +149,7 @@
   }
 
   function annotationsForPreview() {
-    return draftFor(state.currentFileId, false)?.annotations || [];
+    return [...state.drafts.values()].flatMap((draft) => draft.annotations);
   }
 
   function applyDrafts() {
@@ -187,14 +195,14 @@
 
   function fileRow(file) {
     const row = document.createElement("div");
-    row.className = `file-row${file.id === state.currentFileId ? " active" : ""}${hasDraft(file.id) ? " pending" : ""}`;
+    row.className = `file-row${file.id === state.currentFileId ? " active" : ""}${hasDraft(file.id) || hasRelatedDraft(file.id) ? " pending" : ""}${syncOpportunity(file.id) ? " needs-sync" : ""}`;
     row.dataset.fileId = file.id;
     const name = document.createElement("span");
     name.className = "file-name";
     name.textContent = file.name;
     const source = document.createElement("span");
     source.className = "source-badge";
-    source.textContent = file.missing ? "缺失" : file.source === "external" ? "外部" : file.kind === "offline" ? "离线" : "";
+    source.textContent = file.missing ? "缺失" : file.source === "external" ? "外部" : file.kind === "offline" && file.name !== "prototype-mobile.html" ? "离线" : "";
     if (!source.textContent) source.classList.add("hidden");
     row.innerHTML = '<span class="file-icon" aria-hidden="true"></span>';
     row.append(name, source);
@@ -303,13 +311,10 @@
     $("#image-preview").removeAttribute("src");
     $("#image-preview").classList.add("hidden");
     $("#image-status").textContent = "选择本地图片作为待替换资源；发送前仅用于预览。";
-    $("#css-property").value = "";
-    $("#css-value").value = "";
     setValue("rotation", 0);
     $("#flip-x").classList.remove("pressed");
     $("#flip-y").classList.remove("pressed");
     renderEffects();
-    updateCssSummary();
   }
 
   function clearCurrentSelection() {
@@ -427,8 +432,6 @@
     if (imageOperation) $("#image-preview").src = imageOperation.previewUrl;
     else $("#image-preview").removeAttribute("src");
     $("#image-status").textContent = selection.element.tag === "img" ? (imageOperation ? `待替换：${imageOperation.name}` : `当前图片：${selection.element.imageSource || "未设置"}`) : "当前元素不是图片；选择图片元素后可替换。";
-    $("#css-property").value = "";
-    $("#css-value").value = "";
     updateEditingLock();
   }
 
@@ -560,6 +563,12 @@
     state.pan.y = Math.max(els.shell.clientHeight * (1 - scale), Math.min(0, state.pan.y));
   }
 
+  function canPanPreview() {
+    if (state.zoom > 100) return true;
+    const metrics = state.previewMetrics;
+    return Boolean(metrics && (metrics.contentWidth > els.frame.offsetWidth + 1 || metrics.contentHeight > els.frame.offsetHeight + 1));
+  }
+
   function updateZoom(persist = true) {
     const scale = state.zoom / 100;
     clampPan();
@@ -572,7 +581,7 @@
     els.frame.style.transform = scale <= 1
       ? `scale(${scale})`
       : `translate(${state.pan.x}px, ${state.pan.y}px) scale(${scale})`;
-    els.viewport.classList.toggle("can-pan", state.zoom > 100);
+    els.viewport.classList.toggle("can-pan", canPanPreview());
     if (persist) persistPreferences();
   }
 
@@ -607,13 +616,17 @@
     });
     let panning = false; let last = null;
     els.viewport.addEventListener("mousedown", (event) => {
-      if (event.button !== 1 || state.zoom <= 100) return;
+      if (event.button !== 1 || !canPanPreview()) return;
       event.preventDefault(); panning = true; last = { x: event.clientX, y: event.clientY }; els.viewport.classList.add("panning");
     });
     window.addEventListener("mousemove", (event) => {
       if (!panning) return;
-      state.pan.x += event.clientX - last.x;
-      state.pan.y += event.clientY - last.y;
+      if (state.zoom > 100) {
+        state.pan.x += event.clientX - last.x;
+        state.pan.y += event.clientY - last.y;
+      } else {
+        postPreview("scroll-page", { deltaX: last.x - event.clientX, deltaY: last.y - event.clientY });
+      }
       last = { x: event.clientX, y: event.clientY };
       updateZoom(false);
     });
@@ -646,7 +659,7 @@
     const max = Math.max(r, g, b); const min = Math.min(r, g, b); const delta = max - min;
     let h = 0;
     if (delta) h = max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
-    return { h: Math.round((h * 60 + 360) % 360), s: Math.round(max ? delta / max * 100 : 0), v: Math.round(max * 100) };
+    return { h: (h * 60 + 360) % 360, s: max ? delta / max * 100 : 0, v: max * 100 };
   }
 
   function hsvToRgb(h, s, v) {
@@ -702,6 +715,7 @@
     $("#color-sv").style.backgroundColor = `hsl(${state.color.h} 100% 50%)`;
     $("#color-sv-handle").style.left = `${state.color.s}%`;
     $("#color-sv-handle").style.top = `${100 - state.color.v}%`;
+    applyColor();
   }
 
   function setColorDialog(color) {
@@ -710,21 +724,91 @@
   }
 
   function openColor(button) {
+    const property = button.dataset.colorProperty;
+    const key = property && state.selection ? `style:${fingerprintKey(state.selection.fingerprint)}:${property}` : null;
+    const draft = key ? draftFor(state.selection.fileId, false) : null;
+    const operation = key ? draft?.operations.find((item) => item._key === key) : null;
+    state.colorSession = {
+      button,
+      color: button.dataset.color || "#ffffff",
+      effectColor: state.effectDraft?.color,
+      fileId: state.selection?.fileId,
+      key,
+      operation: operation ? { ...operation } : null,
+    };
     state.colorTarget = button;
     setColorDialog(button.dataset.color || "#ffffff");
     showAnchored($("#color-dialog"), button);
   }
 
+  function applyColor() {
+    if (!state.colorTarget) return;
+    const value = rgbHex(hsvToRgb(state.color.h, state.color.s, state.color.v));
+    updateColorField(state.colorTarget, value);
+    if (state.colorTarget.id === "shadow-color") {
+      if (state.effectDraft) state.effectDraft.color = value;
+    } else {
+      styleOperation(state.colorTarget.dataset.colorProperty, value);
+    }
+  }
+
+  function rollbackColor() {
+    const session = state.colorSession;
+    if (!session) return;
+    state.colorSession = null;
+    updateColorField(session.button, session.color);
+    if (session.button.id === "shadow-color") {
+      if (state.effectDraft) state.effectDraft.color = session.effectColor;
+      return;
+    }
+    const draft = draftFor(session.fileId, false);
+    if (!draft || !session.key) return;
+    const index = draft.operations.findIndex((item) => item._key === session.key);
+    if (session.operation) {
+      if (index >= 0) draft.operations[index] = session.operation;
+      else draft.operations.push(session.operation);
+    } else if (index >= 0) {
+      draft.operations.splice(index, 1);
+    }
+    renderTree();
+    applyDrafts();
+    syncDirtyState();
+  }
+
+  function commitColor(event) {
+    event.preventDefault();
+    state.colorSession = null;
+    $("#color-dialog").close("apply");
+  }
+
   function bindColors() {
+    $("#color-dialog").addEventListener("close", () => rollbackColor());
     [...$$("[data-color-property]"), $("#shadow-color")].forEach((button) => button.addEventListener("click", () => openColor(button)));
+    let draggingSv = false;
     const updateSv = (event) => {
       const rect = $("#color-sv").getBoundingClientRect();
       state.color.s = clamp((event.clientX - rect.left) / rect.width * 100, 0, 100);
       state.color.v = clamp(100 - (event.clientY - rect.top) / rect.height * 100, 0, 100);
       renderColorDialog();
     };
-    $("#color-sv").addEventListener("pointerdown", (event) => { event.currentTarget.setPointerCapture(event.pointerId); updateSv(event); });
-    $("#color-sv").addEventListener("pointermove", (event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updateSv(event); });
+    const endSvDrag = (event) => {
+      draggingSv = false;
+      if ($("#color-sv").hasPointerCapture(event.pointerId)) $("#color-sv").releasePointerCapture(event.pointerId);
+    };
+    $("#color-sv").addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      draggingSv = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      updateSv(event);
+    });
+    $("#color-sv").addEventListener("pointermove", (event) => {
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+      event.preventDefault();
+      updateSv(event);
+    });
+    $("#color-sv").addEventListener("pointerup", endSvDrag);
+    $("#color-sv").addEventListener("pointercancel", endSvDrag);
+    document.addEventListener("selectstart", (event) => { if (draggingSv) event.preventDefault(); }, true);
     $("#color-sv").addEventListener("keydown", (event) => {
       if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
       event.preventDefault();
@@ -743,19 +827,18 @@
       state.color = { h: clamp($("#color-h").value, 0, 360), s: clamp($("#color-s").value, 0, 100), v: clamp($("#color-v").value, 0, 100) };
       renderColorDialog();
     }));
-    $("#color-hex").addEventListener("change", (event) => setColorDialog(event.target.value));
-    $("#apply-color").addEventListener("click", () => {
-      if (!state.colorTarget) return;
-      const value = rgbHex(hsvToRgb(state.color.h, state.color.s, state.color.v));
-      updateColorField(state.colorTarget, value);
-      if (state.colorTarget.id === "shadow-color") {
-        if (state.effectDraft) state.effectDraft.color = value;
-      } else {
-        styleOperation(state.colorTarget.dataset.colorProperty, value);
-      }
+    $("#color-hex").addEventListener("input", (event) => {
+      if (/^#[0-9a-f]{6}$/i.test(event.target.value)) setColorDialog(event.target.value);
     });
+    $("#apply-color").addEventListener("click", commitColor);
+    $("#native-color-fallback").addEventListener("input", (event) => setColorDialog(event.target.value));
     $("#eyedropper").addEventListener("click", async () => {
-      if (!window.EyeDropper) return toast("当前浏览器不支持吸管取色。", "warn");
+      if (!window.EyeDropper) {
+        const fallback = $("#native-color-fallback");
+        fallback.value = rgbHex(hsvToRgb(state.color.h, state.color.s, state.color.v));
+        fallback.click();
+        return;
+      }
       try { const result = await new EyeDropper().open(); setColorDialog(result.sRGBHex); } catch (_error) { /* 用户取消取色，不改变当前值。 */ }
     });
   }
@@ -889,6 +972,7 @@
     if (!text) return;
     const identifier = state.editingAnnotation?.fileId || state.selection.fileId;
     const draft = draftFor(identifier);
+    if (state.selection.rootFileId && state.selection.rootFileId !== identifier) draft.rootFileIds.add(state.selection.rootFileId);
     if (state.editingAnnotation) {
       const index = draft.annotations.findIndex((item) => item.id === state.editingAnnotation.id);
       if (index >= 0) draft.annotations[index].text = text;
@@ -930,22 +1014,6 @@
     } catch (error) { toast(error.message, "error"); }
   }
 
-  function updateCssSummary() {
-    const draft = draftFor(state.selection?.fileId, false);
-    const selectedKey = fingerprintKey(state.selection?.fingerprint);
-    const css = draft?.operations.filter((item) => item.type === "css" && fingerprintKey(item.fingerprint) === selectedKey) || [];
-    $("#css-summary").textContent = css.length ? css.map((item) => `${item.property}: ${item.value}`).join("\n") : "尚未添加 CSS 覆盖。";
-  }
-
-  function applyCustomCss() {
-    if (!state.selection) return toast("请先选择元素。", "warn");
-    if (!requireEditable(state.selection.fileId)) return;
-    const property = $("#css-property").value.trim(); const value = $("#css-value").value.trim();
-    if (!property || !value) return toast("请填写 CSS 属性和值。", "warn");
-    const key = `css:${fingerprintKey(state.selection.fingerprint)}:${property}`;
-    upsertOperation(state.selection.fileId, { type: "css", fingerprint: state.selection.fingerprint, property, value }, key);
-  }
-
   function syncPages() {
     const runtime = fileById(state.currentFileId);
     if (!runtime || runtime.kind !== "runtime") return;
@@ -966,12 +1034,16 @@
 
   function clearCurrent() {
     if (!requireEditable(state.currentFileId)) return;
-    const draft = draftFor(state.currentFileId, false);
-    if (!draft) return;
-    draft.operations = [];
-    state.staleDrafts.delete(state.currentFileId);
+    const affected = [...state.drafts.entries()].filter(([identifier, draft]) => (
+      identifier === state.currentFileId || draft.rootFileIds?.has(state.currentFileId)
+    ));
+    if (!affected.length) return;
+    for (const [identifier, draft] of affected) {
+      draft.operations = [];
+      state.staleDrafts.delete(identifier);
+    }
     renderSyncButton(state.currentFileId);
-    renderTree(); applyDrafts(); updateCssSummary(); syncDirtyState();
+    renderTree(); applyDrafts(); syncDirtyState();
     postPreview("refresh-selection");
     toast("已清空当前 HTML 的样式、内容、图片、CSS 和同步草稿；批注已保留。" );
   }
@@ -1226,9 +1298,30 @@
     finally { button.disabled = false; button.removeAttribute("aria-busy"); }
   }
 
+  async function cleanupMissingFiles(event) {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const workspace = await api("/api/workspace/cleanup-missing", {});
+      state.workspace = workspace;
+      if (!fileById(state.currentFileId)) selectFile(workspace.currentFileId, true);
+      else renderTree();
+      toast("已清理缺失 HTML 的工作区记录。" );
+    } catch (error) { toast(error.message, "error"); }
+    finally { button.disabled = false; }
+  }
+
+  function updateSelectMode(active) {
+    state.selectMode = active;
+    els.selectMode.classList.toggle("active", active);
+    $("span", els.selectMode).textContent = active ? "正在选择" : "选择元素";
+    postPreview("select-mode", { active });
+  }
+
   function bindChrome() {
     $("#shutdown-workbench").addEventListener("click", confirmShutdown);
     $("#refresh-files").addEventListener("click", refreshProjectFiles);
+    $("#cleanup-missing-files").addEventListener("click", cleanupMissingFiles);
     $("#refresh-fonts").addEventListener("click", async (event) => {
       const button = event.currentTarget;
       button.disabled = true;
@@ -1257,7 +1350,7 @@
       }
       selectFile(state.currentFileId, true);
     });
-    els.selectMode.addEventListener("click", () => { state.selectMode = !state.selectMode; els.selectMode.classList.toggle("active", state.selectMode); postPreview("select-mode", { active: state.selectMode }); });
+    els.selectMode.addEventListener("click", () => updateSelectMode(!state.selectMode));
     els.clearAnnotations.addEventListener("click", clearCurrentAnnotations);
     $$(".tab").forEach((button) => button.addEventListener("click", () => {
       $$(".tab").forEach((item) => item.classList.toggle("active", item === button));
@@ -1278,7 +1371,7 @@
     $("#request-cancel").addEventListener("click", cancelActiveRequest);
     $("#request-dismiss").addEventListener("click", dismissRequestStatus);
     $("#request-details").addEventListener("click", showRequestDetails);
-    $("#save-annotation").addEventListener("click", saveAnnotation); $("#choose-image").addEventListener("click", chooseImage); $("#apply-css").addEventListener("click", applyCustomCss);
+    $("#save-annotation").addEventListener("click", saveAnnotation); $("#choose-image").addEventListener("click", chooseImage);
     let tooltipTimer;
     document.addEventListener("mousemove", (event) => {
       const target = event.target.closest?.("[data-tooltip]");
@@ -1312,24 +1405,30 @@
       state.previewMetrics = message.metrics;
       resizePreviewShell(message.metrics);
     } else if (message.type === "selection") {
-      populateSelection(message.selection); updateCssSummary();
+      populateSelection(message.selection);
     } else if (message.type === "annotation-request") openAnnotation(message.selection);
     else if (message.type === "annotation-edit") openAnnotation(null, message.annotation);
     else if (message.type === "annotation-delete") confirmAction("删除批注", "删除当前批注内容？该操作只影响会话草稿。", () => deleteAnnotation(message.annotation));
     else if (message.type === "canvas-wheel") {
       const point = previewPointToPage(message.point);
       setZoom(state.zoom + (message.deltaY < 0 ? 5 : -5), point);
-    } else if (message.type === "canvas-pan-start" && state.zoom > 100) {
+    } else if (message.type === "canvas-pan-start" && (state.zoom > 100 || message.scrollable)) {
       state.remotePanPoint = previewPointToPage(message.point);
+      state.remotePanMode = state.zoom > 100 ? "zoom" : "scroll";
       els.viewport.classList.add("panning");
     } else if (message.type === "canvas-pan-move" && state.remotePanPoint) {
       const point = previewPointToPage(message.point);
-      state.pan.x += point.x - state.remotePanPoint.x;
-      state.pan.y += point.y - state.remotePanPoint.y;
+      if (state.remotePanMode === "zoom") {
+        state.pan.x += point.x - state.remotePanPoint.x;
+        state.pan.y += point.y - state.remotePanPoint.y;
+        updateZoom(false);
+      } else {
+        postPreview("scroll-page", { deltaX: state.remotePanPoint.x - point.x, deltaY: state.remotePanPoint.y - point.y });
+      }
       state.remotePanPoint = point;
-      updateZoom(false);
     } else if (message.type === "canvas-pan-end") {
       state.remotePanPoint = null;
+      state.remotePanMode = null;
       els.viewport.classList.remove("panning");
     }
   });

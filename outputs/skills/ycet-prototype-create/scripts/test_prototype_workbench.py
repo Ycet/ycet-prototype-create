@@ -120,6 +120,17 @@ class WorkspaceTests(unittest.TestCase):
         self.assertTrue(record["missing"])
         self.assertIsNone(record["sha256"])
 
+    def test_cleanup_missing_only_removes_missing_workspace_records(self) -> None:
+        workspace = workbench.Workspace(self.root)
+        self.home.unlink()
+        workspace.scan()
+
+        cleaned = workspace.cleanup_missing()
+
+        self.assertEqual(cleaned["removedFileIds"], [workbench.file_id(self.home.resolve())])
+        self.assertFalse(any(item["missing"] for item in cleaned["files"]))
+        self.assertTrue(self.index.is_file(), "清理缺失记录不得删除仍存在的源 HTML")
+
     def test_manual_groups_order_and_zoom_persist(self) -> None:
         workspace = workbench.Workspace(self.root)
         home = next(item for item in workspace.data["files"] if item["name"] == "home.html")
@@ -336,6 +347,19 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(payload["reused"])
         self.assertEqual(payload["pid"], os.getpid())
 
+    def test_ensure_reused_instance_always_scans_project_files(self) -> None:
+        original_call_api = workbench.call_api
+        calls: list[tuple[str, dict | None]] = []
+
+        def record_call(state, path, payload=None, timeout=2):
+            calls.append((path, payload))
+            return original_call_api(state, path, payload, timeout)
+
+        with mock.patch.object(workbench, "call_api", side_effect=record_call), contextlib.redirect_stdout(io.StringIO()):
+            workbench.command_ensure(argparse.Namespace(project_root=str(self.root), add=[], no_open=True))
+
+        self.assertIn(("/api/workspace/sync", {"paths": []}), calls)
+
     def test_shutdown_requires_token_and_requests_graceful_stop(self) -> None:
         with self.assertRaises(urllib.error.HTTPError) as denied:
             self.running.request("/api/shutdown", {}, token="wrong-token")
@@ -416,6 +440,17 @@ class ServiceTests(unittest.TestCase):
             self.running.request("/api/undo/request", {})
         self.assertEqual(denied.exception.code, 404)
         denied.exception.close()
+
+    def test_cleanup_missing_endpoint_only_prunes_workspace_records(self) -> None:
+        record = self.running.service.workspace.data["files"][0]
+        self.home.unlink()
+        self.running.service.workspace.scan()
+
+        status, _headers, cleaned = self.running.request("/api/workspace/cleanup-missing", {})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(cleaned["removedFileIds"], [record["id"]])
+        self.assertFalse(cleaned["files"])
 
 
 class LifecycleTests(unittest.TestCase):

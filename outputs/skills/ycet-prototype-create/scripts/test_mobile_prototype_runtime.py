@@ -82,6 +82,15 @@ def exercise(browser, mobile_file: Path) -> None:
         )
         assert scroll["width"] == scroll["clientWidth"] and scroll["height"] == scroll["clientHeight"], scroll
 
+        menu_before = page.locator("#menu-button").bounding_box()
+        page.mouse.move(menu_before["x"] + 22, menu_before["y"] + 22)
+        page.mouse.down()
+        page.wait_for_timeout(240)
+        page.mouse.move(menu_before["x"] + 22, menu_before["y"] + 180)
+        page.mouse.up()
+        menu_after = page.locator("#menu-button").bounding_box()
+        assert menu_after["y"] > menu_before["y"] + 100, (menu_before, menu_after)
+
         page.locator("#menu-button").click()
         assert page.locator("body").evaluate("node => node.classList.contains('drawer-open')")
         assert page.locator("#navigation-drawer").get_attribute("aria-hidden") == "false"

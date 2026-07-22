@@ -651,11 +651,12 @@ def build_shell(registry: list[dict[str, object]]) -> str:
   <title>移动端原型预览</title>
   <style>
     * {{ box-sizing: border-box; }}
+    :root {{ --mobile-viewport-height: 100vh; }}
     html, body {{ width: 100%; height: 100%; margin: 0; overflow: hidden; background: #fff; }}
-    body {{ min-height: 100vh; min-height: 100dvh; font-family: system-ui, sans-serif; }}
-    #mobile-screen {{ position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; border: 0; display: block; background: #fff; }}
+    body {{ min-height: 100vh; min-height: 100dvh; min-height: var(--mobile-viewport-height); font-family: system-ui, sans-serif; }}
+    #mobile-screen {{ position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; height: var(--mobile-viewport-height); border: 0; display: block; background: #fff; }}
     #menu-button, #drawer-close {{ width: 44px; height: 44px; border: 0; display: grid; place-items: center; cursor: pointer; }}
-    #menu-button {{ position: fixed; z-index: 30; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); border-radius: 8px; background: rgba(17, 24, 39, .82); box-shadow: 0 2px 10px rgba(0,0,0,.2); }}
+    #menu-button {{ position: fixed; z-index: 30; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); border-radius: 8px; background: rgba(17, 24, 39, .82); box-shadow: 0 2px 10px rgba(0,0,0,.2); touch-action: none; user-select: none; -webkit-user-select: none; }}
     .menu-icon, .menu-icon::before, .menu-icon::after {{ width: 20px; height: 2px; background: #fff; content: ""; display: block; position: relative; }}
     .menu-icon::before {{ position: absolute; top: -6px; }} .menu-icon::after {{ position: absolute; top: 6px; }}
     #drawer-overlay {{ position: fixed; z-index: 40; inset: 0; border: 0; padding: 0; background: rgba(0,0,0,.38); opacity: 0; visibility: hidden; transition: opacity .18s ease; }}
@@ -694,9 +695,30 @@ def build_shell(registry: list[dict[str, object]]) -> str:
       const menuButton = document.getElementById("menu-button");
       const pageList = document.getElementById("page-list");
       const errorBox = document.getElementById("preview-error");
+      const menuPositionKey = "ycet-mobile-menu-top";
       let currentId = pages.find((page) => page.initial)?.id || pages[0]?.id;
       let currentTarget = byId.get(currentId)?.runtimePath || "";
       let errorTimer = 0;
+      let menuPressTimer = 0;
+      let menuDragging = false;
+      let suppressMenuClick = false;
+      let menuStartY = 0;
+      let menuTop = 10;
+      function syncViewportHeight() {{
+        const height = window.visualViewport?.height || window.innerHeight;
+        document.documentElement.style.setProperty("--mobile-viewport-height", `${{Math.round(height)}}px`);
+      }}
+      function setMenuTop(value, persist = true) {{
+        const height = window.visualViewport?.height || window.innerHeight;
+        menuTop = Math.max(10, Math.min(height - 54, Math.round(value)));
+        menuButton.style.top = `${{menuTop}}px`;
+        if (persist) sessionStorage.setItem(menuPositionKey, String(menuTop));
+      }}
+      const savedMenuTop = Number(sessionStorage.getItem(menuPositionKey));
+      if (Number.isFinite(savedMenuTop)) setMenuTop(savedMenuTop, false);
+      syncViewportHeight();
+      addEventListener("resize", syncViewportHeight);
+      window.visualViewport?.addEventListener("resize", syncViewportHeight);
 
       function decodePage(page) {{
         const bytes = Uint8Array.from(atob(page.srcdocBase64), (char) => char.charCodeAt(0));
@@ -742,7 +764,32 @@ def build_shell(registry: list[dict[str, object]]) -> str:
         button.dataset.pageId = page.id; button.textContent = `${{index + 1}}. ${{page.label}}`;
         button.addEventListener("click", () => navigate(page.runtimePath)); pageList.append(button);
       }});
-      menuButton.addEventListener("click", () => setDrawer(true));
+      menuButton.addEventListener("pointerdown", (event) => {{
+        if (event.button !== 0) return;
+        menuStartY = event.clientY;
+        menuPressTimer = setTimeout(() => {{
+          menuDragging = true;
+          menuButton.setPointerCapture(event.pointerId);
+        }}, 200);
+      }});
+      menuButton.addEventListener("pointermove", (event) => {{
+        if (!menuDragging) return;
+        event.preventDefault();
+        setMenuTop(menuTop + event.clientY - menuStartY);
+        menuStartY = event.clientY;
+      }});
+      menuButton.addEventListener("pointerup", (event) => {{
+        clearTimeout(menuPressTimer);
+        if (!menuDragging) return;
+        menuDragging = false;
+        suppressMenuClick = true;
+        if (menuButton.hasPointerCapture(event.pointerId)) menuButton.releasePointerCapture(event.pointerId);
+      }});
+      menuButton.addEventListener("pointercancel", () => {{ clearTimeout(menuPressTimer); menuDragging = false; }});
+      menuButton.addEventListener("click", () => {{
+        if (suppressMenuClick) {{ suppressMenuClick = false; return; }}
+        setDrawer(true);
+      }});
       document.getElementById("drawer-close").addEventListener("click", () => setDrawer(false));
       document.getElementById("drawer-overlay").addEventListener("click", () => setDrawer(false));
       document.addEventListener("keydown", (event) => {{ if (event.key === "Escape" && document.body.classList.contains("drawer-open")) setDrawer(false); }});

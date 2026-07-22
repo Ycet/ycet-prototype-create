@@ -262,6 +262,28 @@ class Workspace:
             self.save()
             return self.public()
 
+    def cleanup_missing(self) -> dict[str, Any]:
+        """仅清理工作区中已缺失文件的登记记录，绝不操作磁盘文件。"""
+        with self._lock:
+            removed = [item["id"] for item in self.data["files"] if item.get("missing")]
+            if not removed:
+                payload = self.public()
+                payload["removedFileIds"] = []
+                return payload
+            removed_ids = set(removed)
+            self.data["files"] = [item for item in self.data["files"] if item["id"] not in removed_ids]
+            self.data["zoomByFile"] = {
+                identifier: zoom
+                for identifier, zoom in self.data.get("zoomByFile", {}).items()
+                if identifier not in removed_ids
+            }
+            if self.data.get("currentFileId") in removed_ids:
+                self.data["currentFileId"] = self.data["files"][0]["id"] if self.data["files"] else None
+            self.save()
+            payload = self.public()
+            payload["removedFileIds"] = removed
+            return payload
+
     def update_preferences(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
             valid_ids = {item["id"] for item in self.data["files"]}
@@ -749,6 +771,14 @@ def handler_factory(service: WorkbenchService):
                 if parsed.path == "/api/workspace/sync":
                     paths = [Path(item) for item in payload.get("paths", [])]
                     self._send_json(service.workspace.scan(paths))
+                elif parsed.path == "/api/workspace/cleanup-missing":
+                    cleaned = service.workspace.cleanup_missing()
+                    removed = set(cleaned["removedFileIds"])
+                    service.dirty_file_ids.difference_update(removed)
+                    service.stale_draft_file_ids.difference_update(removed)
+                    if removed:
+                        service.bump()
+                    self._send_json(cleaned)
                 elif parsed.path == "/api/workspace/preferences":
                     self._send_json(service.workspace.update_preferences(payload))
                     service.bump()
@@ -880,8 +910,8 @@ def command_ensure(args: argparse.Namespace) -> int:
                 break
         if not state:
             raise WorkbenchError(f"工作台服务未能启动，请查看日志：{paths['log']}")
-    if explicit:
-        call_api(state, "/api/workspace/sync", {"paths": explicit})
+    # 即使未显式传入文件，也要在复用实例时重新扫描项目，补入功能一、三、四、五刚生成的 HTML。
+    call_api(state, "/api/workspace/sync", {"paths": explicit})
     url = f"{state['url']}/?token={urllib.parse.quote(state['token'])}"
     opened = False
     if not args.no_open:

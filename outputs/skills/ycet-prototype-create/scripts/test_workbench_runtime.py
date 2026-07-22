@@ -173,6 +173,10 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     default_select_active = "active" in (select_button.get_attribute("class") or "")
     if default_select_active:
         regression_failures.append("进入工作台后选择元素按钮仍默认激活")
+    if select_button.inner_text().strip() != "选择元素":
+        regression_failures.append("选择元素按钮默认文案不正确")
+    if page.locator(".tab[data-tab='css'], .tab-panel[data-panel='css']").count():
+        regression_failures.append("右侧属性栏仍保留 CSS 标签或自定义 CSS 面板")
     if page.locator("#request-status-badge").inner_text() in {"待交给 Agent", "Agent 处理中"} or page.locator("#send-ai").is_disabled():
         regression_failures.append("Agent 成功完成上一轮请求后，工作台仍保留待处理状态或继续禁用发送")
     page.set_viewport_size({"width": 1024, "height": 768})
@@ -399,8 +403,36 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         select_button.click()
         if "active" not in (select_button.get_attribute("class") or ""):
             regression_failures.append("点击选择元素后没有进入激活状态")
+        if select_button.inner_text().strip() != "正在选择":
+            regression_failures.append("选择元素模式激活后按钮文案没有变为“正在选择”")
     nested.click()
     page.locator("#selected-name").filter(has_text="button").wait_for()
+    nested_width_before_clear = nested.evaluate("element => element.style.width")
+    page.locator("#width").fill("260")
+    page.locator("#width").dispatch_event("input")
+    page.wait_for_timeout(80)
+    if nested.evaluate("element => element.style.width") != "260px":
+        regression_failures.append("入口页中修改嵌套元素样式没有实时应用")
+    page.locator("#clear-current").click()
+    page.wait_for_timeout(80)
+    if nested.evaluate("element => element.style.width") != nested_width_before_clear:
+        regression_failures.append("入口页清空修改后没有清除嵌套页面的样式草稿")
+    # 从入口页选择嵌套页面元素后，批注需同时在入口与子页面预览中可见，并给两份文件标红。
+    nested_annotate = page.frame_locator("#preview-frame").locator(".ycet-editor-annotate")
+    nested_annotate.click()
+    page.locator("#annotation-copy").fill("嵌套按钮需要强调")
+    page.locator("#save-annotation").click()
+    page.frame_locator("#preview-frame").locator(".ycet-editor-marker").wait_for()
+    page.locator(".file-row.pending", has_text="home.html").wait_for()
+    page.locator(".file-row.pending", has_text="index.html").wait_for()
+    if nested_annotate.is_visible():
+        regression_failures.append("入口页中的嵌套元素已批注后仍可重复添加批注")
+    page.get_by_text("home.html", exact=True).click()
+    page.locator("#current-path").filter(has_text="pages/home.html").wait_for()
+    page.locator("#clear-annotations").click()
+    page.frame_locator("#preview-frame").locator(".ycet-editor-marker").wait_for(state="detached")
+    page.get_by_text("index.html", exact=True).click()
+    page.locator("#current-path").filter(has_text="prototype/index.html").wait_for()
     nested_frame = page.frame_locator("#preview-frame").locator("#nested-page")
     nested_body = page.frame_locator("#preview-frame").frame_locator("#nested-page").locator("body")
     nested_body.evaluate("element => element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: element.ownerDocument.defaultView }))")
@@ -450,6 +482,15 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         regression_failures.append(f"宽 HTML 页面无法在内置浏览器中横向滚动：{page_widths}")
     if any(abs(shell_box[key] - canvas_box[key]) > 2 for key in ("x", "y", "width", "height")):
         regression_failures.append(f"预览没有占满中央浏览器区域：shell={shell_box} canvas={canvas_box}")
+    target_box = target.bounding_box()
+    page.mouse.move(target_box["x"] + target_box["width"] / 2, target_box["y"] + target_box["height"] / 2)
+    page.mouse.down(button="middle")
+    page.mouse.move(target_box["x"] - 80, target_box["y"] + target_box["height"] / 2)
+    page.mouse.up(button="middle")
+    page.wait_for_timeout(80)
+    if target.evaluate("element => scrollX") <= 0:
+        regression_failures.append("HTML 存在横向滚动范围时，100% 缩放下中键拖动没有移动页面")
+    target.evaluate("element => scrollTo({ left: 0, top: scrollY, behavior: 'auto' })")
 
     # 滚轮开始时必须同步隐藏悬浮框，不能让旧框停留到 scroll 或下一帧。
     preview = page.frame_locator("#preview-frame")
@@ -580,6 +621,7 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
 
     # 颜色面板与效果面板必须锚定触发按钮，并支持多个独立效果。
     color_button = page.locator('[data-color-property="background-color"]')
+    color_before_cancel = target.evaluate("element => element.style.backgroundColor")
     color_button.click()
     color_dialog = page.locator("#color-dialog[open]")
     color_dialog.wait_for()
@@ -594,6 +636,8 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         regression_failures.append("颜色面板没有显示在颜色按钮附近")
     if not color_dialog.locator("#color-sv").count() or not color_dialog.locator("#color-hue").count():
         regression_failures.append("颜色面板缺少 SV 色板或色相滑杆")
+    if color_dialog.locator(".popover-close").count():
+        regression_failures.append("颜色选择器仍保留右上角关闭按钮")
     hue_metrics = color_dialog.evaluate("""
         dialog => {
           const hue = dialog.querySelector("#color-hue");
@@ -611,10 +655,21 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     """)
     if hue_metrics["accentColor"] != "rgb(255, 255, 255)" or abs(hue_metrics["hueCenter"] - hue_metrics["previewCenter"]) > 1 or hue_metrics["hueHeight"] != 16:
         regression_failures.append(f"色相滑块指示点不是白色或没有与色相轨道居中对齐：{hue_metrics}")
+    color_dialog.locator("#color-hex").fill("#123456")
+    color_dialog.locator("#color-hex").dispatch_event("input")
+    page.wait_for_timeout(80)
+    color_style = target.evaluate("element => element.style.backgroundColor")
+    if color_style != "rgb(18, 52, 86)":
+        regression_failures.append(f"颜色选择器修改后未在点击应用前实时同步到选中元素：{color_style}")
+    if name == "firefox" and not color_dialog.locator("#native-color-fallback[type='color']").count():
+        regression_failures.append("Firefox 颜色选择器缺少系统取色器降级入口")
     if name == "chrome":
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         color_dialog.screenshot(path=str(screenshot_dir / "color-picker-chrome.png"))
     color_dialog.locator("button[value='cancel']").last.click()
+    page.wait_for_timeout(80)
+    if target.evaluate("element => element.style.backgroundColor") != color_before_cancel:
+        regression_failures.append("取消颜色选择后没有恢复打开颜色选择器前的颜色")
 
     page.locator("#add-effect").click()
     page.locator("#add-effect").click()
@@ -787,6 +842,8 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.wait_for_timeout(80)
     if selection_box.is_visible() or annotate_button.is_visible():
         regression_failures.append("选中元素滚出页面后选区框或批注按钮仍停留在画布中")
+    if marker.is_visible():
+        regression_failures.append("已批注元素滚出页面后批注标记仍停留在页面边缘")
     page.mouse.wheel(0, -1200)
     page.wait_for_timeout(80)
     if not selection_box.is_visible():

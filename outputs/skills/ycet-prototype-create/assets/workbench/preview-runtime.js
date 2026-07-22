@@ -376,7 +376,10 @@
     if (event.button !== 1) return;
     event.preventDefault();
     canvasPanning = true;
-    emit("canvas-pan-start", { point: rootPoint(event) });
+    const view = event.view;
+    const root = view?.document.scrollingElement;
+    const scrollable = Boolean(root && (root.scrollWidth > view.innerWidth + 1 || root.scrollHeight > view.innerHeight + 1));
+    emit("canvas-pan-start", { point: rootPoint(event), scrollable });
   }
 
   function onMouseMove(event) {
@@ -543,11 +546,13 @@
       if (!element) return;
       const rect = rootCoordinates(element);
       if (!rect) return;
+      // 批注锚点滚出可见视口后直接隐藏，不能把标记夹在页面边缘。
+      if (!intersectRect(rect, { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight })) return;
       const marker = document.createElement("button");
       marker.type = "button";
       marker.className = "ycet-editor-overlay ycet-editor-marker";
-      marker.style.left = `${Math.max(0, rect.left + rect.width - 12)}px`;
-      marker.style.top = `${Math.max(0, rect.top - 12)}px`;
+      marker.style.left = `${rect.left + rect.width - 12}px`;
+      marker.style.top = `${rect.top - 12}px`;
       const number = document.createTextNode(String(index + 1));
       const note = document.createElement("span");
       note.className = "ycet-editor-note";
