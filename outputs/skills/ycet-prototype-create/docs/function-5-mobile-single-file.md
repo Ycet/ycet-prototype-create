@@ -83,6 +83,7 @@ python <skill目录>/scripts/build_mobile_prototype.py --prototype-dir <prototyp
 - 递归解析并内联本地 CSS、`@import`、`url()`、JavaScript、静态模块依赖、图片、`srcset`、SVG、图标、字体和可枚举资源；
 - 阻断缺失资源、远程依赖、路径越界、无法枚举的动态 import/fetch 和网络 API；
 - 将每个页面转为独立 Base64 `srcdoc`，避免 CSS、DOM ID 和全局脚本冲突；
+- 若运行时页以固定像素根画布承载逻辑视口，单文件仅在对应 `srcdoc` 注入视口适配层，将该画布同步至实际可视宽高；不得改写只读运行时源文件，也不得让页面在小屏裁切；
 - 生成全屏 iframe、菜单按钮、覆盖式左侧导航抽屉、目标白名单和历史管理；
 - 首次选择 `prototype-mobile.html`，后续选择 `prototype-mobile-v2.html`、`prototype-mobile-v3.html` 等下一个版本；
 - 在临时文件完成机械校验后原子落盘，并复核输入文件集合与 SHA-256。

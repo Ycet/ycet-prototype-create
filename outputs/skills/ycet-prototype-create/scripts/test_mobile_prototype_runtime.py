@@ -17,14 +17,14 @@ from playwright.sync_api import sync_playwright
 BUILDER = Path(__file__).with_name("build_mobile_prototype.py")
 HOME = """<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>首页</title>
-<style>html,body{width:100%;height:100%;margin:0;overflow:hidden}main{min-height:100%;padding:72px 16px;background:#f8fafc}</style></head>
-<body><main id="home"><button id="next" type="button">查看详情</button></main>
+<style>html,body{width:100%;height:100%;margin:0;overflow:hidden}#app{width:390px;height:844px;overflow:hidden;background:#f8fafc}main{min-height:100%;padding:72px 16px}</style></head>
+<body><div id="app"><main id="home"><button id="next" type="button">查看详情</button></main></div>
 <script>document.getElementById("next").onclick=()=>parent.postMessage({channel:"ycet-prototype",version:1,type:"navigate",targetPage:"runtime-pages/detail--prototype.html?from=home#top"},"*");</script>
 </body></html>"""
 DETAIL = """<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>详情</title>
-<style>html,body{width:100%;height:100%;margin:0;overflow:hidden}main{min-height:100%;background:#fff}</style></head>
-<body><main id="detail"><h1>详情</h1></main></body></html>"""
+<style>html,body{width:100%;height:100%;margin:0;overflow:hidden}#app{width:390px;height:844px;overflow:hidden;background:#fff}main{min-height:100%}</style></head>
+<body><div id="app"><main id="detail"><h1>详情</h1></main></div></body></html>"""
 PROTOTYPE = """<!doctype html><script>
 const pages = [
   { id: "home", label: "首页", sourcePath: "pages/home.html", runtimePath: "runtime-pages/home--prototype.html", initial: true },
@@ -82,6 +82,15 @@ def exercise(browser, mobile_file: Path) -> None:
         )
         assert scroll["width"] == scroll["clientWidth"] and scroll["height"] == scroll["clientHeight"], scroll
 
+        page.set_viewport_size({"width": 360, "height": 780})
+        page.wait_for_timeout(100)
+        compact_canvas = frame.locator("#app").evaluate(
+            "node => ({width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height})"
+        )
+        assert compact_canvas == {"width": 360, "height": 780}, compact_canvas
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.wait_for_timeout(100)
+
         menu_before = page.locator("#menu-button").bounding_box()
         page.mouse.move(menu_before["x"] + 22, menu_before["y"] + 22)
         page.mouse.down()
@@ -118,6 +127,10 @@ def exercise(browser, mobile_file: Path) -> None:
             "node => ({width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height})"
         )
         assert landscape == {"width": 844, "height": 390}, landscape
+        landscape_canvas = frame.locator("#app").evaluate(
+            "node => ({width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height})"
+        )
+        assert landscape_canvas == {"width": 844, "height": 390}, landscape_canvas
     finally:
         context.close()
 

@@ -174,6 +174,7 @@ def main() -> int:
         assert "data:text/javascript;base64," in home_srcdoc
         assert "srcset=\"data:image/png;base64," in home_srcdoc
         assert "data:image/svg+xml;base64," in home_srcdoc and "#mark" in home_srcdoc
+        assert 'id="ycet-mobile-viewport-adapter"' in home_srcdoc
         assert "?v=1" not in home_srcdoc
         assert "../assets/" not in home_srcdoc
         assert "http://" not in home_srcdoc and "https://" not in home_srcdoc

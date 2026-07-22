@@ -195,6 +195,7 @@ prototype/
 - 已有运行时页面、静态页、入口、桌面 Demo、框架、配置、资源和日志均为只读输入。打包阶段只新增一个递增命名的 `prototype-mobile*.html`，不更新 EditLog。
 - 只有运行时 HTML 完全缺失且用户已确认跳转图时，功能五才可先创建全新的完整 `runtime-pages/` 集合；部分存在、目标悬空、多个版本或来源冲突时必须停止。
 - 每个运行时页面转为资源完全内联的独立 `srcdoc`，再以 Base64 安全存入页面注册表。禁止把多个页面合并到同一 DOM，也禁止依赖 Blob URL、本地路径、远程 URL、CDN、登录态或真实后端。
+- 运行时页如使用固定像素逻辑画布，功能五只在离线 `srcdoc` 中追加视口适配层，使其宽高随实际手机可视区域变化；`runtime-pages/` 源文件继续只读，且不能因固定画布在任意手机尺寸上发生裁切。
 - 外层只提供一个全屏无边框 iframe、左上角菜单按钮、覆盖式左侧导航抽屉、注册表白名单和历史管理。默认不显示设备框架、常驻导航或调试信息。
 - 内部跨页继续使用 `channel: "ycet-prototype"`、`version: 1` 的 `navigate` 消息；外层验证 `event.source`、消息字段和规范目标。合法 query/hash 在 pathname 命中注册表后保留。
 - 首次输出 `prototype-mobile.html`，后续输出下一个 `prototype-mobile-vN.html`。临时构建通过机械校验和输入 SHA-256 复核后才原子落盘，失败不得留下半成品。

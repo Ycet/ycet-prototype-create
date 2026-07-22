@@ -69,9 +69,61 @@ NETWORK_SCRIPT_PATTERNS = (
     (re.compile(r"\bserviceWorker\.register\s*\("), "Service Worker"),
 )
 
+# 离线手机版不再有设备框架提供固定逻辑画布。仅对运行时页中的固定像素根画布
+# 注入此适配层，使其在不同手机视口内保持完整可见，而不改写只读输入页面。
+MOBILE_VIEWPORT_STYLE = """<style id=\"ycet-mobile-viewport-style\">
+html, body { width: 100% !important; min-width: 0 !important; height: 100% !important; min-height: 100% !important; }
+[data-ycet-mobile-canvas] {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  max-height: none !important;
+}
+</style>"""
+MOBILE_VIEWPORT_SCRIPT = """<script id=\"ycet-mobile-viewport-adapter\">
+(() => {
+  const fixedPixel = (value) => /^\\d+(?:\\.\\d+)?px$/.test(value);
+  const candidates = [
+    document.getElementById("app"),
+    document.querySelector("[data-ycet-page-root]"),
+    document.body?.firstElementChild,
+  ].filter(Boolean);
+  const canvas = candidates.find((node) => {
+    const style = getComputedStyle(node);
+    return fixedPixel(style.width) && fixedPixel(style.height);
+  });
+  if (!canvas) return;
+  canvas.setAttribute("data-ycet-mobile-canvas", "");
+})();
+</script>"""
+
 
 class BuildError(RuntimeError):
     """表示无法在不降级的前提下完成单文件打包。"""
+
+
+def adapt_mobile_viewport(document: str) -> str:
+    """为固定逻辑画布追加仅限离线包的移动端适配层。"""
+    document, head_count = re.subn(
+        r"</head\\s*>",
+        lambda _match: f"{MOBILE_VIEWPORT_STYLE}</head>",
+        document,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    if not head_count:
+        document = MOBILE_VIEWPORT_STYLE + document
+    document, body_count = re.subn(
+        r"</body\\s*>",
+        lambda _match: f"{MOBILE_VIEWPORT_SCRIPT}</body>",
+        document,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    if not body_count:
+        document += MOBILE_VIEWPORT_SCRIPT
+    return document
 
 
 @dataclass
@@ -865,7 +917,7 @@ def build(prototype_dir: Path) -> Path:
     bundler = ResourceBundler(prototype_dir)
     registry: list[dict[str, object]] = []
     for order, page in enumerate(pages):
-        srcdoc = bundler.inline_html(page.runtime_file)
+        srcdoc = adapt_mobile_viewport(bundler.inline_html(page.runtime_file))
         registry.append(
             {
                 "id": page.page_id,
