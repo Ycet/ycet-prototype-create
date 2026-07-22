@@ -156,6 +156,11 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         page.screenshot(path=str(screenshot_dir / "browser-zoom-90-chrome.png"))
     page.locator("#zoom-in").click()
     page.wait_for_timeout(80)
+    page.locator("#zoom-out").click()
+    page.locator("#zoom-reset").click()
+    page.wait_for_timeout(80)
+    if page.locator("#zoom-value").inner_text() != "100%":
+        regression_failures.append("缩放操作区的复原按钮没有将缩放恢复到 100%")
 
     # 100% 时中键不得移动页面；只有放大后才允许平移。
     start_x = frame_box["x"] + frame_box["width"] * 0.5
@@ -271,6 +276,20 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         hint_copy = canvas_hints.locator(".canvas-hint").all_inner_texts()
         if hint_copy != ["Ctrl + 鼠标滚轮：缩放 HTML", "放大后鼠标中键：拖动 HTML"]:
             regression_failures.append(f"画布操作提示内容不正确：{hint_copy}")
+        hint_metrics = canvas_hints.evaluate("""
+            element => {
+              const canvas = element.parentElement.getBoundingClientRect();
+              const rect = element.getBoundingClientRect();
+              const style = getComputedStyle(element);
+              return {
+                rightAligned: Math.abs(canvas.right - rect.right) < 16,
+                bottomAligned: Math.abs(canvas.bottom - rect.bottom) < 16,
+                direction: style.flexDirection,
+              };
+            }
+        """)
+        if not hint_metrics["rightAligned"] or not hint_metrics["bottomAligned"] or hint_metrics["direction"] != "column":
+            regression_failures.append(f"画布快捷提示未位于右下角或未上下排列：{hint_metrics}")
         hint_icons = canvas_hints.locator("use").evaluate_all(
             "nodes => nodes.map((node) => node.getAttribute('href'))"
         )
@@ -346,6 +365,23 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     """)
     if not group_icon_state or any(icon != "/assets/icons.svg#folder" for icon in group_icon_state):
         regression_failures.append(f"文件分组标题没有统一显示文件夹图标：{group_icon_state}")
+    group_visual = page.locator(".group-toggle").first.evaluate("""
+        button => {
+          const label = button.querySelector(".group-label");
+          const icon = label.querySelector("svg");
+          return { label: getComputedStyle(label).color, icon: getComputedStyle(icon).color };
+        }
+    """)
+    if group_visual["label"] != "rgb(37, 99, 235)" or group_visual["icon"] != "rgb(37, 99, 235)":
+        regression_failures.append(f"文件夹图标或名称未使用蓝色：{group_visual}")
+    pages_group = page.locator(".file-group", has_text="pages").first
+    pages_group.locator(".group-toggle").click()
+    if pages_group.locator(".group-files").is_visible():
+        regression_failures.append("点击文件夹后没有折叠其文件列表")
+    page.wait_for_timeout(2200)
+    if pages_group.locator(".group-files").is_visible():
+        regression_failures.append("文件夹折叠状态在文件树自动刷新后丢失")
+    pages_group.locator(".group-toggle").click()
     clear_annotations_button = page.locator("#clear-annotations")
     if clear_annotations_button.count() != 1:
         regression_failures.append("选择元素按钮旁缺少清空批注按钮")

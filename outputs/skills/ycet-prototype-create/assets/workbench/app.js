@@ -13,6 +13,7 @@
     selectMode: false,
     zoom: 100,
     pan: { x: 0, y: 0 },
+    collapsedGroupIds: new Set(),
     sidebarCollapsed: false,
     temporarySidebar: false,
     colorTarget: null,
@@ -225,7 +226,7 @@
 
   function groupNode(group) {
     const section = document.createElement("section");
-    section.className = "file-group";
+    section.className = `file-group${state.collapsedGroupIds.has(group.id) ? " collapsed" : ""}`;
     section.dataset.groupId = group.id;
     const row = document.createElement("div");
     row.className = "group-row";
@@ -235,7 +236,11 @@
     toggle.innerHTML = '<span class="group-label"><svg aria-hidden="true"><use href="/assets/icons.svg#folder"></use></svg><span></span></span><span class="group-count"></span>';
     toggle.querySelector(".group-label span").textContent = group.name;
     toggle.querySelector(".group-count").textContent = group.files.length;
-    toggle.addEventListener("click", () => section.classList.toggle("collapsed"));
+    toggle.addEventListener("click", () => {
+      const collapsed = section.classList.toggle("collapsed");
+      if (collapsed) state.collapsedGroupIds.add(group.id);
+      else state.collapsedGroupIds.delete(group.id);
+    });
     row.append(toggle);
     const files = document.createElement("div");
     files.className = "group-files";
@@ -594,6 +599,7 @@
 
   function bindCanvas() {
     $("#zoom-out").addEventListener("click", () => setZoom(state.zoom - 10));
+    $("#zoom-reset").addEventListener("click", () => setZoom(100));
     $("#zoom-in").addEventListener("click", () => setZoom(state.zoom + 10));
     els.zoomValue.addEventListener("click", () => { els.zoomValue.classList.add("hidden"); els.zoomInput.classList.remove("hidden"); els.zoomInput.select(); });
     const finishZoom = () => { setZoom(number(els.zoomInput.value, state.zoom)); els.zoomInput.classList.add("hidden"); els.zoomValue.classList.remove("hidden"); };
