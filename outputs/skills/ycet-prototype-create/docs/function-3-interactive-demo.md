@@ -6,7 +6,7 @@
 
 `prototype/index.html` 与功能一交付的 `prototype/pages/**/*.html` 是只读基线。功能三只能读取它们，不得注入脚本、修改属性或链接、格式化、重命名、删除、覆盖或新增 `pages/` 内的 HTML。跨页面逻辑只允许写入 `runtime-pages/` 和本次 `prototype*.html`。
 
-开始前读取 `shared-prototype-standards.md`、`shared-editlog-rules.md`、`shared-workbench-protocol.md` 与 `../assets/frames/manifest.json`。生成每个 `runtime-pages/**/*.html`、可预览的运行时框架副本和 `prototype*.html` 后，调用 `prototype_workbench.py sync --project-root <项目根目录> --add <新增HTML绝对路径>`；健康实例存在时只增量同步，未运行时才启动。工作台同步不得改变本功能对 `index.html` 与 `pages/**/*.html` 的只读保护。
+开始前读取 `shared-prototype-standards.md`、`shared-editlog-rules.md` 与 `../assets/frames/manifest.json`。生成运行时页、运行时框架副本和 `prototype*.html` 不得启动工作台；用户后续明确选择功能二时，再由功能二扫描这些 HTML。本功能对 `index.html` 与 `pages/**/*.html` 的只读保护不变。
 
 ## 前置条件
 
@@ -114,6 +114,16 @@ python <skill目录>/scripts/prototype_guard.py verify --prototype-dir <prototyp
 - 小屏幕可改为上下布局或折叠侧栏，不改变页面逻辑画布。
 - 外层与内部 iframe 均设置 `scrolling="no"` 和 `overflow: hidden`；页面、阵列及内部滚动容器遵守共享规范的 Firefox/Chromium 滚动条隐藏规则。
 
+### 演示视口自适应（强制）
+
+`prototype.html` 与每个 `prototype-vN.html` 都必须在浏览器默认 **100% 缩放**下完整显示左侧导航、设备框架和当前页面，不要求演示者先调整浏览器缩放，也不得因显示器尺寸不同把设备框架或导航栏整体缩得过小、放得过大或裁切。
+
+1. 根布局使用 `width: 100%; min-height: 100dvh; height: 100dvh; overflow: hidden`，桌面端采用 `grid-template-columns: clamp(220px, 18vw, 296px) minmax(0, 1fr)`。导航栏独立于设备缩放，禁止对导航栏、外层 Demo 或 `body` 使用 `transform: scale(...)`、浏览器缩放模拟或基于窗口宽度的固定像素放大。
+2. 设备展示区必须保留 `min-width: 0; min-height: 0`，从当前 `frame-config.json` 的 `preview.width` / `preview.height` 写入 `--frame-preview-width` 与 `--frame-preview-height`。iframe 始终保持这两个原始预览尺寸；只允许其外层承载盒按 `--demo-frame-scale` 缩放，缩放原点为左上，避免双重缩放和框架裁切。
+3. 生成 `ResizeObserver` 监听设备展示区。每次尺寸变化按可用宽高计算 `--demo-frame-scale = min(1, availableWidth / framePreviewWidth, availableHeight / framePreviewHeight)`，并扣除不少于 24px 的安全边距；不得设置会迫使小视口溢出的最小缩放值。展示区使用缩放后的盒子尺寸居中，而不是用 `overflow: auto` 裁切 oversized 框架。
+4. 导航条目过多时，仅导航列表自身允许纵向滚动；在窄屏断点（建议 `max-width: 760px`）改为顶部横向导航或可折叠抽屉，设备展示区仍按同一 `ResizeObserver` 规则完整容纳框架。导航文字、图标和按钮不得随设备缩放。
+5. 生成后在 Chrome、Edge、Firefox 的 1440×900、1280×720 与 1024×768 视口、浏览器 100% 缩放下验证：导航宽度处于 220–296px（窄屏布局除外）、设备框架四边均在展示区可见、外层无横向溢出、页面 iframe 与框架均未出现原生滚动条。任一项失败必须调整 Demo 外层布局后再交付，不得改动静态输入页或设备逻辑画布兜底。
+
 ### 双路径页面注册表
 
 根据 `prototype/pages/` 建立明确注册表，每项同时保存：页面 ID、显示名称、源 pathname、运行时 pathname 和允许来源。例如：
@@ -175,9 +185,10 @@ python <skill目录>/scripts/prototype_guard.py verify --prototype-dir <prototyp
 - 交互流程已确认；页面内原有交互仍可用，跨页交互只存在于运行时副本。
 - 框架与 `index.html`、项目配置一致。
 - 左右分栏、双向同步、返回历史和错误处理可用。
+- `prototype.html` 与 `prototype-vN.html` 在默认 100% 缩放下完整展示可读的导航栏、设备框架和当前页面；已完成演示视口自适应的三档桌面视口与三浏览器验证。
 - Chrome、Edge 与 Firefox 中无可见浏览器原生滚动条，必要滚动能力仍可用。
 - 本地 HTML、静态服务器和目录迁移后均可使用。
 - 生成前后 `index.html`、`pages/**/*.html` 的文件集合与 SHA-256 完全一致。
 - 若本次包含功能四图片承载页，静态与运行时页面中的图片均可从 `assets/images/` 本地加载；每个跨页图片热区默认透明，鼠标悬停或键盘聚焦时显示半透明虚线轮廓，并通过 `scripts/prototype_guard.py image --prototype-dir <prototype目录> --require-runtime` 校验通过。
 - EditLog 已记录 Demo、运行时副本和使用的框架 ID/兼容模式，未声称修改静态页。
-- 新运行时页与 Demo 入口已增量加入工作台；若用户通过“同步 pages”提交变更包，必须按共享协议在依赖组暂存合并并重新验证 `navigate`、`set-screen`、`screen-changed` 和 `prototype.html` 交互，禁止直接覆盖运行时文件。
+- 新运行时页与 Demo 入口已完成，供用户后续通过功能二扫描；若用户通过“同步 pages”提交变更包，必须按共享协议在依赖组暂存合并并重新验证 `navigate`、`set-screen`、`screen-changed` 和 `prototype.html` 交互，禁止直接覆盖运行时文件。

@@ -288,6 +288,15 @@ def main() -> int:
             fail(f"功能三缺少规范路径说明: {token}", failures)
     if "assets/frames/<frame-file>.html" in function_three:
         fail("功能三仍可能对 frameFile 重复追加 .html", failures)
+    for token in (
+        "### 演示视口自适应（强制）",
+        "--demo-frame-scale",
+        "ResizeObserver",
+        "clamp(220px, 18vw, 296px)",
+        "1440×900、1280×720 与 1024×768",
+    ):
+        if token not in function_three:
+            fail(f"功能三缺少演示视口自适应约束: {token}", failures)
 
     guard_script = ROOT / "scripts" / "prototype_guard.py"
     if not guard_script.is_file():

@@ -203,10 +203,39 @@
     name.textContent = file.name;
     const source = document.createElement("span");
     source.className = "source-badge";
-    source.textContent = file.missing ? "缺失" : file.source === "external" ? "外部" : file.kind === "offline" && file.name !== "prototype-mobile.html" ? "离线" : "";
+    // 离线单文件属于普通项目 HTML，不再额外显示“离线”标签。
+    source.textContent = file.missing ? "缺失" : file.source === "external" ? "外部" : "";
     if (!source.textContent) source.classList.add("hidden");
+    const actions = document.createElement("span");
+    actions.className = "file-actions";
+    const open = iconButton("external-link", "在新标签页打开 HTML", "file-open");
+    open.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (file.missing) return toast("文件已缺失，无法打开。", "warn");
+      window.open(`/preview/${encodeURIComponent(file.id)}/?token=${encodeURIComponent(token)}`, "_blank", "noopener");
+    });
+    const remove = iconButton("trash", "从工作台移除文件", "danger remove-file");
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      confirmAction(
+        "从工作台移除文件",
+        `确定从工作台移除“${file.name}”吗？仅移除工作台记录，不会删除本地磁盘中的 HTML 文件。该文件未发送的会话草稿也会丢失。`,
+        async () => {
+          const workspace = await api("/api/workspace/remove", { fileId: file.id });
+          state.drafts.delete(file.id);
+          state.staleDrafts.delete(file.id);
+          state.lastSha.delete(file.id);
+          state.workspace = workspace;
+          if (!fileById(state.currentFileId)) selectFile(workspace.currentFileId, true);
+          else renderTree();
+          toast("已从工作台移除文件；本地 HTML 未删除。");
+        },
+        "移除文件"
+      );
+    });
+    actions.append(open, remove);
     row.innerHTML = '<span class="file-icon" aria-hidden="true"></span>';
-    row.append(name, source);
+    row.append(name, source, actions);
     row.addEventListener("click", () => selectFile(file.id));
     return row;
   }
@@ -255,6 +284,7 @@
     const files = state.workspace.files.filter((file) => `${file.name} ${file.path}`.toLocaleLowerCase().includes(query));
     const { root, groups } = groupBuckets(files);
     els.tree.replaceChildren(...root.map(fileRow), ...groups.map(groupNode));
+    $("#cleanup-missing-files").classList.toggle("hidden", !state.workspace.files.some((file) => file.missing));
     els.clearAnnotations.disabled = isFileLocked(state.currentFileId) || !(draftFor(state.currentFileId, false)?.annotations.length);
     updateEditingLock();
   }
@@ -1294,7 +1324,7 @@
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
     try {
-      const workspace = await api("/api/workspace/sync", { paths: [] });
+      const workspace = await api("/api/workspace/sync", { paths: [], restoreHidden: true });
       const added = workspace.files.filter((file) => file.source === "project" && !known.has(file.id));
       state.workspace = workspace;
       if (!fileById(state.currentFileId)) selectFile(workspace.currentFileId, true);

@@ -4,7 +4,7 @@
 
 ## 可视化工作台边界
 
-需要展示、选择、批注或预览修改 HTML 时同时读取 `shared-workbench-protocol.md`。工作台状态固定在项目根 `.ycet-editor/`，该目录与 `prototype/` 同级，不是原型产物；不得把 `workspace.json`、请求、结果、事务、服务状态或运行时注入脚本复制进 `prototype/`。
+只有功能二需要展示、选择、批注或预览修改 HTML 时才读取 `shared-workbench-protocol.md` 并启动工作台。工作台状态固定在项目根 `.ycet-editor/`，该目录与 `prototype/` 同级，不是原型产物；不得把 `workspace.json`、请求、结果、事务、服务状态或运行时注入脚本复制进 `prototype/`。
 
 工作台预览路由只在 HTTP 响应中注入编辑运行时。未发送草稿、选择覆盖层、批注标记、缩放和平移都不得写入 HTML，也不得成为功能三运行时副本或功能五离线打包输入。左栏移出只更新工作区配置，绝不删除磁盘文件。
 
@@ -60,7 +60,7 @@ prototype/
 
 ## 技术栈
 
-- CSS：Tailwind CSS CDN、Bootstrap 或项目已有样式体系。
+- CSS：项目已有样式体系、内联 CSS 或已本地化的 CSS 构建产物。禁止生成 `https://cdn.tailwindcss.com`、其他 CSS/JS CDN 或依赖网络才能生效的样式；如使用 Tailwind，必须将实际使用的样式本地化后随项目交付。
 - 图标：FontAwesome 或其他开源图标库；网络获取的图标须本地化到 `prototype/assets/icons/`，详见「图片与图标」。
 - 内容图：真实图片资源，本地化到 `prototype/assets/images/`，详见「图片与图标」。
 - 页面内交互：Alpine.js 或轻量原生 JavaScript。

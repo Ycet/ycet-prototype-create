@@ -54,7 +54,7 @@ description: Create high-fidelity static product prototypes, visually inspect an
 19. 功能四编辑非本 Skill 生成的 HTML 时，必须解析入口 HTML 及关联 HTML/CSS/JS/资源，直接生成 `prototype/docs/Spec.md`；不得调用 `brainstorming-solo` 或 `grill-me`。Spec 确认后复用功能一阶段二、阶段三；静态高保真原型完成后必须停止，只有再次获得用户明确确认才进入功能三。
 20. 功能四接管 PNG/JPG 等整页图片时，必须将用户原图及确认后的固定区位图片段保存到 `prototype/assets/images/`，静态 `pages/**/*.html` 与功能三 `runtime-pages/**/*.html` 均从该目录使用同层级相对路径引用；不得继续把图片放在或引用为 `pages/source-images/`。默认先生成仅以完整原图为视觉内容的承载页和 `index.html`；只有用户明确提出固定区域并确认边界时，才可将原图无损位图分割为固定区与可滚动区，禁止将图片解构、OCR 还原或重绘为页面元素。图片运行时热区只写入副本，默认透明，鼠标悬停或键盘聚焦时必须显示半透明虚线轮廓。生成 `prototype.html` 前必须在静态产物完成后再次获得用户确认。
 21. 功能五复用功能三的运行时页面和 `ycet-prototype` 消息协议。已有 `runtime-pages/**/*.html`、`pages/**/*.html`、`index.html`、`prototype.html`、框架、资源和其他项目文件均为只读输入；打包阶段只允许新增一个递增命名的 `prototype-mobile*.html`，不得覆盖旧版本或更新 EditLog。只有完全缺少运行时页面且已向用户确认页面跳转逻辑时，才可在打包前创建全新的 `runtime-pages/`；部分存在、目标悬空或来源冲突必须停止。
-22. 功能一至五需要展示或同步 HTML 时读取 `docs/shared-workbench-protocol.md`，调用 `scripts/prototype_workbench.py ensure/sync` 复用同项目健康实例；实例未运行时才启动。工作台草稿不得写源文件或绕过任何确认、只读和打包门禁。
+22. 只有功能二可以读取 `docs/shared-workbench-protocol.md` 并调用 `scripts/prototype_workbench.py ensure` 启动或打开工作台；功能一、三、四、五不得启动工作台。其他功能如需登记新 HTML，只能调用不会启动服务的 `sync`，或等待用户后续通过功能二打开时递归扫描项目内 HTML。工作台草稿不得写源文件或绕过任何确认、只读和打包门禁。
 23. 收到工作台执行指令时以请求包为唯一事实来源，运行 `request show/begin/complete`；按文件摘要、元素指纹和依赖组执行。互不依赖文件允许部分成功，最终必须逐文件说明成功、失败、冲突和原因。
 
 ## 框架资产

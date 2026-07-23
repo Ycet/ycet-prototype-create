@@ -34,7 +34,7 @@ ASSET_ROOT = SKILL_ROOT / "assets" / "workbench"
 ALLOWED_OPERATIONS = {"annotation", "style", "text", "image-replace", "css", "sync-pages"}
 ACTIVE_REQUEST_STATUSES = {"pending", "processing"}
 TERMINAL_REQUEST_STATUSES = {"success", "partial", "failed", "aborted"}
-PROJECT_HTML_DIRS = ("pages", "previews", "runtime-pages")
+IGNORED_PROJECT_HTML_DIRS = {".git", ".ycet-editor", "__pycache__", "node_modules", ".venv", "venv", ".cache", ".pytest_cache", ".mypy_cache", ".tox"}
 HTML_MIME = "text/html; charset=utf-8"
 FONT_STYLE_SUFFIX = re.compile(r"\s+(?:regular|bold|italic|oblique|light|medium|semi\s*bold|demi\s*bold|extra\s*bold|extra\s*light|black|thin)(?:\s+(?:italic|oblique))?$", re.I)
 
@@ -132,27 +132,33 @@ class Workspace:
         atomic_json(self.paths["workspace"], self.data)
 
     def _project_candidates(self) -> list[Path]:
-        if not self.prototype_root.is_dir():
+        if not self.project_root.is_dir():
             return []
-        candidates = list(self.prototype_root.glob("*.html"))
-        for directory in PROJECT_HTML_DIRS:
-            root = self.prototype_root / directory
-            if root.is_dir():
-                candidates.extend(root.rglob("*.html"))
+        candidates = [
+            path.resolve()
+            for path in self.project_root.rglob("*.html")
+            if is_within(path, self.project_root)
+            and not any(part in IGNORED_PROJECT_HTML_DIRS for part in path.relative_to(self.project_root).parts)
+        ]
         return sorted({path.resolve() for path in candidates}, key=lambda item: item.name.casefold())
 
     def _record(self, path: Path, source: str, existing: dict[str, Any] | None = None) -> dict[str, Any]:
         resolved = path.resolve()
         record = dict(existing or {})
         if source == "project":
-            stored_path = resolved.relative_to(self.project_root).as_posix()
-            relative = resolved.relative_to(self.prototype_root).as_posix()
-            automatic_group = relative.split("/", 1)[0] if "/" in relative else ""
+            project_relative = resolved.relative_to(self.project_root)
+            stored_path = project_relative.as_posix()
+            if is_within(resolved, self.prototype_root):
+                prototype_relative = resolved.relative_to(self.prototype_root).as_posix()
+                automatic_group = prototype_relative.split("/", 1)[0] if "/" in prototype_relative else ""
+            else:
+                parent = project_relative.parent.as_posix()
+                automatic_group = "" if parent == "." else parent
         else:
             stored_path = str(resolved)
             automatic_group = ""
         kind = "offline" if re.fullmatch(r"prototype-mobile(?:-v\d+)?\.html", resolved.name) else (
-            "runtime" if automatic_group == "runtime-pages" else "html"
+            "runtime" if automatic_group == "runtime-pages" or automatic_group.startswith("runtime-pages/") else "html"
         )
         record.update(
             {
@@ -180,7 +186,7 @@ class Workspace:
         raw = Path(record["path"])
         return (self.project_root / raw).resolve() if record["source"] == "project" else raw.resolve()
 
-    def scan(self, explicit: list[Path] | None = None) -> dict[str, Any]:
+    def scan(self, explicit: list[Path] | None = None, restore_hidden: bool = False) -> dict[str, Any]:
         with self._lock:
             before = json.dumps(self.data, ensure_ascii=False, sort_keys=True)
             existing = {item["id"]: item for item in self.data.get("files", [])}
@@ -188,8 +194,10 @@ class Workspace:
             discovered: list[dict[str, Any]] = []
             for path in self._project_candidates():
                 stored = path.relative_to(self.project_root).as_posix()
-                if stored in hidden:
+                if stored in hidden and not restore_hidden:
                     continue
+                if restore_hidden:
+                    hidden.discard(stored)
                 discovered.append(self._record(path, "project", existing.get(file_id(path))))
 
             # 已登记但后来丢失的项目文件继续显示为“缺失”，直到用户主动移出工作区。
@@ -210,7 +218,7 @@ class Workspace:
                 resolved = path.resolve()
                 if not resolved.is_file() or resolved.suffix.lower() != ".html":
                     raise WorkbenchError(f"不是可读取的 HTML 文件：{resolved}")
-                source = "project" if is_within(resolved, self.prototype_root) else "external"
+                source = "project" if is_within(resolved, self.project_root) else "external"
                 if source == "project":
                     stored = resolved.relative_to(self.project_root).as_posix()
                     hidden.discard(stored)
@@ -671,9 +679,9 @@ def handler_factory(service: WorkbenchService):
         def _preview(self, identifier: str, relative: str) -> None:
             root_record = service.workspace.find(identifier)
             root_path = service.workspace.record_path(root_record)
-            allowed_root = service.workspace.prototype_root if root_record["source"] == "project" else root_path.parent
+            allowed_root = service.workspace.project_root if root_record["source"] == "project" else root_path.parent
             relative = urllib.parse.unquote(relative or "")
-            # 预览路由以 prototype/ 为 URL 根，保留原 HTML 的目录层级和相对资源语义。
+            # 预览路由以项目根为 URL 边界，保留原 HTML 的目录层级和相对资源语义。
             target = (allowed_root / relative).resolve() if relative else root_path
             if not is_within(target, allowed_root) or not target.is_file():
                 self._error(404, "预览资源不存在或路径越界")
@@ -698,8 +706,9 @@ def handler_factory(service: WorkbenchService):
             parent_relative = target.parent.relative_to(allowed_root).as_posix()
             parent_route = "" if parent_relative == "." else urllib.parse.quote(parent_relative, safe="/") + "/"
             payload = inject_runtime(text, config, f"/preview/{identifier}/{parent_route}")
+            # 仅兼容历史产物使用的官方 Tailwind CDN；新生成页面必须使用本地或内联 CSS。
             csp = (
-                "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; "
+                "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdn.tailwindcss.com; "
                 "style-src 'self' 'unsafe-inline' data: blob:; img-src 'self' data: blob:; font-src 'self' data: blob:; "
                 "connect-src 'self'; frame-src 'self' data: blob:; object-src 'none'; base-uri 'self'"
             )
@@ -770,7 +779,8 @@ def handler_factory(service: WorkbenchService):
                 payload = self._json_body()
                 if parsed.path == "/api/workspace/sync":
                     paths = [Path(item) for item in payload.get("paths", [])]
-                    self._send_json(service.workspace.scan(paths))
+                    # 仅用户点击刷新时恢复此前从工作台移除、但磁盘仍存在的项目 HTML。
+                    self._send_json(service.workspace.scan(paths, restore_hidden=payload.get("restoreHidden") is True))
                 elif parsed.path == "/api/workspace/cleanup-missing":
                     cleaned = service.workspace.cleanup_missing()
                     removed = set(cleaned["removedFileIds"])
@@ -779,6 +789,15 @@ def handler_factory(service: WorkbenchService):
                     if removed:
                         service.bump()
                     self._send_json(cleaned)
+                elif parsed.path == "/api/workspace/remove":
+                    identifier = str(payload.get("fileId", ""))
+                    if not identifier:
+                        raise WorkbenchError("缺少待移除的文件 ID")
+                    workspace = service.workspace.remove(identifier)
+                    service.dirty_file_ids.discard(identifier)
+                    service.stale_draft_file_ids.discard(identifier)
+                    service.bump()
+                    self._send_json(workspace)
                 elif parsed.path == "/api/workspace/preferences":
                     self._send_json(service.workspace.update_preferences(payload))
                     service.bump()
@@ -931,9 +950,16 @@ def command_status(args: argparse.Namespace) -> int:
 
 
 def command_sync(args: argparse.Namespace) -> int:
-    """增量同步文件；实例不存在时按 ensure 的同一规则启动。"""
-    proxy = argparse.Namespace(project_root=args.project_root, add=args.add, no_open=args.no_open)
-    return command_ensure(proxy)
+    """增量登记文件；仅复用功能二已启动的工作台，绝不自行打开服务。"""
+    project_root = Path(args.project_root).resolve()
+    explicit = [Path(item).resolve() for item in (args.add or [])]
+    if live_state(project_root):
+        proxy = argparse.Namespace(project_root=args.project_root, add=args.add, no_open=args.no_open)
+        return command_ensure(proxy)
+    workspace = Workspace(project_root)
+    payload = workspace.scan(explicit)
+    print(json.dumps({"ok": True, "reused": False, "opened": False, "running": False, "files": len(payload["files"])}, ensure_ascii=False))
+    return 0
 
 
 def request_path(project_root: Path, request_id: str) -> Path:
@@ -1394,7 +1420,7 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--project-root", required=True)
     status.set_defaults(func=command_status)
 
-    sync = subparsers.add_parser("sync", help="增量同步 HTML；需要时启动工作台")
+    sync = subparsers.add_parser("sync", help="增量登记 HTML；不会启动工作台")
     sync.add_argument("--project-root", required=True)
     sync.add_argument("--add", action="append")
     sync.add_argument("--no-open", action="store_true")

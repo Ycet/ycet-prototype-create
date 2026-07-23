@@ -96,13 +96,14 @@ class WorkspaceTests(unittest.TestCase):
         self.assertFalse((self.prototype / ".ycet-editor").exists())
 
     def test_external_registration_and_remove_never_deletes(self) -> None:
-        external = write(self.root / "outside" / "external.html", "<p>outside</p>")
-        workspace = workbench.Workspace(self.root)
-        payload = workspace.scan([external])
-        record = next(item for item in payload["files"] if item["source"] == "external")
-        workspace.remove(record["id"])
-        self.assertTrue(external.is_file())
-        self.assertNotIn(record["id"], {item["id"] for item in workspace.public()["files"]})
+        with tempfile.TemporaryDirectory() as external_root:
+            external = write(Path(external_root) / "external.html", "<p>outside</p>")
+            workspace = workbench.Workspace(self.root)
+            payload = workspace.scan([external])
+            record = next(item for item in payload["files"] if item["source"] == "external")
+            workspace.remove(record["id"])
+            self.assertTrue(external.is_file())
+            self.assertNotIn(record["id"], {item["id"] for item in workspace.public()["files"]})
 
     def test_project_remove_hides_without_delete_and_explicit_add_restores(self) -> None:
         workspace = workbench.Workspace(self.root)
@@ -131,6 +132,13 @@ class WorkspaceTests(unittest.TestCase):
         self.assertFalse(any(item["missing"] for item in cleaned["files"]))
         self.assertTrue(self.index.is_file(), "清理缺失记录不得删除仍存在的源 HTML")
 
+    def test_remove_only_removes_workspace_record(self) -> None:
+        workspace = workbench.Workspace(self.root)
+        record = next(item for item in workspace.data["files"] if item["name"] == "home.html")
+        workspace.remove(record["id"])
+        self.assertTrue(self.home.is_file(), "移除工作台文件不得删除本地 HTML")
+        self.assertNotIn(record["id"], {item["id"] for item in workspace.public()["files"]})
+
     def test_manual_groups_order_and_zoom_persist(self) -> None:
         workspace = workbench.Workspace(self.root)
         home = next(item for item in workspace.data["files"] if item["name"] == "home.html")
@@ -142,6 +150,15 @@ class WorkspaceTests(unittest.TestCase):
         restored_home = next(item for item in restored["files"] if item["id"] == home["id"])
         self.assertEqual(restored_home["manualGroup"], "manual")
         self.assertEqual(restored["zoomByFile"][home["id"]], 135)
+
+    def test_sync_without_running_workbench_never_starts_service(self) -> None:
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = workbench.command_sync(argparse.Namespace(project_root=str(self.root), add=[], no_open=True))
+        payload = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertFalse(payload["running"])
+        self.assertFalse((self.root / ".ycet-editor" / "server.json").exists())
 
 
 class ServiceTests(unittest.TestCase):
@@ -177,6 +194,41 @@ class ServiceTests(unittest.TestCase):
             self.assertIn("preview-runtime.js", body)
             self.assertIn("Content-Security-Policy", response.headers)
         self.assertEqual(digest(self.home), self.original_sha)
+
+    def test_preview_allows_the_legacy_tailwind_cdn(self) -> None:
+        """旧页面仍使用官方 Tailwind CDN 时，预览不得被工作台 CSP 拦截。"""
+        self.home.write_text(
+            "<!doctype html><script src='https://cdn.tailwindcss.com'></script><main class='hidden'>内容</main>",
+            encoding="utf-8",
+        )
+        file_id = self.running.service.workspace.data["files"][0]["id"]
+        request = urllib.request.Request(
+            f"{self.running.url}/preview/{file_id}/",
+            headers={"X-YCET-Token": self.running.token},
+        )
+        with urllib.request.urlopen(request) as response:
+            self.assertIn("https://cdn.tailwindcss.com", response.headers["Content-Security-Policy"])
+
+    def test_remove_endpoint_keeps_source_html(self) -> None:
+        record = self.running.service.workspace.data["files"][0]
+        status, _headers, payload = self.running.request("/api/workspace/remove", {"fileId": record["id"]})
+        self.assertEqual(status, 200)
+        self.assertTrue(self.home.is_file())
+        self.assertNotIn(record["id"], {item["id"] for item in payload["files"]})
+
+    def test_refresh_recursively_scans_project_and_restores_removed_html(self) -> None:
+        """用户主动刷新时，项目内未展示的 HTML 应重新加入工作台。"""
+        nested = write(self.root / "docs" / "flows" / "prototype-note.html", "<!doctype html><p>流程说明</p>")
+        record = self.running.service.workspace.data["files"][0]
+        self.running.request("/api/workspace/remove", {"fileId": record["id"]})
+
+        status, _headers, payload = self.running.request("/api/workspace/sync", {"restoreHidden": True})
+
+        self.assertEqual(status, 200)
+        paths = {item["path"] for item in payload["files"]}
+        self.assertIn("prototype/pages/home.html", paths)
+        self.assertIn("docs/flows/prototype-note.html", paths)
+        self.assertTrue(nested.is_file())
 
     def test_function_four_page_loads_relative_image_from_prototype_assets(self) -> None:
         image = self.root / "prototype" / "assets" / "images" / "poster.png"

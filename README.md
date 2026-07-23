@@ -22,7 +22,8 @@
 - 网页预览、元素选择、批注和属性调整只能生成浏览器会话草稿；发送前不修改磁盘中的 HTML、图片或其他资源。
 - 只有 Agent 领取并执行工作台变更包后，才允许修改源文件。
 - 外部 HTML 不通过网页按钮添加；需要登记时由用户明确要求 Agent 使用 CLI 的 `ensure --add` 或 `sync --add` 传入绝对路径。
-- 当前网页端没有删除文件、删除文件夹、添加文件夹、添加外部文件、拖拽排序或手动排序入口，不会删除、移动或重命名磁盘文件；外部 HTML 只能由 CLI 显式登记。
+- 文件栏可将已登记 HTML 从工作台移除，但操作需二次确认且绝不删除、移动或重命名磁盘文件；外部 HTML 仍只能由 CLI 显式登记。
+- 原型页面的 CSS/JS 必须内联或本地化；禁止将 Tailwind CDN 或其他网络运行时依赖作为交付内容。
 - 功能三把静态页面和 `index.html` 当作只读基线，跨页逻辑写入版本专用的 `runtime-pages/` 和 `prototype*.html`。
 - 功能五只能新增一个递增命名的 `prototype-mobile*.html`，不能覆盖既有原型、资源、日志或旧手机版文件。
 
@@ -48,13 +49,13 @@ prototype/
 
 流程分为产品需求阶段、UI 方向阶段和静态页面生成阶段。需求阶段只澄清端口、用户、页面、功能、流程、规则和异常，不提前确定视觉风格；UI 方向阶段再根据用户确认选择 UI Skill、色彩、字体、参考和设备框架。静态页面只实现页面内交互，跨页控件只能保留 `data-ycet-nav-target` 意图元数据。
 
-生成 `design-direction.html` 后，Skill 调用工作台 `ensure` 启动或复用本地服务并加入该文件。随后每生成一个 `pages/**/*.html`、`previews/**/*.html` 或 `index.html`，调用 `sync` 增量加入文件；健康实例不重启。
+功能一不会启动工作台；用户后续明确选择功能二时，工作台会扫描本次生成的 `design-direction.html`、`pages/**/*.html`、`previews/**/*.html` 与 `index.html`。
 
 ### 功能二：原型页面可视化精准修改
 
 功能二用本地工作台替代 F12 手工复制 CSS 选择器和 HTML 路径。工作台直接展示真实 HTML、嵌套 iframe 和运行时页面，用户可选择元素、添加批注、预览属性修改，最后把变更交给 Agent 执行。
 
-工作台启动时扫描 `prototype/` 根级 HTML、`pages/`、`previews/` 和 `runtime-pages/`；没有 `prototype/` 或没有 HTML 时仍启动空工作台，后续可点击左侧刷新按钮补入项目新文件。左侧文件树按目录自动分组（例如 `pages`、`runtime-pages`），组内文件相对文件夹标题向右缩进，根级文件不分组，默认按文件名升序显示，并提供搜索、分组折叠、项目文件刷新和侧栏折叠。网页端不提供添加文件夹、添加外部文件、删除文件夹、删除文件、拖拽排序或手动排序。
+只有功能二可以启动工作台；启动与文件刷新时递归扫描项目根目录内的 HTML，并忽略工作台状态、版本控制、依赖、虚拟环境与缓存目录。没有 HTML 时仍启动空工作台，后续可点击左侧刷新按钮补入项目内未展示的文件；刷新也会恢复此前仅从工作台移除、但仍存在于磁盘的项目 HTML。左侧文件树按目录自动分组（例如 `pages`、`runtime-pages`），组内文件相对文件夹标题向右缩进，根级文件不分组，默认按文件名升序显示，并提供搜索、分组折叠、项目文件刷新、侧栏折叠、在新标签页跳转和从工作台移除。跳转与删除图标仅在对应文件行悬浮或键盘聚焦时显示，删除图标为红色。移除仅删除工作区登记，必须二次确认，绝不删除本地 HTML；“清理缺失的文件”仅在存在缺失登记时展示。
 
 中央预览区支持：
 
@@ -87,8 +88,9 @@ prototype/
 
 - `prototype/index.html` 和既有 `prototype/pages/**/*.html` 建立 SHA-256 只读快照。
 - 为每个静态页生成同版本的 `runtime-pages/<source>--<demo>.html`，跨页逻辑只写入运行时副本和 `prototype.html`/`prototype-vN.html`。
+- `prototype.html`/`prototype-vN.html` 在浏览器默认 100% 缩放下使用独立的自适应 Demo 布局：导航栏宽度保持可读，设备框架按展示区尺寸等比适配且完整可见。
 - 通过 `ycet-prototype` 消息协议和 `navigate`、`set-screen`、`screen-changed` 完成双层 iframe 导航中继、页面注册表、返回历史和目标白名单校验。
-- 每生成运行时页、运行时框架副本或 `prototype*.html`，调用 `sync` 增量加入工作台，不修改静态基线。
+- 生成功能三产物不会启动工作台；用户后续明确选择功能二时再统一扫描，静态基线仍不修改。
 - 生成前后运行 `prototype_guard.py snapshot/verify`；任何受保护静态文件变化都必须停止并报告。
 
 ### 功能四：已有 HTML 或图片原型接管与迁移
@@ -105,7 +107,7 @@ prototype/
 - 对固定像素逻辑画布，离线包在各页面 `srcdoc` 内适配实际手机可视宽高，不改写 `runtime-pages/` 源文件，避免不同手机尺寸裁切内容。
 - 复用功能三的消息协议、页面注册表、query/hash 和浏览器返回逻辑。
 - 打包前运行工作台锁；有未发送草稿时阻止打包。锁期间可以只读预览，但不能发送新的工作台请求。
-- 打包成功只新增一个递增手机版文件，最后用 `sync --add` 加入工作台；不反向修改 `pages/`、`runtime-pages/`、`index.html`、资源或 `EditLog.md`。
+- 打包成功只新增一个递增手机版文件，不自动启动或打开工作台；不反向修改 `pages/`、`runtime-pages/`、`index.html`、资源或 `EditLog.md`。
 - 动态远程依赖、登录态、路径越界、缺失资源或无法枚举的网络依赖会阻断生成，不用删除页面或资源来“通过”校验。
 
 ## 工作台架构与生命周期
@@ -134,7 +136,7 @@ python <skill目录>\scripts\prototype_workbench.py sync --project-root <项目�
 python <skill目录>\scripts\prototype_workbench.py status --project-root <项目根目录>
 ```
 
-`ensure` 和 `sync` 会复用同一项目的健康实例；只有实例不存在时才启动随机本机端口。命令输出 JSON 始终包含 URL。自动打开浏览器失败或使用 `--no-open` 时，必须把输出 URL 提供给用户手动打开。`--add` 可重复传入；它是登记外部 HTML 的唯一入口，网页端没有对应按钮。
+`ensure` 仅由功能二使用，会复用同一项目的健康实例，实例不存在时才启动随机本机端口。`sync` 仅复用已运行的实例；实例不存在时只更新本地工作区登记，绝不启动或打开浏览器。命令输出 JSON 始终包含 URL（`sync` 未运行时除外）。自动打开浏览器失败或使用 `--no-open` 时，必须把输出 URL 提供给用户手动打开。`--add` 可重复传入；它是登记外部 HTML 的唯一入口，网页端没有对应按钮。
 
 工作台前端使用的核心接口如下，所有接口都要求当前实例令牌，并只接受本机 Host/Origin：
 
@@ -142,6 +144,7 @@ python <skill目录>\scripts\prototype_workbench.py status --project-root <项�
 | --- | --- |
 | `GET /api/workspace` | 读取当前文件登记、分组、当前文件和缩放偏好 |
 | `POST /api/workspace/sync` | 扫描 `prototype/` 并补入新 HTML；不删除磁盘文件 |
+| `POST /api/workspace/remove` | 二次确认后的网页操作：只移除工作台登记，不删除磁盘 HTML |
 | `GET /api/fonts` | 返回 Python 服务发现的系统字体族 |
 | `GET /api/requests` | 返回当前活动请求和最近请求摘要 |
 | `POST /api/requests` | 校验并落盘不可变变更包 |
@@ -229,15 +232,15 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
 
 | 功能 | 生成或接管时的工作台动作 | 重要限制 |
 | --- | --- | --- |
-| 功能一 | 生成 `design-direction.html` 后 `ensure`；后续静态 HTML 用 `sync` 增量加入 | 静态页只实现页面内交互 |
+| 功能一 | 不启动工作台；后续功能二统一扫描 | 静态页只实现页面内交互 |
 | 功能二 | `ensure` 复用或启动工作台；点击刷新扫描项目 HTML；通过变更包交给 Agent | 空项目仍保持服务运行；没有网页外部文件选择器 |
-| 功能三 | 生成 `runtime-pages/`、运行时框架副本和 `prototype*.html` 后 `sync` | `pages/`、`index.html` 只读，`sync-pages` 必须保留 Demo 交互 |
-| 功能四 | 接管静态 HTML/图片并生成产物后，用 `ensure/sync` 展示 | 先确认产品端口；图片原图和静态输入受保护 |
-| 功能五 | 打包前获取锁；成功后只用 `sync --add` 加入新 `prototype-mobile*.html` | 有草稿时阻止打包，不修改旧文件或日志 |
+| 功能三 | 不启动工作台；后续功能二统一扫描运行时产物 | `pages/`、`index.html` 只读，`sync-pages` 必须保留 Demo 交互 |
+| 功能四 | 不启动工作台；后续功能二统一扫描接管产物 | 先确认产品端口；图片原图和静态输入受保护 |
+| 功能五 | 打包前获取锁；不自动加入或打开工作台 | 有草稿时阻止打包，不修改旧文件或日志 |
 
 ## 安全规则
 
-- 预览路由只绑定本机，拒绝目录遍历、远程资源、危险协议、未登记路径和不安全 MIME。
+- 预览路由只绑定本机，拒绝目录遍历、危险协议、未登记路径和不安全 MIME；仅为兼容历史页面在预览 CSP 中放行官方 Tailwind CDN，新产物仍禁止远程运行时依赖。
 - Agent 必须同时验证文件 SHA-256、完整元素指纹、依赖组和目标白名单；选择器不唯一、摘要不匹配或路径失效时报告冲突，不猜测修改。
 - `sync-pages` 不得直接覆盖运行时页，必须在暂存副本中受控合并，并验证 `prototype.html`/当前 Demo 仍能加载目标页面。
 - 图片替换、资源新增和 `EditLog.md` 更新必须纳入同一事务；事务完成前不得把未登记的实际变化隐瞒在结果之外。

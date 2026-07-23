@@ -128,6 +128,22 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     page.goto(url, wait_until="networkidle")
     page.locator("#file-tree .file-row").first.wait_for()
     page.wait_for_timeout(120)
+    mobile_row = page.locator(".file-row", has_text="prototype-mobile-v2.html")
+    mobile_row.wait_for()
+    if "hidden" not in (mobile_row.locator(".source-badge").get_attribute("class") or ""):
+        regression_failures.append("prototype-mobile 迭代文件仍显示“离线”标签")
+    # 文件操作仅在当前文件行悬浮或键盘聚焦时可见，避免常驻按钮挤压文件名。
+    first_file = page.locator("#file-tree .file-row").first
+    file_actions = first_file.locator(".file-actions")
+    if float(file_actions.evaluate("element => getComputedStyle(element).opacity")) > 0:
+        regression_failures.append("文件行未悬浮时仍显示跳转和删除按钮")
+    first_file.hover()
+    page.wait_for_timeout(120)
+    if float(file_actions.evaluate("element => getComputedStyle(element).opacity")) < 0.99:
+        regression_failures.append("文件行悬浮后未显示跳转和删除按钮")
+    delete_color = first_file.locator(".remove-file").evaluate("element => getComputedStyle(element).color")
+    if delete_color != "rgb(220, 38, 38)":
+        regression_failures.append(f"删除按钮图标不是红色：{delete_color}")
     # 100% 时预览必须就是中央区域的内置浏览器视口，不能再嵌套固定尺寸舞台。
     viewport_box = page.locator("#canvas-viewport").bounding_box()
     shell_box = page.locator("#preview-shell").bounding_box()
@@ -344,8 +360,8 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
     if tooltip_metrics["left"] < 0 or tooltip_metrics["right"] > tooltip_metrics["viewportWidth"] + 1:
         regression_failures.append(f"功能提示超出浏览器视口：{tooltip_metrics}")
 
-    # 文件树只保留项目扫描与查看能力，不得暴露增删、分组或拖拽排序入口。
-    for selector in ("#add-group", "#add-external", "#group-dialog", ".group-remove", ".remove-file"):
+    # 文件树不提供磁盘删除、分组或拖拽排序入口。
+    for selector in ("#add-group", "#add-external", "#group-dialog", ".group-remove"):
         if page.locator(selector).count():
             regression_failures.append(f"文件树仍保留已移除的操作入口：{selector}")
     empty_state_copy = page.locator("#empty-state").text_content() or ""
@@ -355,6 +371,13 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         regression_failures.append("文件行仍可拖拽排序或分组")
     if page.locator("#refresh-files").count() != 1:
         regression_failures.append("左侧文件栏缺少项目文件刷新按钮")
+    if page.locator("#cleanup-missing-files").is_visible():
+        regression_failures.append("不存在缺失 HTML 时仍展示清理缺失文件按钮")
+    file_action_icons = page.locator("#file-tree .file-actions use").evaluate_all(
+        "nodes => nodes.map((node) => node.getAttribute('href'))"
+    )
+    if not file_action_icons or any(icon not in ("/assets/icons.svg#external-link", "/assets/icons.svg#trash") for icon in file_action_icons):
+        regression_failures.append(f"文件行缺少跳转或移除图标按钮：{file_action_icons}")
     refresh_icons = page.locator("#refresh-files use, #refresh-preview use, #refresh-fonts use").evaluate_all(
         "nodes => nodes.map((node) => node.getAttribute('href'))"
     )
@@ -412,11 +435,45 @@ def exercise(browser, name: str, url: str, home: Path, project: Path, screenshot
         regression_failures.append("鼠标移出临时展开的左侧文件栏 0.2 秒后没有折叠")
     page.locator("#collapse-sidebar").click()
 
-    refreshed = write(project / "prototype/pages/refreshed.html", "<!doctype html><p>刷新补入</p>")
+    refreshed_name = f"refreshed-{name}.html"
+    refreshed = write(project / "prototype/pages" / refreshed_name, "<!doctype html><p>刷新补入</p>")
     page.locator("#refresh-files").click()
-    page.get_by_text("refreshed.html", exact=True).wait_for()
+    page.get_by_text(refreshed_name, exact=True).wait_for()
     if not refreshed.is_file():
         regression_failures.append("刷新项目文件意外改动或删除了源 HTML")
+    refreshed_row = page.locator(".file-row", has_text=refreshed_name)
+    refreshed_row.hover()
+    try:
+        with page.expect_popup(timeout=3000) as popup_info:
+            refreshed_row.locator(".file-open").click()
+        popup = popup_info.value
+        popup.wait_for_url("**/preview/**", timeout=3000)
+        if "/preview/" not in popup.url:
+            regression_failures.append(f"跳转按钮没有在新标签页打开 HTML 预览：{popup.url}")
+        popup.close()
+    except Exception as error:  # noqa: BLE001 - 浏览器弹窗策略属于真实交互回归。
+        regression_failures.append(f"跳转按钮没有打开新标签页：{error}")
+    refreshed_row.hover()
+    refreshed_row.locator(".remove-file").click()
+    page.locator("#confirm-dialog[open]").wait_for()
+    if "不会删除本地磁盘" not in page.locator("#confirm-copy").inner_text():
+        regression_failures.append("移除文件确认没有说明本地 HTML 不会删除")
+    page.locator("#confirm-action").click()
+    refreshed_row.wait_for(state="detached")
+    if not refreshed.is_file():
+        regression_failures.append("从工作台移除文件意外删除了本地 HTML")
+
+    missing_name = f"missing-{name}.html"
+    missing = write(project / "prototype/pages" / missing_name, "<!doctype html><p>缺失登记</p>")
+    page.locator("#refresh-files").click()
+    page.get_by_text(missing_name, exact=True).wait_for()
+    missing.unlink()
+    page.wait_for_timeout(2200)
+    page.locator("#cleanup-missing-files:not(.hidden)").wait_for()
+    if page.locator("#cleanup-missing-files").inner_text().strip() != "清理缺失的文件":
+        regression_failures.append("清理缺失文件按钮文案不正确")
+    page.locator("#cleanup-missing-files").click()
+    page.locator("#cleanup-missing-files").wait_for(state="hidden")
     page.get_by_text("index.html", exact=True).click()
     page.locator("#current-path").filter(has_text="prototype/index.html").wait_for()
 
@@ -1102,6 +1159,7 @@ def main() -> int:
         write(project / "prototype/index.html", "<!doctype html><html><body><iframe id='nested-page' src='pages/home.html'></iframe><iframe id='device-frame' src='assets/frames/iphone-15-pro.html?screen=pages/home.html' width='414' height='868'></iframe><iframe id='inline-page' srcdoc=\"<button id='srcdoc-action'>内联操作</button>\"></iframe><iframe id='scaled-page' src='pages/scaled.html' style='display:block;width:400px;height:300px;border:0;transform:scale(.5);transform-origin:top left'></iframe></body></html>")
         write(project / "prototype/runtime-pages/home--prototype.html", "<!doctype html><button id='buy' style='height:42px'>运行时</button><script>const type='navigate'</script>")
         write(project / "prototype/runtime-pages/scaled--prototype.html", "<!doctype html><button id='scaled-target'>缩放运行时</button><script>const type='navigate'</script>")
+        write(project / "prototype/prototype-mobile-v2.html", "<!doctype html><p>离线预览</p>")
         port = free_port()
         token = "runtime-test-token"
         base_url = f"http://127.0.0.1:{port}"

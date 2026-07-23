@@ -113,7 +113,7 @@
 3. 按已确认 Spec、UI 方向和用户编辑要求生成新的静态高保真 `pages/**/*.html` 与 `index.html`。页面内交互可以实现；跨页面交互只保留 `data-ycet-nav-target`，不得在静态页执行跳转。
 4. 迁移源码时，以原文件 URL 为基准解析本地 `src`、`srcset`、`href`、CSS `url()` / `@import` 和模块 import；移动后改写为项目内相对路径并逐项验证。外链内容图与远程图标按共享规范本地化。
 5. 运行功能一静态交互校验并完成其全部验收标准；分别记录源码解析重构、UI 方向、静态生成和用户要求的编辑。
-6. 端口确认、Spec 与静态生成门禁全部完成后，读取 `shared-workbench-protocol.md`，按功能一规则确保工作台可用并增量同步 `design-direction.html`、`pages/**/*.html` 与 `index.html`。不得为了启动工作台提前读取、登记或审计用户原型。
+6. 端口确认、Spec 与静态生成门禁全部完成后，不启动工作台；用户后续明确选择功能二时，由功能二扫描 `design-direction.html`、`pages/**/*.html` 与 `index.html`。不得为了启动工作台提前读取、登记或审计用户原型。
 
 ### C. 静态完成后的功能三强门禁
 
@@ -186,7 +186,7 @@
 4. 根据已确认产品端口与宿主设备，从 Manifest 选择并复制设备框架，生成 `frame-config.json`。
 5. 为每张图片生成带 `data-ycet-image-prototype="true"` 的原图承载型或固定区域位图承载型 `pages/**/*.html`，再生成使用设备框架加载所有承载页的 `index.html`。所有图片 `src` 必须从 `assets/images/` 解析。必须先完成这两类静态文件，禁止同时生成交互入口。
 6. 运行 `scripts/prototype_guard.py image --prototype-dir <prototype目录>`。验证图片未被元素化重构、未被拉伸；完整原图路径下图片未被裁剪，固定区域路径下仅存在已确认边界的无损位图片段；长图内部滚动可用，`pages/**/*.html` 与 `index.html` 可在本地和静态服务器打开；记录图片导入、承载页面、框架与配置写入。
-7. 读取 `shared-workbench-protocol.md`，调用 `prototype_workbench.py ensure/sync` 加入已生成的承载页与 `index.html`；只登记 HTML，不把原图预览草稿写回图片或页面。
+7. 不启动工作台；用户后续明确选择功能二时，由功能二扫描已生成的承载页与 `index.html`，且不把原图预览草稿写回图片或页面。
 8. 静态文件完成后停止任务，向用户展示页面清单与 `index.html`，并单独询问是否确认生成 `prototype.html`。任务开始时的交互要求不算本步骤确认。
 9. 用户明确确认前，禁止生成 `prototype.html`、版本化 `prototype*.html`、`runtime-pages/` 或交互热点。
 10. 用户明确确认后才读取并执行功能三：首次生成 `prototype.html`，已存在时按功能三版本规则生成下一版本。运行时副本必须继续以完整原图或已确认片段组合为视觉基底；如需交互，只能按已确认流程在 `runtime-pages/` 叠加带悬停/聚焦半透明虚线轮廓的热区，不得把图片替换为重构 DOM。完成后运行 `scripts/prototype_guard.py image --prototype-dir <prototype目录> --require-runtime`，再验证原 `pages/**/*.html` 与 `index.html` 的 SHA-256 未变化。
