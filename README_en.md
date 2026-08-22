@@ -20,6 +20,7 @@
 
 - [✨ Quick Start](#-quick-start)
 - [📖 Feature Overview](#-feature-overview)
+- [🎬 Demo Previews](#-demo-previews)
 - [🖥️ Workbench Architecture & Lifecycle](#️-workbench-architecture--lifecycle)
 - [💻 Command Line Interface](#-command-line-interface)
 - [🤝 Agent Handoff Protocol](#-agent-handoff-protocol)
@@ -165,6 +166,30 @@ Packages the runtime pages of the same demo version and their enumerable CSS, Ja
 - Acquires the workbench lock before packaging; packaging is blocked while unsent drafts exist. During the lock, previews are read-only and no new workbench requests can be sent.
 - A successful package adds only one incrementally named mobile file and does not auto-start or open the workbench; it never modifies `pages/`, `runtime-pages/`, `index.html`, resources, or `EditLog.md`.
 - Dynamic remote dependencies, login state, path traversal, missing resources, or non-enumerable network dependencies block generation; pages or resources are never deleted to "pass" validation.
+
+---
+
+## 🎬 Demo Previews
+
+The animated previews below are recordings of actual deliverables (iPhone 15 Pro · 390×844 logical canvas), produced from the real artifacts in the `prototype/` directory.
+
+### Feature 1 · High-Fidelity Static Prototype
+
+**UI design direction page (`design-direction.html`)**
+
+![design-direction.html preview animation](assets/demos/design-direction.gif)
+
+**High-fidelity entry page (`index.html`)**
+
+![index.html preview animation](assets/demos/index.gif)
+
+### Feature 2 · Prototype Workbench
+
+![Prototype workbench preview animation](assets/demos/workbench.gif)
+
+### Feature 3 · Interactive Prototype Demo (`prototype.html`)
+
+![prototype.html preview animation](assets/demos/prototype-demo.gif)
 
 ---
 

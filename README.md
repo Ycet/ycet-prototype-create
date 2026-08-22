@@ -20,6 +20,7 @@
 
 - [✨ 快速开始](#-快速开始)
 - [📖 功能概览](#-功能概览)
+- [🎬 演示预览](#-演示预览)
 - [🖥️ 工作台架构与生命周期](#️-工作台架构与生命周期)
 - [💻 命令行入口](#-命令行入口)
 - [🤝 Agent 交接协议](#-agent-交接协议)
@@ -165,6 +166,30 @@ prototype/
 - 打包前运行工作台锁；有未发送草稿时阻止打包。锁期间可以只读预览，但不能发送新的工作台请求。
 - 打包成功只新增一个递增手机版文件，不自动启动或打开工作台；不反向修改 `pages/`、`runtime-pages/`、`index.html`、资源或 `EditLog.md`。
 - 动态远程依赖、登录态、路径越界、缺失资源或无法枚举的网络依赖会阻断生成，不用删除页面或资源来“通过”校验。
+
+---
+
+## 🎬 演示预览
+
+以下动图为实际产物效果的录制示例（iPhone 15 Pro · 逻辑画布 390×844），GIF 内容取自 `prototype/` 目录中的真实产物。
+
+### 功能一 · 高保真静态原型
+
+**UI 设计方案（`design-direction.html`）**
+
+![design-direction.html 预览动画](assets/demos/design-direction.gif)
+
+**高保真原型页面（`index.html`）**
+
+![index.html 预览动画](assets/demos/index.gif)
+
+### 功能二 · 原型可视化修改工作台
+
+![原型工作台预览动画](assets/demos/workbench.gif)
+
+### 功能三 · 可交互原型 Demo（`prototype.html`）
+
+![prototype.html 预览动画](assets/demos/prototype-demo.gif)
 
 ---
 
