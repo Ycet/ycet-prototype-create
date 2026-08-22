@@ -20,3 +20,9 @@ venv/
 # Agent runtime
 .omo/
 .learnings/
+
+# YCET Prototype Create runtime state & local artifacts
+.ycet-editor/
+.tmp-*/
+prototype/
+优化想法/
