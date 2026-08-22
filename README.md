@@ -1,23 +1,81 @@
+[![中文](https://img.shields.io/badge/简体中文-red?style=for-the-badge)](README.md)
+[![EN](https://img.shields.io/badge/English-blue?style=for-the-badge)](README_en.md)
+
+<div align="center">
+
 # YCET Prototype Create
 
 `ycet-prototype-create` 是一套面向 Codex、Claude Code、OpenCode 等 Agent 的产品原型制作 Skill。它覆盖产品需求澄清、UI 方向确认、高保真静态原型、可视化精准编辑、多页面交互 Demo、已有 HTML/图片原型接管与迁移，以及移动端离线单文件预览。
 
-## 当前状态
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v3.0.10-blue?style=for-the-badge)](#-快速开始)
+[![Agent Skill](https://img.shields.io/badge/type-Agent%20Skill-purple?style=for-the-badge)](#-快速开始)
+[![GitHub last commit](https://img.shields.io/github/last-commit/Ycet/ycet-prototype-create?style=for-the-badge&logo=github)](../../commits)
 
-- 版本：`V3.0.3`
-- 开发分支：`V3.0开发迭代dev`
-- 状态：工作台、本地服务、请求交接、功能五锁和自动化守卫已实现，处于发布验收阶段。
-- 交付目录：`outputs/skills/ycet-prototype-create/`
-- 优化前基线：`skill/ycet-prototype-create/`
-- 当前开发基线：`52c50b1`
+</div>
 
-交付目录是本项目唯一的 Skill 交付源。`skill/ycet-prototype-create/` 仅用于保留优化前基线，不应作为安装、验证或运行入口。当前全局 `.agents`/`.claude` Skill 尚未自动切换到交付目录，因此全局调用结果不能视为本版本验收结果。
+---
 
-## 目标与边界
+# 📚 目录
 
-本项目把原型制作拆成五个有明确确认门禁的功能。所有原型产物写入用户项目根目录的 `prototype/`，工作台运行状态单独写入用户项目根目录的 `.ycet-editor/`。
+- [✨ 快速开始](#-快速开始)
+- [📖 功能概览](#-功能概览)
+- [🖥️ 工作台架构与生命周期](#️-工作台架构与生命周期)
+- [💻 命令行入口](#-命令行入口)
+- [🤝 Agent 交接协议](#-agent-交接协议)
+- [📁 工作区状态与文件安全](#-工作区状态与文件安全)
+- [🔗 五项功能与工作台同步关系](#-五项功能与工作台同步关系)
+- [🛡️ 安全规则](#️-安全规则)
+- [🧪 环境与验证](#-环境与验证)
+- [📄 文档索引](#-文档索引)
+- [⚠️ 已知限制与注意事项](#️-已知限制与注意事项)
+- [📜 许可证](#-许可证)
 
-以下边界是强制规则：
+---
+
+## ✨ 快速开始
+
+### 安装
+
+将交付目录 `outputs/skills/ycet-prototype-create/` 安装为 Agent Skill：
+
+<details>
+<summary>Claude Code / Codex / OpenCode（Windows）</summary>
+
+```powershell
+# 以 Claude Code 为例：复制到全局 Skill 目录
+Copy-Item -Recurse outputs\skills\ycet-prototype-create $env:USERPROFILE\.claude\skills\ycet-prototype-create
+```
+
+</details>
+
+<details>
+<summary>macOS / Linux</summary>
+
+```bash
+# 以 Claude Code 为例：复制到全局 Skill 目录
+cp -r outputs/skills/ycet-prototype-create ~/.claude/skills/ycet-prototype-create
+```
+
+</details>
+
+### 使用
+
+在 Agent 会话中触发 `ycet-prototype-create`，按以下流程制作原型：
+
+1. **功能一**：从零散想法或 PRD 生成高保真静态原型（需求澄清 → UI 方向确认 → 静态页面生成）。
+2. **功能二**：启动本地工作台，对原型页面做可视化精准修改（元素选择、批注、属性调整、变更包交接）。
+3. **功能三**：将已确认的静态页面转换为多页面交互 Demo。
+4. **功能四**：接管并迁移已有 HTML 或整页图片原型。
+5. **功能五**：打包生成移动端离线单文件原型。
+
+所有原型产物写入用户项目根目录的 `prototype/`，工作台运行状态单独写入用户项目根目录的 `.ycet-editor/`。
+
+---
+
+## 📖 功能概览
+
+本项目把原型制作拆成五个有明确确认门禁的功能。以下边界是强制规则：
 
 - 网页预览、元素选择、批注和属性调整只能生成浏览器会话草稿；发送前不修改磁盘中的 HTML、图片或其他资源。
 - 只有 Agent 领取并执行工作台变更包后，才允许修改源文件。
@@ -26,8 +84,6 @@
 - 原型页面的 CSS/JS 必须内联或本地化；禁止将 Tailwind CDN 或其他网络运行时依赖作为交付内容。
 - 功能三把静态页面和 `index.html` 当作只读基线，跨页逻辑写入版本专用的 `runtime-pages/` 和 `prototype*.html`。
 - 功能五只能新增一个递增命名的 `prototype-mobile*.html`，不能覆盖既有原型、资源、日志或旧手机版文件。
-
-## 五项功能
 
 ### 功能一：高保真静态原型
 
@@ -110,7 +166,9 @@ prototype/
 - 打包成功只新增一个递增手机版文件，不自动启动或打开工作台；不反向修改 `pages/`、`runtime-pages/`、`index.html`、资源或 `EditLog.md`。
 - 动态远程依赖、登录态、路径越界、缺失资源或无法枚举的网络依赖会阻断生成，不用删除页面或资源来“通过”校验。
 
-## 工作台架构与生命周期
+---
+
+## 🖥️ 工作台架构与生命周期
 
 工作台由以下部分组成：
 
@@ -123,7 +181,9 @@ prototype/
 
 顶部“关闭工作台进程”按钮使用 Power 图标。点击始终二次确认；有未发送草稿时显示受影响 HTML 文件数量和丢失提示。确认后调用受令牌保护的 `POST /api/shutdown`，服务返回 `202` 后优雅停止 HTTP 服务、文件监听和系统对话框代理，清理当前 PID 对应的 `server.json`。网页不强杀 PID、不自动关闭标签页，也不自动重启。已生成或正在执行的 Agent 请求与结果不会因工作台关闭而删除；下次 `ensure` 会恢复请求状态和结果。
 
-## 命令行入口
+---
+
+## 💻 命令行入口
 
 以下命令均从项目根目录执行，`<skill目录>` 指向 `outputs/skills/ycet-prototype-create`：
 
@@ -175,7 +235,9 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
 
 锁必须在 `finally` 路径释放。工作台存在相关未发送草稿时，`lock acquire` 失败，不能自动清空或代替用户发送草稿。
 
-## Agent 交接协议
+---
+
+## 🤝 Agent 交接协议
 
 “发送给 AI”是变更包交接，不是网页直接控制 Agent。流程如下：
 
@@ -212,7 +274,9 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
 
 同一项目同时只允许一个 `pending` 或 `processing` 请求。活动请求涉及的文件以及 `sync-pages` 的静态来源文件会锁定编辑，其他 HTML 仍可准备草稿但必须等当前请求终止后发送。请求完成后，成功的项目内修改按规则追加 `prototype/docs/EditLog.md`；外部文件直接修改原始路径，不写项目执行历史。
 
-## 工作区状态与文件安全
+---
+
+## 📁 工作区状态与文件安全
 
 `.ycet-editor/` 的主要内容如下：
 
@@ -228,7 +292,9 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
 
 工作台运行状态不写入 `prototype/`，也不会自动修改 `.gitignore`。`workspace.json` 只持久化文件登记、来源、分组、排序兼容数据、当前文件和缩放偏好，绝不保存未发送草稿。外部 HTML 可以登记为 `source: external` 并按原始绝对路径修改，但不写 `EditLog.md`，也不建立永久执行历史。
 
-## 五项功能与工作台同步关系
+---
+
+## 🔗 五项功能与工作台同步关系
 
 | 功能 | 生成或接管时的工作台动作 | 重要限制 |
 | --- | --- | --- |
@@ -238,7 +304,9 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
 | 功能四 | 不启动工作台；后续功能二统一扫描接管产物 | 先确认产品端口；图片原图和静态输入受保护 |
 | 功能五 | 打包前获取锁；不自动加入或打开工作台 | 有草稿时阻止打包，不修改旧文件或日志 |
 
-## 安全规则
+---
+
+## 🛡️ 安全规则
 
 - 预览路由只绑定本机，拒绝目录遍历、危险协议、未登记路径和不安全 MIME；仅为兼容历史页面在预览 CSP 中放行官方 Tailwind CDN，新产物仍禁止远程运行时依赖。
 - Agent 必须同时验证文件 SHA-256、完整元素指纹、依赖组和目标白名单；选择器不唯一、摘要不匹配或路径失效时报告冲突，不猜测修改。
@@ -246,13 +314,15 @@ python <skill目录>\scripts\prototype_workbench.py lock release --project-root 
 - 图片替换、资源新增和 `EditLog.md` 更新必须纳入同一事务；事务完成前不得把未登记的实际变化隐瞒在结果之外。
 - 独立文件允许部分成功，但最终必须列出成功文件、失败文件、冲突文件及逐项原因。
 
-## 环境与验证
+---
+
+## 🧪 环境与验证
 
 ### 环境要求
 
-- Python 3；当前开发环境已用 Python 3.14 验证。
+- Python 3；已在 Python 3.14 验证。
 - 浏览器验证需要 Python Playwright；测试器会依次尝试 Playwright Chromium、系统 Chrome、系统 Edge 和 Playwright Firefox，未安装的浏览器必须标记为 `[SKIP]`，不能冒充通过。
-- 系统图片选择依赖 Python `tkinter`；当前开发环境已验证 Tk 8.6。若系统无法使用 Tk，只能由 Agent 通过 CLI 登记路径，不能从 HTTP 请求线程直接创建 Tk 窗口。
+- 系统图片选择依赖 Python `tkinter`；已验证 Tk 8.6。若系统无法使用 Tk，只能由 Agent 通过 CLI 登记路径，不能从 HTTP 请求线程直接创建 Tk 窗口。
 
 ### 结构、服务和运行时验证
 
@@ -288,9 +358,11 @@ python outputs\skills\ycet-prototype-create\scripts\build_mobile_prototype.py --
 python outputs\skills\ycet-prototype-create\scripts\prototype_guard.py mobile --prototype-dir <prototype目录> --mobile-file <生成文件>
 ```
 
-当前基线验证已通过工作台服务与请求状态测试（29 项）、Chrome/Edge 工作台运行时与三档布局、Chrome 真实关闭进程交互、五类设备框架运行时、`prototype_guard.py`、功能五打包回归、移动端离线单文件运行时、`validate_skill.py`、`quick_validate.py`、JavaScript 语法检查和 `git diff --check`。Playwright Chromium/Firefox 因当前环境 `spawn EPERM` 未完成；Firefox、移动端真机和完整 Agent 对话评估仍未验证。`release_audit.py` 当前会提示交付目录包含测试产物和 `scripts/__pycache__/`，发布前需清理或按审计规则处理。
+已通过工作台服务与请求状态测试（29 项）、Chrome/Edge 工作台运行时与三档布局、Chrome 真实关闭进程交互、五类设备框架运行时、`prototype_guard.py`、功能五打包回归、移动端离线单文件运行时、`validate_skill.py`、`quick_validate.py`、JavaScript 语法检查和 `git diff --check`。Playwright Chromium/Firefox 因环境限制未完成；Firefox、移动端真机和完整 Agent 对话评估仍未验证。
 
-## 文档索引
+---
+
+## 📄 文档索引
 
 - `outputs/skills/ycet-prototype-create/SKILL.md`：Skill 总入口、路由和全局规则。
 - `outputs/skills/ycet-prototype-create/docs/function-1-static-prototype.md`：功能一需求、UI 方向和静态原型流程。
@@ -306,10 +378,18 @@ python outputs\skills\ycet-prototype-create\scripts\prototype_guard.py mobile --
 - `docs/brainstorms/specs/`：已确认的需求规格。
 - `docs/brainstorms/plan/`：实施计划与验证记录。
 
-## 已知限制与注意事项
+---
+
+## ⚠️ 已知限制与注意事项
 
 - 工作台不会自动启动、注入或控制 Codex、Claude Code、OpenCode 等 Agent 会话；用户必须把执行指令交给当前 Agent。
 - 关闭工作台会丢失浏览器会话中未发送的批注、样式、文本、图片、CSS 和同步草稿；已生成或正在执行的请求不会被取消。
 - 桌面 Chrome/Edge 的移动视口通过不等于 Safari iOS、Chrome Android 或 Edge Android 真机通过；未执行真机测试时必须标注“未验证”。
 - 完全自包含的手机版文件可能体积较大，并受动态网络、登录态和无法枚举的运行时依赖限制。
 - Skill 不会自动安装自身、替换全局 Skill、发布、部署、推送远程仓库、创建 PR 或执行 Git 提交。
+
+---
+
+## 📜 许可证
+
+本项目基于 [MIT License](LICENSE) 开源，Copyright (c) 2026 Ycet。
