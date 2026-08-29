@@ -1,0 +1,46 @@
+# ============================================================
+# ycet-prototype-create 项目 .gitignore
+# 针对 macOS + Python 工作流 + Skill 交付目录（skill-outputs）
+# ============================================================
+
+# ---------- macOS 系统文件 ----------
+.DS_Store
+.AppleDouble
+.LSOverride
+**/.DS_Store
+
+# ---------- Python ----------
+# 字节码缓存
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 测试/构建产物
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ---------- 测试生成目录 ----------
+# 工作台测试截图等过程产物，不属于 Skill 交付包
+# 与 scripts/release_audit.py 中 generated_dirs 保持一致
+skill-outputs/**/test-artifacts/
+**/test-artifacts/
+
+# ---------- 编辑器 / IDE ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---------- 日志与临时文件 ----------
+*.log
+*.tmp
+*.bak
