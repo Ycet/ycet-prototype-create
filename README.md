@@ -3,6 +3,8 @@
 
 <div align="center">
 
+![YCET Prototype Create](assets/cover/prototype-cover.png)
+
 # YCET Prototype Create
 
 `ycet-prototype-create` 是一套面向 Codex、Claude Code、OpenCode 等 Agent 的产品原型制作 Skill。它覆盖产品需求澄清、UI 方向确认、高保真静态原型、可视化精准编辑、多页面交互 Demo、已有 HTML/图片原型接管与迁移，以及移动端离线单文件预览。

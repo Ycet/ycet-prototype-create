@@ -3,6 +3,8 @@
 
 <div align="center">
 
+![YCET Prototype Create](assets/cover/prototype-cover.png)
+
 # YCET Prototype Create
 
 `ycet-prototype-create` is a product prototyping Skill for AI agents such as Codex, Claude Code, and OpenCode. It covers product requirement clarification, UI direction confirmation, high-fidelity static prototypes, visual precision editing, multi-page interactive demos, takeover and migration of existing HTML/image prototypes, and offline single-file mobile previews.
