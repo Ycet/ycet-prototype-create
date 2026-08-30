@@ -50,8 +50,8 @@ python <skill目录>/scripts/prototype_workbench.py status --project-root <项�
 - “清理缺失的文件”仅在存在缺失登记时展示；它只移除缺失文件的工作区记录，绝不操作磁盘。
 - 外部 HTML 不再通过网页系统文件对话框登记；只有用户明确要求 Agent 使用 CLI `--add` 时才可登记，并在原始绝对路径修改。
 - 没有 `prototype/` 或没有 HTML 时正常启动空工作台，不得关闭服务或伪造文件。
-- 图片选择只登记原始绝对路径并用于预览；发送前不复制、不修改图片或 HTML。
-- 图片替换的系统文件对话框必须由 Python 进程主线程执行；`ThreadingHTTPServer` 请求线程只能提交任务并等待结果，禁止直接创建 Tk 根窗口。
+- 图片选择默认由浏览器原生文件选择器完成：网页通过隐藏 `<input type="file">` 弹出系统文件面板（macOS 上即访达），选中图片以字节流上传到受令牌保护的 `POST /api/assets/upload`（`Content-Type: application/octet-stream`，文件名经 `X-YCET-Filename` 传递），服务端校验扩展名、内容魔数与大小（上限 32 MiB）后存入 `.ycet-editor/uploads/` 作为临时预览资源，只登记路径并用于预览；发送前不复制到 `prototype/`、不修改图片或 HTML。
+- 旧版 `POST /api/dialog` 系统文件对话框（Tk）仅保留为自动化/兼容路径；除非显式设置 `YCET_WORKBENCH_DIALOG_PATH`，网页不再调用。仍调用时对话框必须由 Python 进程主线程执行，`ThreadingHTTPServer` 请求线程只能提交任务并等待结果，禁止直接创建 Tk 根窗口；macOS 系统 Python 的 Tk 8.5 已知无法弹出面板且会挂起进程，不得将其作为新依赖。
 - 文件监听发现外部变化时，无草稿文件刷新摘要与预览；有草稿文件标记冲突并禁止发送，直到用户刷新源文件并重新编辑。
 
 ## 预览与定位

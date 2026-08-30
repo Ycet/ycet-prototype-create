@@ -1039,15 +1039,41 @@
   async function chooseImage() {
     if (!state.selection || state.selection.element.tag !== "img") return toast("请先选择图片元素。", "warn");
     if (!requireEditable(state.selection.fileId)) return;
+    // 使用浏览器原生文件选择器（macOS 上即访达），避免服务端 Tk 对话框在 macOS 挂起。
+    const input = $("#image-file-input");
+    input.value = ""; // 允许重复选择同一图片时仍触发 change
+    input.click();
+  }
+
+  async function uploadImage(file) {
+    if (file.size > 32 * 1024 * 1024) throw new Error("图片不得超过 32 MiB");
+    const response = await fetch("/api/assets/upload", {
+      method: "POST",
+      headers: {
+        "X-YCET-Token": token,
+        "Content-Type": "application/octet-stream",
+        "X-YCET-Filename": encodeURIComponent(file.name),
+      },
+      body: file,
+      cache: "no-store",
+    });
+    const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    return body;
+  }
+
+  async function onImageFileSelected() {
+    const file = $("#image-file-input").files?.[0];
+    if (!file) return;
     try {
-      const result = await api("/api/dialog", { kind: "image" });
-      if (result.cancelled) return;
+      const result = await uploadImage(file);
       const previewUrl = `/api/selected/${result.assetId}?token=${encodeURIComponent(token)}`;
       $("#image-preview").src = previewUrl; $("#image-preview").classList.remove("hidden");
       $("#image-status").textContent = `待替换：${result.name}`;
       const key = `image:${fingerprintKey(state.selection.fingerprint)}`;
       upsertOperation(state.selection.fileId, { type: "image-replace", fingerprint: state.selection.fingerprint, assetId: result.assetId, path: result.path, name: result.name, previewUrl }, key);
     } catch (error) { toast(error.message, "error"); }
+    $("#image-file-input").value = "";
   }
 
   function syncPages() {
@@ -1407,7 +1433,7 @@
     $("#request-cancel").addEventListener("click", cancelActiveRequest);
     $("#request-dismiss").addEventListener("click", dismissRequestStatus);
     $("#request-details").addEventListener("click", showRequestDetails);
-    $("#save-annotation").addEventListener("click", saveAnnotation); $("#choose-image").addEventListener("click", chooseImage);
+    $("#save-annotation").addEventListener("click", saveAnnotation); $("#choose-image").addEventListener("click", chooseImage); $("#image-file-input").addEventListener("change", onImageFileSelected);
     let tooltipTimer;
     document.addEventListener("mousemove", (event) => {
       const target = event.target.closest?.("[data-tooltip]");
