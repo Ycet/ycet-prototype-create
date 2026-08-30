@@ -507,10 +507,16 @@
       const input = document.createElement("textarea");
       input.rows = 2;
       input.value = field.value;
-      // 文本字段同样在失焦时提交一次，逐键输入不产生多个草稿操作。
-      input.addEventListener("change", () => {
+      // 文本字段在失焦时提交一次（一次聚焦编辑 = 一条草稿 + 一个撤销步），并进入撤回历史：
+      // 恢复上一次文本操作，或删除操作回到原始文本。
+      input.addEventListener("blur", () => {
         if (!state.selection) return;
         const key = `text:${fingerprintKey(state.selection.fingerprint)}:${field.index}`;
+        const draft = draftFor(state.selection.fileId);
+        const existing = draft?.operations.find((item) => item._key === key) || null;
+        if (!existing || existing.value !== input.value) {
+          pushUndoEntry({ fileId: state.selection.fileId, key, fingerprint: state.selection.fingerprint, prevOperation: existing ? { ...existing } : null });
+        }
         upsertOperation(state.selection.fileId, { type: "text", fingerprint: state.selection.fingerprint, index: field.index, value: input.value, original: field.value }, key);
       });
       label.append(input);
@@ -670,15 +676,20 @@
         }
         styleOperation(input.dataset.css, value);
       };
-      // 输入框的变更只在失焦（或回车时失焦）提交一次，避免逐键产生多个草稿操作与撤销步。
-      input.addEventListener("change", apply);
-      if (input.tagName === "INPUT") input.addEventListener("keydown", (event) => { if (event.key === "Enter") input.blur(); });
+      // 输入框的变更只在失焦（或回车时失焦）提交一次：逐键输入、键盘上下键与上下按钮的连续微调
+      // 在同一次聚焦内合并为一次变更记录与撤销步；下拉选择保持“选择即提交”（单次操作单次记录）。
+      if (input.tagName === "SELECT") {
+        input.addEventListener("change", apply);
+      } else {
+        input.addEventListener("blur", apply);
+        input.addEventListener("keydown", (event) => { if (event.key === "Enter") input.blur(); });
+      }
     });
     const radiusApply = (event) => {
       ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${event.target.value}px`));
       ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => setValue(id, event.target.value));
     };
-    $("#radius-all").addEventListener("change", radiusApply);
+    $("#radius-all").addEventListener("blur", radiusApply);
     $("#link-radius").addEventListener("click", (event) => {
       const active = event.currentTarget.getAttribute("aria-pressed") !== "true";
       event.currentTarget.setAttribute("aria-pressed", String(active));
@@ -695,7 +706,7 @@
         state.sizeRatio = shownHeight > 0 ? shownWidth / shownHeight : 0;
       }
     });
-    $$(".corner-grid input").forEach((input) => input.addEventListener("change", () => {
+    $$(".corner-grid input").forEach((input) => input.addEventListener("blur", () => {
       if ($("#link-radius").getAttribute("aria-pressed") !== "true") return;
       ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => { if (id !== input.id) setValue(id, input.value); });
       ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${input.value}px`));
@@ -705,11 +716,11 @@
       styleOperation("text-align", button.dataset.align);
     }));
     const applyTransform = () => styleOperation("transform", `rotate(${state.transform.rotation}deg) scale(${state.transform.flipX}, ${state.transform.flipY})`);
-    $("#rotation").addEventListener("change", (event) => { state.transform.rotation = number(event.target.value); applyTransform(); });
+    $("#rotation").addEventListener("blur", (event) => { state.transform.rotation = number(event.target.value); applyTransform(); });
     $("#rotate-90").addEventListener("click", () => { state.transform.rotation = (state.transform.rotation + 90) % 360; setValue("rotation", state.transform.rotation); applyTransform(); });
     $("#flip-x").addEventListener("click", () => { state.transform.flipX *= -1; $("#flip-x").classList.toggle("pressed", state.transform.flipX < 0); applyTransform(); });
     $("#flip-y").addEventListener("click", () => { state.transform.flipY *= -1; $("#flip-y").classList.toggle("pressed", state.transform.flipY < 0); applyTransform(); });
-    $("#fill-opacity").addEventListener("change", (event) => {
+    $("#fill-opacity").addEventListener("blur", (event) => {
       const color = $('[data-color-property="background-color"]').dataset.color || "rgb(255,255,255)";
       const rgb = parseColor(color);
       styleOperation("background-color", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${number(event.target.value) / 100})`);

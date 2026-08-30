@@ -355,6 +355,8 @@ class ServiceTests(unittest.TestCase):
         self.assertIn(b"prevOperation", script)
         self.assertIn(b"sizeRatio", script)
         self.assertIn(b"flushActiveInput", script)
+        self.assertIn(b'"blur", apply', script)
+        self.assertIn(b'type: "text", fingerprint', script)
         status, _headers, runtime = self.running.request("/assets/preview-runtime.js")
         self.assertEqual(status, 200)
         self.assertIn(b"refresh-selection", runtime)
