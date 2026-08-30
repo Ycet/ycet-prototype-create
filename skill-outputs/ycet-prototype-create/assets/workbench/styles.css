@@ -156,6 +156,11 @@ label i { flex: 0 0 auto; color: var(--muted); font: normal 9px/1 var(--mono); }
 .two-col, .corner-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
 .font-control { display: grid; grid-template-columns: minmax(0,1fr) 28px; align-items: end; gap: 6px; }
 .font-control label { min-width: 0; }
+/* 布局模块宽高联动行：宽度输入 | 链接按钮 | 高度输入 */
+.size-link-row { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); align-items: end; gap: 6px; }
+.size-link-row label { min-width: 0; }
+.size-ratio { margin-top: 5px; color: var(--muted); font: normal 9px/1 var(--mono); text-align: center; }
+.size-link-row + .two-col { margin-top: 7px; }
 .two-col + .two-col { margin-top: 7px; }
 .transform-row { display: grid; grid-template-columns: minmax(0,1fr) repeat(3,28px); align-items: end; gap: 6px; margin-top: 7px; }
 .corner-grid { margin-top: 7px; }

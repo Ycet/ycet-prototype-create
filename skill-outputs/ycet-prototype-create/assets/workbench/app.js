@@ -439,6 +439,13 @@
     els.selectedName.textContent = selection.element.name;
     setValue("position-x", rect.x); setValue("position-y", rect.y);
     setValue("width", number(style.width, rect.width)); setValue("height", number(style.height, rect.height));
+    // 宽高联动基准：把本次实际宽高记入各自输入框的上一次值；联动比例始终取另一侧的实时显示值。
+    const widthValue = number(style.width, rect.width);
+    const heightValue = number(style.height, rect.height);
+    $("#width").dataset.last = String(widthValue);
+    $("#height").dataset.last = String(heightValue);
+    state.sizePrev = { width: widthValue, height: heightValue };
+    updateSizeRatio();
     const transformOperation = draftFor(selection.fileId, false)?.operations.find((item) => item.property === "transform" && fingerprintKey(item.fingerprint) === fingerprintKey(selection.fingerprint));
     state.transform = parseTransform(transformOperation?.value || style.transform);
     setValue("rotation", state.transform.rotation);
@@ -511,6 +518,47 @@
     upsertOperation(state.selection.fileId, { type: "style", fingerprint: state.selection.fingerprint, property, value: String(value) }, key);
   }
 
+  function formatRatio(width, height) {
+    const w = Math.round(number(width));
+    const h = Math.round(number(height));
+    if (w <= 0 || h <= 0) return "—";
+    let a = w;
+    let b = h;
+    while (b) { const remainder = a % b; a = b; b = remainder; }
+    return `${w / a}:${h / a}`;
+  }
+
+  function updateSizeRatio() {
+    const ratio = $("#size-ratio");
+    if (!ratio) return;
+    const text = formatRatio($("#width").value, $("#height").value);
+    ratio.textContent = text;
+    ratio.dataset.tooltip = `当前宽高比 ${text}`;
+  }
+
+  function applyLinkedSize(input) {
+    // 布局模块宽高联动：链接开启时，按“本输入的上一次值 → 新值”的比例同步另一侧，保持元素宽高比不变。
+    const isWidth = input.id === "width";
+    const other = isWidth ? $("#height") : $("#width");
+    const linked = $("#link-size").getAttribute("aria-pressed") === "true";
+    const next = number(input.value);
+    // 比例基准取本输入框自己上一次的值（选中元素时初始化、每次事件后更新），
+    // 另一侧实时读取当前显示值，任何一侧都不依赖可能过期的共享状态。
+    const prev = number(input.dataset.last) || state.sizePrev?.[input.id] || 0;
+    if (linked && next > 0 && prev > 0) {
+      const otherLive = number(other.value);
+      if (otherLive > 0) {
+        const synced = Math.max(1, Math.round(next * otherLive / prev));
+        setValue(other.id, synced);
+        other.dataset.last = String(synced);
+        styleOperation(other.dataset.css, `${synced}px`);
+      }
+    }
+    styleOperation(input.dataset.css, `${input.value}px`);
+    input.dataset.last = input.value;
+    updateSizeRatio();
+  }
+
   function bindPropertyInputs() {
     $$('[data-css]').forEach((input) => {
       input.addEventListener("input", () => {
@@ -526,6 +574,10 @@
           styleOperation(offsetProperty, value);
           return;
         }
+        if (input.id === "width" || input.id === "height") {
+          applyLinkedSize(input);
+          return;
+        }
         if (input.type === "number") {
           if (input.id === "opacity") value = String(number(value) / 100);
           else if (input.id === "line-height") value = String(value);
@@ -539,6 +591,11 @@
       ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => setValue(id, event.target.value));
     });
     $("#link-radius").addEventListener("click", (event) => {
+      const active = event.currentTarget.getAttribute("aria-pressed") !== "true";
+      event.currentTarget.setAttribute("aria-pressed", String(active));
+      event.currentTarget.classList.toggle("pressed", active);
+    });
+    $("#link-size").addEventListener("click", (event) => {
       const active = event.currentTarget.getAttribute("aria-pressed") !== "true";
       event.currentTarget.setAttribute("aria-pressed", String(active));
       event.currentTarget.classList.toggle("pressed", active);
