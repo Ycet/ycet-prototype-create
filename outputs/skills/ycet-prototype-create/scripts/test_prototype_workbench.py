@@ -344,6 +344,70 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(denied.exception.code, 400)
         denied.exception.close()
 
+    def test_served_assets_include_undo_button(self) -> None:
+        status, _headers, html = self.running.request("/assets/index.html")
+        self.assertEqual(status, 200)
+        self.assertIn(b'id="undo-changes"', html)
+        status, _headers, script = self.running.request("/assets/app.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"undoLast", script)
+        self.assertIn(b"pushUndoEntry", script)
+        self.assertIn(b"prevOperation", script)
+        self.assertIn(b"sizeRatio", script)
+        self.assertIn(b"flushActiveInput", script)
+        self.assertIn(b'"blur", apply', script)
+        self.assertIn(b'type: "text", fingerprint', script)
+        status, _headers, runtime = self.running.request("/assets/preview-runtime.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"refresh-selection", runtime)
+        self.assertIn(b"lastClicked", runtime)
+
+    def upload(self, name: str, data: bytes, content_type: str = "application/octet-stream") -> tuple[int, dict, object]:
+        request = urllib.request.Request(
+            self.running.url + "/api/assets/upload",
+            data=data,
+            headers={
+                "X-YCET-Token": "test-token",
+                "Content-Type": content_type,
+                "X-YCET-Filename": urllib.parse.quote(name),
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=3) as response:
+            return response.status, dict(response.headers), json.loads(response.read())
+
+    def test_upload_endpoint_stores_image_bytes_outside_prototype(self) -> None:
+        payload = b"\x89PNG\r\n\x1a\n" + b"\x00\x01\x02" + b"payload"
+        status, _headers, body = self.upload("海报.png", payload)
+        self.assertEqual(status, 200)
+        self.assertFalse(body["cancelled"])
+        self.assertEqual(body["name"], "海报.png")
+        stored = Path(body["path"])
+        self.assertTrue(stored.is_file())
+        self.assertTrue(stored.is_relative_to((self.root / ".ycet-editor" / "uploads").resolve()))
+        self.assertEqual(stored.read_bytes(), payload)
+        self.assertEqual(stored.resolve(), self.running.service.selected_assets[body["assetId"]].resolve())
+
+    def test_upload_rejects_unsupported_extension_and_content(self) -> None:
+        with self.assertRaises(urllib.error.HTTPError) as extension:
+            self.upload("notes.txt", b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(extension.exception.code, 400)
+        self.assertIn("请选择受支持的图片文件", extension.exception.read().decode("utf-8"))
+        extension.exception.close()
+        with self.assertRaises(urllib.error.HTTPError) as content:
+            self.upload("fake.png", b"plain text is not an image")
+        self.assertEqual(content.exception.code, 400)
+        self.assertIn("文件内容不是受支持的图片", content.exception.read().decode("utf-8"))
+        content.exception.close()
+
+    def test_upload_rejects_oversize(self) -> None:
+        with mock.patch.object(workbench, "IMAGE_UPLOAD_MAX_BYTES", 4):
+            with self.assertRaises(urllib.error.HTTPError) as oversized:
+                self.upload("big.png", b"\x89PNG\r\n\x1a\n12345")
+        self.assertEqual(oversized.exception.code, 400)
+        self.assertIn("图片大小", oversized.exception.read().decode("utf-8"))
+        oversized.exception.close()
+
     def test_dialog_chooser_runs_on_main_thread(self) -> None:
         external = write(self.root / "main-thread.png", "png")
         main_thread_id = threading.get_ident()

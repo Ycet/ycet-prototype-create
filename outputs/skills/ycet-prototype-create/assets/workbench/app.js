@@ -37,6 +37,8 @@
     requestRevision: 0,
     syncPages: [],
     dismissedRequestIds: new Set(),
+    undoStack: [],
+    pendingUndoBatch: null,
   };
 
   const els = {
@@ -225,6 +227,7 @@
           state.drafts.delete(file.id);
           state.staleDrafts.delete(file.id);
           state.lastSha.delete(file.id);
+          dropUndoForFileIds([file.id]);
           state.workspace = workspace;
           if (!fileById(state.currentFileId)) selectFile(workspace.currentFileId, true);
           else renderTree();
@@ -333,6 +336,7 @@
     $("#clear-current").disabled = locked;
     els.sync.disabled = locked;
     els.clearAnnotations.disabled = locked || !(draftFor(state.currentFileId, false)?.annotations.length);
+    updateUndoButton();
   }
 
   function clearSelectionPanel() {
@@ -439,6 +443,15 @@
     els.selectedName.textContent = selection.element.name;
     setValue("position-x", rect.x); setValue("position-y", rect.y);
     setValue("width", number(style.width, rect.width)); setValue("height", number(style.height, rect.height));
+    // 宽高联动基准：把本次实际宽高记入各自输入框的上一次值；联动比例始终取另一侧的实时显示值。
+    const widthValue = number(style.width, rect.width);
+    const heightValue = number(style.height, rect.height);
+    $("#width").dataset.last = String(widthValue);
+    $("#height").dataset.last = String(heightValue);
+    // 联动比例基准：选中元素时记录一次真实宽高比，后续每次同步都从该比例推导，
+    // 避免按“上一次取整后的宽高对”逐键推导导致取整误差累积（非 1:1 比例漂移）。
+    state.sizeRatio = heightValue > 0 ? widthValue / heightValue : 0;
+    updateSizeRatio();
     const transformOperation = draftFor(selection.fileId, false)?.operations.find((item) => item.property === "transform" && fingerprintKey(item.fingerprint) === fingerprintKey(selection.fingerprint));
     state.transform = parseTransform(transformOperation?.value || style.transform);
     setValue("rotation", state.transform.rotation);
@@ -494,9 +507,16 @@
       const input = document.createElement("textarea");
       input.rows = 2;
       input.value = field.value;
-      input.addEventListener("input", () => {
+      // 文本字段在失焦时提交一次（一次聚焦编辑 = 一条草稿 + 一个撤销步），并进入撤回历史：
+      // 恢复上一次文本操作，或删除操作回到原始文本。
+      input.addEventListener("blur", () => {
         if (!state.selection) return;
         const key = `text:${fingerprintKey(state.selection.fingerprint)}:${field.index}`;
+        const draft = draftFor(state.selection.fileId);
+        const existing = draft?.operations.find((item) => item._key === key) || null;
+        if (!existing || existing.value !== input.value) {
+          pushUndoEntry({ fileId: state.selection.fileId, key, fingerprint: state.selection.fingerprint, prevOperation: existing ? { ...existing } : null });
+        }
         upsertOperation(state.selection.fileId, { type: "text", fingerprint: state.selection.fingerprint, index: field.index, value: input.value, original: field.value }, key);
       });
       label.append(input);
@@ -508,14 +528,133 @@
     if (!state.selection) return;
     if (!requireEditable(state.selection.fileId)) return;
     const key = `style:${fingerprintKey(state.selection.fingerprint)}:${property}`;
-    upsertOperation(state.selection.fileId, { type: "style", fingerprint: state.selection.fingerprint, property, value: String(value) }, key);
+    const next = String(value);
+    const draft = draftFor(state.selection.fileId);
+    const existing = draft?.operations.find((item) => item._key === key) || null;
+    // 撤回历史：仅在实际改变值时记录，前一个有效操作（含样式与图片替换）作为撤销目标（null 表示原本未设置，撤销时删除操作）。
+    if (!existing || existing.value !== next) {
+      pushUndoEntry({ fileId: state.selection.fileId, key, fingerprint: state.selection.fingerprint, prevOperation: existing ? { ...existing } : null });
+    }
+    upsertOperation(state.selection.fileId, { type: "style", fingerprint: state.selection.fingerprint, property, value: next }, key);
+  }
+
+  function pushUndoEntry(entry) {
+    // 同一次用户手势（同一事件处理器内）的所有样式修改自动归为一个撤销批次：
+    // 宽高联动、四角圆角、阴影+滤镜等多属性操作一次点击即可整体撤回。
+    if (!state.pendingUndoBatch) {
+      state.pendingUndoBatch = [];
+      queueMicrotask(() => {
+        const batch = state.pendingUndoBatch;
+        state.pendingUndoBatch = null;
+        if (!batch?.length) return;
+        state.undoStack.push(batch);
+        updateUndoButton();
+      });
+    }
+    state.pendingUndoBatch.push(entry);
+  }
+
+  function dropUndoForFileIds(fileIds) {
+    const blocked = fileIds instanceof Set ? fileIds : new Set(fileIds);
+    if (!blocked.size) return;
+    state.undoStack = state.undoStack.filter((batch) => !batch.some((entry) => blocked.has(entry.fileId)));
+    updateUndoButton();
+  }
+
+  function flushActiveInput() {
+    // 输入框的变更在失焦时提交；触发撤销/发送/清空前先提交尚未失焦的修改，并等待其撤销批次入栈。
+    const active = document.activeElement;
+    if (active && active !== document.body && typeof active.blur === "function") active.blur();
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  async function undoLast() {
+    // 先提交输入框中尚未失焦的修改（其撤销批次在微任务中入栈），等待一次宏任务后再弹栈，
+    // 保证“刚输入但未移开”的修改成为被撤回的最近一步。
+    await flushActiveInput();
+    const batch = state.undoStack.pop();
+    updateUndoButton();
+    if (!batch) return;
+    let restored = false;
+    let needsRefresh = false;
+    for (const entry of batch) {
+      if (!requireEditable(entry.fileId)) continue;
+      const draft = draftFor(entry.fileId, false);
+      if (!draft) continue;
+      const index = draft.operations.findIndex((item) => item._key === entry.key);
+      if (entry.prevOperation === null) {
+        // 撤销前该属性/资源从未设置过：删除操作，预览回退到原始 HTML 状态。
+        if (index >= 0) draft.operations.splice(index, 1);
+      } else {
+        const operation = { ...entry.prevOperation };
+        if (index >= 0) draft.operations[index] = operation; else draft.operations.push(operation);
+      }
+      restored = true;
+      // 撤回的属性属于当前文件或当前选中的元素（含嵌套 iframe 内的元素）时，请求预览重发选区，
+      // 让侧边栏输入整体回到撤回后的状态。
+      const matchesSelection = Boolean(state.selection && fingerprintKey(entry.fingerprint) === fingerprintKey(state.selection.fingerprint));
+      if (entry.fileId === state.currentFileId || matchesSelection) needsRefresh = true;
+    }
+    if (!restored) return;
+    renderTree(); applyDrafts(); syncDirtyState();
+    if (needsRefresh) postPreview("refresh-selection");
+    updateUndoButton();
+    toast("已撤销上一步操作。");
+  }
+
+  function updateUndoButton() {
+    const button = $("#undo-changes");
+    if (!button) return;
+    const locked = isFileLocked(state.currentFileId);
+    button.disabled = locked || !state.undoStack.length;
+    button.dataset.tooltip = state.undoStack.length
+      ? `撤销上一步修改（可撤销 ${state.undoStack.length} 步）`
+      : "暂无可以撤销的修改";
+  }
+
+  function formatRatio(width, height) {
+    const w = Math.round(number(width));
+    const h = Math.round(number(height));
+    if (w <= 0 || h <= 0) return "—";
+    let a = w;
+    let b = h;
+    while (b) { const remainder = a % b; a = b; b = remainder; }
+    return `${w / a}:${h / a}`;
+  }
+
+  function updateSizeRatio() {
+    const ratio = $("#size-ratio");
+    if (!ratio) return;
+    const text = formatRatio($("#width").value, $("#height").value);
+    ratio.textContent = text;
+    ratio.dataset.tooltip = `当前宽高比 ${text}`;
+  }
+
+  function applyLinkedSize(input) {
+    // 布局模块宽高联动：链接开启时，按选中元素时记录的真实宽高比同步另一侧，保持元素宽高比不变。
+    const isWidth = input.id === "width";
+    const other = isWidth ? $("#height") : $("#width");
+    const linked = $("#link-size").getAttribute("aria-pressed") === "true";
+    const next = number(input.value);
+    // 比例基准取选中元素时记录的固定宽高比（非 1:1 比例也不漂移）：
+    // 修改宽度 → 高度 = 宽度 ÷ 比例；修改高度 → 宽度 = 高度 × 比例。
+    if (linked && next > 0 && state.sizeRatio > 0) {
+      const synced = Math.max(1, Math.round(isWidth ? next / state.sizeRatio : next * state.sizeRatio));
+      setValue(other.id, synced);
+      other.dataset.last = String(synced);
+      styleOperation(other.dataset.css, `${synced}px`);
+    }
+    styleOperation(input.dataset.css, `${input.value}px`);
+    input.dataset.last = input.value;
+    updateSizeRatio();
   }
 
   function bindPropertyInputs() {
     $$('[data-css]').forEach((input) => {
-      input.addEventListener("input", () => {
+      const apply = () => {
+        if (!state.selection) return;
         let value = input.value;
-        if (["position-x", "position-y"].includes(input.id) && state.selection) {
+        if (["position-x", "position-y"].includes(input.id)) {
           const axis = input.id === "position-x" ? "x" : "y";
           const offsetProperty = input.dataset.css;
           const position = state.selection.element.styles.position;
@@ -526,24 +665,48 @@
           styleOperation(offsetProperty, value);
           return;
         }
+        if (input.id === "width" || input.id === "height") {
+          applyLinkedSize(input);
+          return;
+        }
         if (input.type === "number") {
           if (input.id === "opacity") value = String(number(value) / 100);
           else if (input.id === "line-height") value = String(value);
           else value = `${value}px`;
         }
         styleOperation(input.dataset.css, value);
-      });
+      };
+      // 输入框的变更只在失焦（或回车时失焦）提交一次：逐键输入、键盘上下键与上下按钮的连续微调
+      // 在同一次聚焦内合并为一次变更记录与撤销步；下拉选择保持“选择即提交”（单次操作单次记录）。
+      if (input.tagName === "SELECT") {
+        input.addEventListener("change", apply);
+      } else {
+        input.addEventListener("blur", apply);
+        input.addEventListener("keydown", (event) => { if (event.key === "Enter") input.blur(); });
+      }
     });
-    $("#radius-all").addEventListener("input", (event) => {
+    const radiusApply = (event) => {
       ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${event.target.value}px`));
       ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => setValue(id, event.target.value));
-    });
+    };
+    $("#radius-all").addEventListener("blur", radiusApply);
     $("#link-radius").addEventListener("click", (event) => {
       const active = event.currentTarget.getAttribute("aria-pressed") !== "true";
       event.currentTarget.setAttribute("aria-pressed", String(active));
       event.currentTarget.classList.toggle("pressed", active);
     });
-    $$(".corner-grid input").forEach((input) => input.addEventListener("input", () => {
+    $("#link-size").addEventListener("click", (event) => {
+      const active = event.currentTarget.getAttribute("aria-pressed") !== "true";
+      event.currentTarget.setAttribute("aria-pressed", String(active));
+      event.currentTarget.classList.toggle("pressed", active);
+      if (active) {
+        // 开启联动时以当前显示宽高为新的比例基准（用户手动调整过另一侧后重新对齐）。
+        const shownHeight = number($("#height").value);
+        const shownWidth = number($("#width").value);
+        state.sizeRatio = shownHeight > 0 ? shownWidth / shownHeight : 0;
+      }
+    });
+    $$(".corner-grid input").forEach((input) => input.addEventListener("blur", () => {
       if ($("#link-radius").getAttribute("aria-pressed") !== "true") return;
       ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => { if (id !== input.id) setValue(id, input.value); });
       ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${input.value}px`));
@@ -553,11 +716,11 @@
       styleOperation("text-align", button.dataset.align);
     }));
     const applyTransform = () => styleOperation("transform", `rotate(${state.transform.rotation}deg) scale(${state.transform.flipX}, ${state.transform.flipY})`);
-    $("#rotation").addEventListener("input", (event) => { state.transform.rotation = number(event.target.value); applyTransform(); });
+    $("#rotation").addEventListener("blur", (event) => { state.transform.rotation = number(event.target.value); applyTransform(); });
     $("#rotate-90").addEventListener("click", () => { state.transform.rotation = (state.transform.rotation + 90) % 360; setValue("rotation", state.transform.rotation); applyTransform(); });
     $("#flip-x").addEventListener("click", () => { state.transform.flipX *= -1; $("#flip-x").classList.toggle("pressed", state.transform.flipX < 0); applyTransform(); });
     $("#flip-y").addEventListener("click", () => { state.transform.flipY *= -1; $("#flip-y").classList.toggle("pressed", state.transform.flipY < 0); applyTransform(); });
-    $("#fill-opacity").addEventListener("input", (event) => {
+    $("#fill-opacity").addEventListener("blur", (event) => {
       const color = $('[data-color-property="background-color"]').dataset.color || "rgb(255,255,255)";
       const rgb = parseColor(color);
       styleOperation("background-color", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${number(event.target.value) / 100})`);
@@ -1039,15 +1202,47 @@
   async function chooseImage() {
     if (!state.selection || state.selection.element.tag !== "img") return toast("请先选择图片元素。", "warn");
     if (!requireEditable(state.selection.fileId)) return;
+    // 使用浏览器原生文件选择器（macOS 上即访达），避免服务端 Tk 对话框在 macOS 挂起。
+    const input = $("#image-file-input");
+    input.value = ""; // 允许重复选择同一图片时仍触发 change
+    input.click();
+  }
+
+  async function uploadImage(file) {
+    if (file.size > 32 * 1024 * 1024) throw new Error("图片不得超过 32 MiB");
+    const response = await fetch("/api/assets/upload", {
+      method: "POST",
+      headers: {
+        "X-YCET-Token": token,
+        "Content-Type": "application/octet-stream",
+        "X-YCET-Filename": encodeURIComponent(file.name),
+      },
+      body: file,
+      cache: "no-store",
+    });
+    const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    return body;
+  }
+
+  async function onImageFileSelected() {
+    const file = $("#image-file-input").files?.[0];
+    if (!file) return;
     try {
-      const result = await api("/api/dialog", { kind: "image" });
-      if (result.cancelled) return;
+      const result = await uploadImage(file);
       const previewUrl = `/api/selected/${result.assetId}?token=${encodeURIComponent(token)}`;
       $("#image-preview").src = previewUrl; $("#image-preview").classList.remove("hidden");
       $("#image-status").textContent = `待替换：${result.name}`;
       const key = `image:${fingerprintKey(state.selection.fingerprint)}`;
+      const draft = draftFor(state.selection.fileId);
+      const existing = draft?.operations.find((item) => item._key === key) || null;
+      // 图片替换同样进入撤回历史：恢复上一次替换操作，或删除操作回到原始图片。
+      if (!existing || existing.assetId !== result.assetId) {
+        pushUndoEntry({ fileId: state.selection.fileId, key, fingerprint: state.selection.fingerprint, prevOperation: existing ? { ...existing } : null });
+      }
       upsertOperation(state.selection.fileId, { type: "image-replace", fingerprint: state.selection.fingerprint, assetId: result.assetId, path: result.path, name: result.name, previewUrl }, key);
     } catch (error) { toast(error.message, "error"); }
+    $("#image-file-input").value = "";
   }
 
   function syncPages() {
@@ -1068,8 +1263,9 @@
     renderSyncButton(runtime.id);
   }
 
-  function clearCurrent() {
+  async function clearCurrent() {
     if (!requireEditable(state.currentFileId)) return;
+    await flushActiveInput();
     const affected = [...state.drafts.entries()].filter(([identifier, draft]) => (
       identifier === state.currentFileId || draft.rootFileIds?.has(state.currentFileId)
     ));
@@ -1078,6 +1274,7 @@
       draft.operations = [];
       state.staleDrafts.delete(identifier);
     }
+    dropUndoForFileIds(affected.map(([identifier]) => identifier));
     renderSyncButton(state.currentFileId);
     renderTree(); applyDrafts(); syncDirtyState();
     postPreview("refresh-selection");
@@ -1216,6 +1413,7 @@
   }
 
   async function sendRequest() {
+    await flushActiveInput();
     if (state.staleDrafts.size) return toast("源文件已在外部变化，请刷新后重新编辑再发送。", "error");
     if (isActiveRequest()) return toast("当前 Agent 请求尚未完成，暂时不能再次发送。", "warn");
     const files = requestFiles();
@@ -1223,7 +1421,7 @@
     const button = $("#send-ai"); button.disabled = true;
     try {
       const result = await api("/api/requests", { schemaVersion: 1, files });
-      state.drafts.clear(); state.staleDrafts.clear(); renderTree(); applyDrafts(); syncDirtyState();
+      state.drafts.clear(); state.staleDrafts.clear(); state.undoStack = []; updateUndoButton(); renderTree(); applyDrafts(); syncDirtyState();
       selectFile(state.currentFileId, true);
       state.activeRequest = result.request;
       state.requestRevision = Number(result.revision || state.requestRevision);
@@ -1256,6 +1454,8 @@
     state.pollTimer = null;
     state.drafts.clear();
     state.staleDrafts.clear();
+    state.undoStack = [];
+    state.pendingUndoBatch = null;
     state.selection = null;
     state.editingAnnotation = null;
     clearSelectionPanel();
@@ -1392,7 +1592,7 @@
       $$(".tab").forEach((item) => item.classList.toggle("active", item === button));
       $$(".tab-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== button.dataset.tab));
     }));
-    $("#sync-pages").addEventListener("click", syncPages); $("#clear-current").addEventListener("click", clearCurrent);
+    $("#sync-pages").addEventListener("click", syncPages); $("#undo-changes").addEventListener("click", undoLast); $("#clear-current").addEventListener("click", clearCurrent);
     $("#send-ai").addEventListener("click", sendRequest);
     $("#copy-instruction").addEventListener("click", async () => {
       const copyTask = copyInstruction();
@@ -1407,7 +1607,7 @@
     $("#request-cancel").addEventListener("click", cancelActiveRequest);
     $("#request-dismiss").addEventListener("click", dismissRequestStatus);
     $("#request-details").addEventListener("click", showRequestDetails);
-    $("#save-annotation").addEventListener("click", saveAnnotation); $("#choose-image").addEventListener("click", chooseImage);
+    $("#save-annotation").addEventListener("click", saveAnnotation); $("#choose-image").addEventListener("click", chooseImage); $("#image-file-input").addEventListener("change", onImageFileSelected);
     let tooltipTimer;
     document.addEventListener("mousemove", (event) => {
       const target = event.target.closest?.("[data-tooltip]");

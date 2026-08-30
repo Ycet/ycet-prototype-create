@@ -114,7 +114,9 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .canvas-hint kbd { padding: 1px 4px; border: 1px solid rgba(79,140,255,.2); border-radius: 4px; color: #286fdc; background: rgba(239,246,255,.96); box-shadow: 0 1px 0 rgba(69,112,170,.12); font: 9px/1.35 var(--mono); }
 
 .inspector { display: flex; flex-direction: column; padding: 11px; overflow: hidden; }
-.primary-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.primary-actions { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.primary-actions .secondary-button { display: inline-flex; align-items: center; gap: 4px; }
+.primary-actions .secondary-button svg { width: 13px; height: 13px; }
 .primary-button, .secondary-button, .danger-button, .sync-button { min-height: 32px; padding: 7px 10px; border-radius: 6px; font-weight: 700; }
 .primary-button { border: 0; color: white; background: var(--accent); }
 .primary-button:hover { background: var(--accent-hover); }
@@ -156,6 +158,11 @@ label i { flex: 0 0 auto; color: var(--muted); font: normal 9px/1 var(--mono); }
 .two-col, .corner-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
 .font-control { display: grid; grid-template-columns: minmax(0,1fr) 28px; align-items: end; gap: 6px; }
 .font-control label { min-width: 0; }
+/* 布局模块宽高联动行：宽度输入 | 链接按钮 | 高度输入 */
+.size-link-row { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); align-items: end; gap: 6px; }
+.size-link-row label { min-width: 0; }
+.size-ratio { margin-top: 5px; color: var(--muted); font: normal 9px/1 var(--mono); text-align: center; }
+.size-link-row + .two-col { margin-top: 7px; }
 .two-col + .two-col { margin-top: 7px; }
 .transform-row { display: grid; grid-template-columns: minmax(0,1fr) repeat(3,28px); align-items: end; gap: 6px; margin-top: 7px; }
 .corner-grid { margin-top: 7px; }

@@ -32,6 +32,8 @@ HOST = "127.0.0.1"
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 ASSET_ROOT = SKILL_ROOT / "assets" / "workbench"
 ALLOWED_OPERATIONS = {"annotation", "style", "text", "image-replace", "css", "sync-pages"}
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
+IMAGE_UPLOAD_MAX_BYTES = 32 * 1024 * 1024
 ACTIVE_REQUEST_STATUSES = {"pending", "processing"}
 TERMINAL_REQUEST_STATUSES = {"success", "partial", "failed", "aborted"}
 IGNORED_PROJECT_HTML_DIRS = {".git", ".ycet-editor", "__pycache__", "node_modules", ".venv", "venv", ".cache", ".pytest_cache", ".mypy_cache", ".tox"}
@@ -382,6 +384,21 @@ def list_system_fonts() -> list[str]:
     return sorted(families, key=str.casefold)
 
 
+def sniff_image(data: bytes, suffix: str) -> bool:
+    """对上传图片做轻量魔数校验，防止伪装扩展名的非图片内容进入工作台。"""
+    if suffix == ".png":
+        return data.startswith(b"\x89PNG\r\n\x1a\n")
+    if suffix in {".jpg", ".jpeg"}:
+        return data.startswith(b"\xff\xd8\xff")
+    if suffix == ".webp":
+        return data[:4] == b"RIFF" and len(data) >= 12 and data[8:12] == b"WEBP"
+    if suffix == ".gif":
+        return data.startswith((b"GIF87a", b"GIF89a"))
+    if suffix == ".svg":
+        return b"<svg" in data[:4096].lower()
+    return False
+
+
 def choose_file(kind: str) -> Path | None:
     if kind != "image":
         raise WorkbenchError("文件选择类型无效")
@@ -714,6 +731,35 @@ def handler_factory(service: WorkbenchService):
             )
             self._send(200, payload, HTML_MIME, {"Content-Security-Policy": csp, "Cache-Control": "no-store"})
 
+        def _upload_image(self) -> None:
+            """接收浏览器原生文件选择器上传的图片字节，登记为待替换资源（不落入 prototype/）。"""
+            if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "application/octet-stream":
+                raise WorkbenchError("图片上传必须使用 application/octet-stream")
+            name = urllib.parse.unquote(self.headers.get("X-YCET-Filename", "") or "") or "upload"
+            if any(character in name for character in ("/", "\\", "\x00")) or name in {".", ".."}:
+                raise WorkbenchError("文件名无效")
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError as exc:
+                raise WorkbenchError("请求长度无效") from exc
+            if length <= 0 or length > IMAGE_UPLOAD_MAX_BYTES:
+                raise WorkbenchError(f"图片大小必须在 1 字节到 {IMAGE_UPLOAD_MAX_BYTES // (1024 * 1024)} MiB 之间")
+            data = self.rfile.read(length)
+            if len(data) != length:
+                raise WorkbenchError("图片上传不完整")
+            suffix = Path(name).suffix.lower()
+            if suffix not in ALLOWED_IMAGE_EXTENSIONS:
+                raise WorkbenchError("请选择受支持的图片文件")
+            if not sniff_image(data, suffix):
+                raise WorkbenchError("文件内容不是受支持的图片")
+            identifier = uuid.uuid4().hex
+            upload_dir = service.workspace.paths["root"] / "uploads"
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            destination = upload_dir / f"{identifier}{suffix}"
+            destination.write_bytes(data)
+            service.selected_assets[identifier] = destination
+            self._send_json({"cancelled": False, "assetId": identifier, "name": Path(name).name, "path": str(destination)})
+
         def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
             parsed = urllib.parse.urlsplit(self.path)
             path = parsed.path
@@ -776,7 +822,8 @@ def handler_factory(service: WorkbenchService):
                 self._error(403, "实例令牌无效")
                 return
             try:
-                payload = self._json_body()
+                # 图片上传是原始字节流，不能按 JSON 解析；其余端点统一读取 JSON 请求体。
+                payload: dict[str, Any] = {} if parsed.path == "/api/assets/upload" else self._json_body()
                 if parsed.path == "/api/workspace/sync":
                     paths = [Path(item) for item in payload.get("paths", [])]
                     # 仅用户点击刷新时恢复此前从工作台移除、但磁盘仍存在的项目 HTML。
@@ -801,6 +848,8 @@ def handler_factory(service: WorkbenchService):
                 elif parsed.path == "/api/workspace/preferences":
                     self._send_json(service.workspace.update_preferences(payload))
                     service.bump()
+                elif parsed.path == "/api/assets/upload":
+                    self._upload_image()
                 elif parsed.path == "/api/dialog":
                     kind = payload.get("kind")
                     if kind != "image":
