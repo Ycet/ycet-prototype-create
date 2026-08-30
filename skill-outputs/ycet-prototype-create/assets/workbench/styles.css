@@ -114,7 +114,9 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .canvas-hint kbd { padding: 1px 4px; border: 1px solid rgba(79,140,255,.2); border-radius: 4px; color: #286fdc; background: rgba(239,246,255,.96); box-shadow: 0 1px 0 rgba(69,112,170,.12); font: 9px/1.35 var(--mono); }
 
 .inspector { display: flex; flex-direction: column; padding: 11px; overflow: hidden; }
-.primary-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.primary-actions { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.primary-actions .secondary-button { display: inline-flex; align-items: center; gap: 4px; }
+.primary-actions .secondary-button svg { width: 13px; height: 13px; }
 .primary-button, .secondary-button, .danger-button, .sync-button { min-height: 32px; padding: 7px 10px; border-radius: 6px; font-weight: 700; }
 .primary-button { border: 0; color: white; background: var(--accent); }
 .primary-button:hover { background: var(--accent-hover); }

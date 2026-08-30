@@ -344,6 +344,22 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(denied.exception.code, 400)
         denied.exception.close()
 
+    def test_served_assets_include_undo_button(self) -> None:
+        status, _headers, html = self.running.request("/assets/index.html")
+        self.assertEqual(status, 200)
+        self.assertIn(b'id="undo-changes"', html)
+        status, _headers, script = self.running.request("/assets/app.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"undoLast", script)
+        self.assertIn(b"pushUndoEntry", script)
+        self.assertIn(b"prevOperation", script)
+        self.assertIn(b"sizeRatio", script)
+        self.assertIn(b"flushActiveInput", script)
+        status, _headers, runtime = self.running.request("/assets/preview-runtime.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"refresh-selection", runtime)
+        self.assertIn(b"lastClicked", runtime)
+
     def upload(self, name: str, data: bytes, content_type: str = "application/octet-stream") -> tuple[int, dict, object]:
         request = urllib.request.Request(
             self.running.url + "/api/assets/upload",

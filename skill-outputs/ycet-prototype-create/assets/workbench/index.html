@@ -52,7 +52,7 @@
         </section>
 
         <aside class="inspector glass" aria-label="属性编辑器">
-          <header class="primary-actions"><button id="send-ai" class="primary-button" type="button">发送给 AI</button><button id="clear-current" class="secondary-button" type="button" data-tooltip="清空当前html文件的样式修改">清空修改</button></header>
+          <header class="primary-actions"><button id="send-ai" class="primary-button" type="button">发送给 AI</button><button id="undo-changes" class="secondary-button" type="button" disabled data-tooltip="撤销上一步样式修改" aria-label="撤销上一步样式修改"><svg><use href="/assets/icons.svg#undo" /></svg><span>撤回</span></button><button id="clear-current" class="secondary-button" type="button" data-tooltip="清空当前html文件的样式修改">清空修改</button></header>
           <section id="request-status" class="request-status hidden" aria-live="polite">
             <div class="request-status-copy"><span id="request-status-badge" class="request-badge">待交给 Agent</span><code id="request-status-id"></code><small id="request-status-note"></small></div>
             <div class="request-status-actions"><button id="request-copy" class="icon-button" type="button" data-tooltip="再次复制执行指令" aria-label="再次复制执行指令"><svg><use href="/assets/icons.svg#copy" /></svg></button><button id="request-cancel" class="icon-button danger" type="button" data-tooltip="取消待处理请求" aria-label="取消待处理请求"><svg><use href="/assets/icons.svg#x" /></svg></button><button id="request-dismiss" class="icon-button hidden" type="button" data-tooltip="关闭处理成功消息" aria-label="关闭处理成功消息"><svg><use href="/assets/icons.svg#x" /></svg></button><button id="request-details" class="secondary-button" type="button">查看详情</button></div>

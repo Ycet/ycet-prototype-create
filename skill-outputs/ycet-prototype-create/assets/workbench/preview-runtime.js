@@ -9,6 +9,7 @@
   const contexts = new Map();
   let selectMode = false;
   let selected = null;
+  let lastClicked = null;
   let hoverBox = null;
   let selectionBox = null;
   let nameBadge = null;
@@ -412,6 +413,7 @@
     event.preventDefault();
     event.stopPropagation();
     selected = element;
+    lastClicked = element;
     drawSelection(element);
     emit("selection", { selection: selectionPayload(element) });
   }
@@ -604,8 +606,11 @@
     if (message.channel !== CHANNEL) return;
     if (message.type === "select-mode") {
       selectMode = Boolean(message.active);
-      if (!selectMode && hoverBox) {
-        selected = null;
+      if (hoverBox) {
+        // 关闭选择模式时保留 selected（仅隐藏覆盖层），使工作台的“刷新选区”消息（清空修改、撤回等）
+        // 在非选择模式下也能重新上报选中元素的实时样式；重新开启选择模式时清空，
+        // 保持“再次开启后需重新点击元素才显示选区”的既有规则。
+        if (selectMode) selected = null;
         hoverBox.hidden = true;
         nameBadge.hidden = true;
         selectionBox.hidden = true;
@@ -613,6 +618,7 @@
       }
     } else if (message.type === "clear-selection") {
       selected = null;
+      lastClicked = null;
       if (hoverBox) {
         hoverBox.hidden = true;
         nameBadge.hidden = true;
@@ -624,9 +630,11 @@
       renderAnnotations(message.annotations);
     } else if (message.type === "annotations") {
       renderAnnotations(message.annotations);
-    } else if (message.type === "refresh-selection" && selected) {
+    } else if (message.type === "refresh-selection" && (lastClicked || selected)?.isConnected) {
+      // 用最近一次点击的元素重新上报实时选区（select-mode 切换可能已清空 selected，
+      // lastClicked 仅在用户显式清空选区时重置），使侧边栏能同步回到撤回后的状态。
       scheduleOverlayRefresh();
-      emit("selection", { selection: selectionPayload(selected) });
+      emit("selection", { selection: selectionPayload(lastClicked || selected) });
     } else if (message.type === "scroll-page") {
       window.scrollBy({ left: Number(message.deltaX) || 0, top: Number(message.deltaY) || 0, behavior: "auto" });
     }
