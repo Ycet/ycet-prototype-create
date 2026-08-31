@@ -39,6 +39,7 @@
     dismissedRequestIds: new Set(),
     undoStack: [],
     pendingUndoBatch: null,
+    suppressUndoRecord: false,
   };
 
   const els = {
@@ -532,7 +533,8 @@
     const draft = draftFor(state.selection.fileId);
     const existing = draft?.operations.find((item) => item._key === key) || null;
     // 撤回历史：仅在实际改变值时记录，前一个有效操作（含样式与图片替换）作为撤销目标（null 表示原本未设置，撤销时删除操作）。
-    if (!existing || existing.value !== next) {
+    // 输入框的会话级撤销由 applyFieldChange 统一记录，这里用 suppressUndoRecord 避免重复记录。
+    if (!state.suppressUndoRecord && (!existing || existing.value !== next)) {
       pushUndoEntry({ fileId: state.selection.fileId, key, fingerprint: state.selection.fingerprint, prevOperation: existing ? { ...existing } : null });
     }
     upsertOperation(state.selection.fileId, { type: "style", fingerprint: state.selection.fingerprint, property, value: next }, key);
@@ -554,6 +556,44 @@
     state.pendingUndoBatch.push(entry);
   }
 
+  const fieldSessions = new WeakMap();
+
+  function fieldSession(input) {
+    let session = fieldSessions.get(input);
+    if (!session) {
+      session = { recorded: new Set() };
+      fieldSessions.set(input, session);
+    }
+    return session;
+  }
+
+  function endFieldSession(input) {
+    fieldSessions.delete(input);
+  }
+
+  // 输入框变更：实时应用到画布（逐键、键盘上下键、上下按钮均即时同步），
+  // 同时保证同一次聚焦会话内每个样式键只记录一次撤销目标（会话开始时状态），
+  // 连续微调合并为一个撤销步，撤销时整体回到本会话开始前的状态。
+  function applyFieldChange(input, keys, apply) {
+    if (!state.selection) { apply(); return; }
+    const session = fieldSession(input);
+    const draft = draftFor(state.selection.fileId);
+    for (const key of keys) {
+      if (session.recorded.has(key)) continue;
+      session.recorded.add(key);
+      const existing = draft?.operations.find((item) => item._key === key) || null;
+      pushUndoEntry({ fileId: state.selection.fileId, key, fingerprint: state.selection.fingerprint, prevOperation: existing ? { ...existing } : null });
+    }
+    state.suppressUndoRecord = true;
+    try { apply(); } finally { state.suppressUndoRecord = false; }
+  }
+
+  function fieldStyleKeys(property) {
+    if (!state.selection) return [];
+    const prefix = `style:${fingerprintKey(state.selection.fingerprint)}:`;
+    return [`${prefix}${property}`];
+  }
+
   function dropUndoForFileIds(fileIds) {
     const blocked = fileIds instanceof Set ? fileIds : new Set(fileIds);
     if (!blocked.size) return;
@@ -562,7 +602,8 @@
   }
 
   function flushActiveInput() {
-    // 输入框的变更在失焦时提交；触发撤销/发送/清空前先提交尚未失焦的修改，并等待其撤销批次入栈。
+    // 触发撤销/发送/清空前结束输入框聚焦会话（blur 会触发结束会话与文本字段提交），
+    // 并等待其撤销批次入栈，保证“正在编辑”的输入成为被撤回的最近一步。
     const active = document.activeElement;
     if (active && active !== document.body && typeof active.blur === "function") active.blur();
     return new Promise((resolve) => setTimeout(resolve, 0));
@@ -676,20 +717,43 @@
         }
         styleOperation(input.dataset.css, value);
       };
-      // 输入框的变更只在失焦（或回车时失焦）提交一次：逐键输入、键盘上下键与上下按钮的连续微调
-      // 在同一次聚焦内合并为一次变更记录与撤销步；下拉选择保持“选择即提交”（单次操作单次记录）。
+      const keys = () => {
+        if (!state.selection) return [];
+        const prefix = `style:${fingerprintKey(state.selection.fingerprint)}:`;
+        const primary = `${prefix}${input.dataset.css}`;
+        // 宽高联动时同一手势会同步修改两个属性，两个键都纳入本会话撤销目标。
+        if ((input.id === "width" || input.id === "height") && $("#link-size")?.getAttribute("aria-pressed") === "true") {
+          return [primary, `${prefix}${input.id === "width" ? "height" : "width"}`];
+        }
+        // 静态定位元素调整 X/Y 时会顺带写入 position:relative，一并纳入。
+        if (["position-x", "position-y"].includes(input.id) && state.selection.element.styles.position === "static") {
+          return [primary, `${prefix}position`];
+        }
+        return [primary];
+      };
+      // 输入框每次变更实时同步画布（逐键、键盘上下键、上下按钮）；同一聚焦会话内只记录一次撤销目标；
+      // 下拉选择保持“选择即提交”（单次操作单次记录）。
       if (input.tagName === "SELECT") {
         input.addEventListener("change", apply);
       } else {
-        input.addEventListener("blur", apply);
+        input.addEventListener("input", () => applyFieldChange(input, keys(), apply));
+        input.addEventListener("blur", () => endFieldSession(input));
         input.addEventListener("keydown", (event) => { if (event.key === "Enter") input.blur(); });
       }
     });
-    const radiusApply = (event) => {
-      ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${event.target.value}px`));
-      ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => setValue(id, event.target.value));
+    const radiusApply = () => {
+      ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${radius.value}px`));
+      ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => setValue(id, radius.value));
     };
-    $("#radius-all").addEventListener("blur", radiusApply);
+    const radiusKeys = () => [
+      ...fieldStyleKeys("border-top-left-radius"),
+      ...fieldStyleKeys("border-top-right-radius"),
+      ...fieldStyleKeys("border-bottom-left-radius"),
+      ...fieldStyleKeys("border-bottom-right-radius"),
+    ];
+    const radius = $("#radius-all");
+    radius.addEventListener("input", () => applyFieldChange(radius, radiusKeys(), radiusApply));
+    radius.addEventListener("blur", () => endFieldSession(radius));
     $("#link-radius").addEventListener("click", (event) => {
       const active = event.currentTarget.getAttribute("aria-pressed") !== "true";
       event.currentTarget.setAttribute("aria-pressed", String(active));
@@ -706,25 +770,34 @@
         state.sizeRatio = shownHeight > 0 ? shownWidth / shownHeight : 0;
       }
     });
-    $$(".corner-grid input").forEach((input) => input.addEventListener("blur", () => {
+    $$(".corner-grid input").forEach((input) => input.addEventListener("input", () => {
       if ($("#link-radius").getAttribute("aria-pressed") !== "true") return;
-      ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => { if (id !== input.id) setValue(id, input.value); });
-      ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${input.value}px`));
+      applyFieldChange(input, radiusKeys(), () => {
+        ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => { if (id !== input.id) setValue(id, input.value); });
+        ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${input.value}px`));
+      });
     }));
     $$(".alignment button").forEach((button) => button.addEventListener("click", () => {
       $$(".alignment button").forEach((item) => item.classList.toggle("active", item === button));
       styleOperation("text-align", button.dataset.align);
     }));
     const applyTransform = () => styleOperation("transform", `rotate(${state.transform.rotation}deg) scale(${state.transform.flipX}, ${state.transform.flipY})`);
-    $("#rotation").addEventListener("blur", (event) => { state.transform.rotation = number(event.target.value); applyTransform(); });
+    const rotation = $("#rotation");
+    rotation.addEventListener("input", () => applyFieldChange(rotation, fieldStyleKeys("transform"), () => {
+      state.transform.rotation = number(rotation.value);
+      applyTransform();
+    }));
+    rotation.addEventListener("blur", () => endFieldSession(rotation));
     $("#rotate-90").addEventListener("click", () => { state.transform.rotation = (state.transform.rotation + 90) % 360; setValue("rotation", state.transform.rotation); applyTransform(); });
     $("#flip-x").addEventListener("click", () => { state.transform.flipX *= -1; $("#flip-x").classList.toggle("pressed", state.transform.flipX < 0); applyTransform(); });
     $("#flip-y").addEventListener("click", () => { state.transform.flipY *= -1; $("#flip-y").classList.toggle("pressed", state.transform.flipY < 0); applyTransform(); });
-    $("#fill-opacity").addEventListener("blur", (event) => {
+    const fillOpacity = $("#fill-opacity");
+    fillOpacity.addEventListener("input", () => applyFieldChange(fillOpacity, fieldStyleKeys("background-color"), () => {
       const color = $('[data-color-property="background-color"]').dataset.color || "rgb(255,255,255)";
       const rgb = parseColor(color);
-      styleOperation("background-color", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${number(event.target.value) / 100})`);
-    });
+      styleOperation("background-color", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${number(fillOpacity.value) / 100})`);
+    }));
+    fillOpacity.addEventListener("blur", () => endFieldSession(fillOpacity));
   }
 
   function setZoom(value, anchor) {
