@@ -123,7 +123,7 @@ def main() -> int:
         "用户回复前不得继续",
         "按功能一相同的 Manifest 端口映射",
         "直接生成 `prototype/docs/Spec.md`",
-        "不得调用 `brainstorming-solo` 或 `grill-me`",
+        "不得调用外部需求访谈 Skill",
         "静态高保真原型完成后必须停止",
         "禁止将图片解构、OCR 还原或重绘为页面元素",
         "生成 `prototype.html` 前必须",
@@ -131,7 +131,7 @@ def main() -> int:
         if token not in skill_md:
             fail(f"SKILL.md 缺少功能四前置、静态或交互门禁: {token}", failures)
     for token in (
-        "功能一的结构化 PRD 调用 `grill-me` 时",
+        "功能一的结构化 PRD 提问只可追问",
         "只可追问产品交互逻辑、各页面元素、业务规则、边界条件和异常处理场景",
         "主流程可单独直接询问一次",
         "无损位图分割为固定区与可滚动区",
@@ -211,31 +211,31 @@ def main() -> int:
             fail(f"功能二缺少工作台执行规则: {token}", failures)
 
     function_one = (ROOT / "docs" / "function-1-static-prototype.md").read_text(encoding="utf-8")
-    if "brainstorming-solo" not in function_one or "superpowers:brainstorming" in function_one:
-        fail("功能一未正确切换到 brainstorming-solo", failures)
+    if "不调用任何外部需求访谈 Skill" not in function_one or "brainstorming-solo" in function_one or "grill-me" in function_one:
+        fail("功能一仍引用外部需求访谈 Skill 或缺少不调用声明", failures)
     for token in (
         "### 阶段一强制范围",
         "不得启动视觉伴侣",
         "阶段二待处理输入",
+        "阶段一不调用任何外部需求访谈 Skill",
+        "只选择当前最高优先级的一个需求缺口",
         'data-ycet-nav-target="pages/<file>.html"',
         "location.href",
         'type: "navigate"',
         "prototype_guard.py static",
-        "### 结构化 PRD 的 `grill-me` 专用边界",
-        "仅提问或追问产品交互逻辑、各页面元素、业务规则、边界条件和异常处理场景",
-        "不得重新询问产品背景、定位、目标用户、使用场景、既有页面清单、页面名称或已确认功能目标",
-        "不能交给 `grill-me` 扩展为其他问题",
+        "### 一次一问提问协议",
+        "### Spec 生成门槛",
     ):
         if token not in function_one:
             fail(f"功能一缺少阶段或静态交互强约束: {token}", failures)
     require_order(
         function_one,
         (
-            "### 结构化 PRD 的 `grill-me` 专用边界",
-            "### 需求审计与提问",
+            "### 阶段一强制范围",
+            "### 一次一问提问协议",
             "### Spec 生成门槛",
         ),
-        "功能一结构化 PRD 复核与 Spec 门禁",
+        "功能一阶段一范围、提问协议与 Spec 门禁",
         failures,
     )
     for url in ("https://open-design.ai/zh/plugins/systems/", "https://ui-ux-pro-max-skill.com/zh/#styles"):
