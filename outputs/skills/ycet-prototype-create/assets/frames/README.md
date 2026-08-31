@@ -33,7 +33,7 @@ assets/frames/
 
 ## 职责边界
 
-- 框架负责系统 UI：状态栏、灵动岛、Home Indicator、Android 系统导航、浏览器外壳等。
+- 框架负责系统 UI：状态栏、摄像头（打孔/刘海）、Home Indicator、浏览器外壳、设备外壳等。
 - 内部页面负责产品 UI：App 顶部导航、Tab Bar、微信胶囊按钮、网站导航、桌面应用菜单和业务内容。
 - 页面根据 Manifest 的 `safeArea` 避让系统 UI，不重复绘制系统元素。
 

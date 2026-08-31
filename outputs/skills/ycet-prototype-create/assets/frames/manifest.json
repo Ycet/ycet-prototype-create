@@ -28,7 +28,7 @@
       "logicalViewport": { "width": 390, "height": 844 },
       "preview": { "width": 414, "height": 868, "scale": 1 },
       "safeArea": { "top": 47, "right": 0, "bottom": 28, "left": 0 },
-      "systemChrome": ["status-bar", "dynamic-island", "home-indicator"],
+      "systemChrome": ["status-bar", "home-indicator"],
       "productUiResponsibilities": ["app-header", "tab-bar", "page-content"],
       "defaultColumns": 4
     },
@@ -40,7 +40,7 @@
       "logicalViewport": { "width": 412, "height": 900 },
       "preview": { "width": 432, "height": 920, "scale": 1 },
       "safeArea": { "top": 36, "right": 0, "bottom": 28, "left": 0 },
-      "systemChrome": ["status-bar", "punch-hole", "system-navigation"],
+      "systemChrome": ["status-bar", "punch-hole"],
       "productUiResponsibilities": ["app-header", "tab-bar", "page-content"],
       "defaultColumns": 4
     },

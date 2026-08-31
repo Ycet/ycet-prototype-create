@@ -4,11 +4,11 @@
     {
       "id": 1,
       "prompt": "我只有一个想法：做一个帮助门店员工快速生成促销海报的 App，请帮我从需求开始制作高保真原型。",
-      "expected_output": "路由功能一，将输入判断为不完整需求，读取并使用 brainstorming-solo；在 brainstorming-solo 完成和 Spec 确认前不进入 UI 设计。",
+      "expected_output": "路由功能一，将输入判断为不完整需求，读取功能一文档并按阶段一执行：不调用任何外部需求访谈 Skill，由当前 Agent 内置提问框一次一问；在需求完整度审计通过和 Spec 确认前不进入 UI 设计。",
       "files": [],
       "assertions": [
         {"name": "route-function-1", "description": "读取 docs/function-1-static-prototype.md"},
-        {"name": "use-brainstorming-solo", "description": "不完整需求使用 brainstorming-solo，不使用 superpowers:brainstorming"},
+        {"name": "no-external-interview-skill", "description": "不完整需求不调用任何外部需求访谈 Skill（brainstorming-solo、grill-me），使用内置提问框一次一问"},
         {"name": "respect-spec-gate", "description": "需求梳理未完成前不生成或确认 Spec 后续产物"}
       ]
     },

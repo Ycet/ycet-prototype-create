@@ -22,7 +22,6 @@
     }
     .screen { position: relative; width: 390px; height: 844px; overflow: hidden; border-radius: 48px; background: #fafaf7; }
     .inner { display: block; width: 390px; height: 844px; border: 0; background: #fafaf7; }
-    .island { position: absolute; z-index: 30; top: 22px; left: 50%; width: 124px; height: 36px; transform: translateX(-50%); border-radius: 999px; background: #000; pointer-events: none; }
     .statusbar { position: absolute; z-index: 20; inset: 0 0 auto; height: 47px; padding: 18px 26px 0; display: flex; justify-content: space-between; color: #171719; font-size: 15px; font-weight: 600; pointer-events: none; }
     .status-icons { display: flex; align-items: center; gap: 6px; }
     .status-icons svg { width: 17px; height: 11px; fill: currentColor; }
@@ -42,7 +41,6 @@
     <div class="screen">
       <iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" scrolling="no" src="about:blank"></iframe>
       <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="status-icons"><svg viewBox="0 0 17 11"><path d="M0 11V8h3v3zm4 0V6h3v5zm4 0V3h3v8zm4 0V0h3v11z"/></svg><svg viewBox="0 0 17 11"><path d="M8.5 1.2c-3 0-5.7 1.1-7.8 3l1.5 1.6a9 9 0 0 1 12.6 0l1.5-1.6a11.2 11.2 0 0 0-7.8-3zm0 4.2c-1.8 0-3.5.7-4.8 1.9l1.5 1.5a4.8 4.8 0 0 1 6.6 0l1.5-1.5a7 7 0 0 0-4.8-1.9z"/></svg><svg class="battery" viewBox="0 0 25 11"><rect x=".5" y=".5" width="21" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="18" height="7" rx="1.4"/><rect x="22" y="3.5" width="1.5" height="4" rx=".4"/></svg></span></div>
-      <span class="island" aria-hidden="true"></span>
       <div class="home-indicator" aria-hidden="true"></div>
     </div>
   </div>
