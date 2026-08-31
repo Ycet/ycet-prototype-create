@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "projectRoot": "/Users/Project/AI_project/00_Long_term_project/00_大型任务/03_skill制作/01_ycet-prototype-create/skill-outputs/ycet-prototype-create/assets/frames",
+  "files": [
+    {
+      "id": "bdc702b039ad70d30e04",
+      "source": "project",
+      "path": "android-pixel.html",
+      "name": "android-pixel.html",
+      "kind": "html",
+      "automaticGroup": "",
+      "missing": false,
+      "sha256": "89335740c76505f3d3c4325211736361295d37115cabe0cc9c316dae6a0dc766",
+      "mtimeNs": 1787395205000000000,
+      "manualGroup": null,
+      "order": 0
+    },
+    {
+      "id": "aa66923954b591cc2e31",
+      "source": "project",
+      "path": "browser-chrome.html",
+      "name": "browser-chrome.html",
+      "kind": "html",
+      "automaticGroup": "",
+      "missing": false,
+      "sha256": "b330f9215e63cd85513e554d79a3f47cf324729ce65412d92e28450ef019e115",
+      "mtimeNs": 1787395205000000000,
+      "manualGroup": null,
+      "order": 1
+    },
+    {
+      "id": "023d96af33f1c6503466",
+      "source": "project",
+      "path": "ipad-pro.html",
+      "name": "ipad-pro.html",
+      "kind": "html",
+      "automaticGroup": "",
+      "missing": false,
+      "sha256": "bf951de98a5220c5263e44b2a5778a8fd3a936ad86f70e958fbca55223bf6fbf",
+      "mtimeNs": 1787395205000000000,
+      "manualGroup": null,
+      "order": 2
+    },
+    {
+      "id": "ae848731b6ede700b5cd",
+      "source": "project",
+      "path": "iphone-15-pro.html",
+      "name": "iphone-15-pro.html",
+      "kind": "html",
+      "automaticGroup": "",
+      "missing": false,
+      "sha256": "a7364432bce5a9a0803b9639c901c01c0f54ef279ba656563a8409fd05e0afe1",
+      "mtimeNs": 1787395205000000000,
+      "manualGroup": null,
+      "order": 3
+    },
+    {
+      "id": "2d0d051874031f64190b",
+      "source": "project",
+      "path": "macbook.html",
+      "name": "macbook.html",
+      "kind": "html",
+      "automaticGroup": "",
+      "missing": false,
+      "sha256": "f630f3387abc6cd07409f97df938e00a4b75d6553bc07f600d7d582e57e426b3",
+      "mtimeNs": 1787395205000000000,
+      "manualGroup": null,
+      "order": 4
+    }
+  ],
+  "groups": [],
+  "hiddenProjectPaths": [],
+  "currentFileId": "bdc702b039ad70d30e04",
+  "zoomByFile": {
+    "bdc702b039ad70d30e04": 60,
+    "023d96af33f1c6503466": 100,
+    "aa66923954b591cc2e31": 100,
+    "ae848731b6ede700b5cd": 50,
+    "2d0d051874031f64190b": 100
+  },
+  "updatedAt": "2026-08-31T01:43:57+00:00"
+}

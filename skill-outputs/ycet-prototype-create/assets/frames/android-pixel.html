@@ -18,8 +18,6 @@
     .statusbar { position: absolute; z-index: 20; inset: 0 0 auto; height: 36px; padding: 12px 20px 0; display: flex; justify-content: space-between; color: #171719; font-size: 13px; font-weight: 500; pointer-events: none; }
     .status-icons { display: flex; align-items: center; gap: 5px; }
     .status-icons svg { width: 14px; height: 10px; fill: currentColor; }
-    .system-nav { position: absolute; z-index: 20; inset: auto 0 0; height: 28px; display: grid; grid-template-columns: repeat(3, 1fr); place-items: center; color: #171719; opacity: .72; pointer-events: none; }
-    .system-nav svg { width: 14px; height: 14px; }
     .device::before, .device::after { content: ""; position: absolute; right: -3px; width: 4px; border-radius: 3px; background: #09090a; }
     .device::before { top: 160px; height: 70px; }
     .device::after { top: 240px; height: 110px; }
@@ -31,7 +29,6 @@
       <iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" scrolling="no" src="about:blank"></iframe>
       <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="status-icons"><svg viewBox="0 0 14 10"><path d="M0 10V7h2v3zm4 0V5h2v5zm4 0V2h2v8zm4 0V0h2v10z"/></svg><svg viewBox="0 0 14 10"><path d="M7 1c-2.5 0-4.7.9-6.5 2.5L2 5a7.5 7.5 0 0 1 10 0l1.5-1.5A9.6 9.6 0 0 0 7 1zm0 4c-1.4 0-2.7.5-3.8 1.4L4.7 8A3.5 3.5 0 0 1 7 7.1c.9 0 1.7.3 2.3.9l1.5-1.6A5.8 5.8 0 0 0 7 5z"/></svg><svg viewBox="0 0 22 10"><rect x=".5" y=".5" width="18" height="9" rx="2" fill="none" stroke="currentColor"/><rect x="2" y="2" width="15" height="6" rx="1"/><rect x="19" y="3" width="1.5" height="4" rx=".4"/></svg></span></div>
       <span class="camera" aria-hidden="true"></span>
-      <nav class="system-nav" aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M9 2 4 7l5 5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><svg viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></nav>
     </div>
   </div>
   <script>
