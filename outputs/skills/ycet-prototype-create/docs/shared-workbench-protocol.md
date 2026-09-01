@@ -52,7 +52,7 @@ python <skill目录>/scripts/prototype_workbench.py status --project-root <项�
 - 没有 `prototype/` 或没有 HTML 时正常启动空工作台，不得关闭服务或伪造文件。
 - 图片选择默认由浏览器原生文件选择器完成：网页通过隐藏 `<input type="file">` 弹出系统文件面板（macOS 上即访达），选中图片以字节流上传到受令牌保护的 `POST /api/assets/upload`（`Content-Type: application/octet-stream`，文件名经 `X-YCET-Filename` 传递），服务端校验扩展名、内容魔数与大小（上限 32 MiB）后存入 `.ycet-editor/uploads/` 作为临时预览资源，只登记路径并用于预览；发送前不复制到 `prototype/`、不修改图片或 HTML。
 - 旧版 `POST /api/dialog` 系统文件对话框（Tk）仅保留为自动化/兼容路径；除非显式设置 `YCET_WORKBENCH_DIALOG_PATH`，网页不再调用。仍调用时对话框必须由 Python 进程主线程执行，`ThreadingHTTPServer` 请求线程只能提交任务并等待结果，禁止直接创建 Tk 根窗口；macOS 系统 Python 的 Tk 8.5 已知无法弹出面板且会挂起进程，不得将其作为新依赖。
-- 文件监听发现外部变化时，无草稿文件刷新摘要与预览；有草稿文件标记冲突并禁止发送，直到用户刷新源文件并重新编辑。
+- 文件监听发现外部变化时，无草稿文件刷新摘要与预览；有草稿文件标记冲突并禁止发送，直到用户刷新源文件并重新编辑。Agent 完成一轮请求（`success`/`partial`/`failed`/`aborted` 终态）后，工作台自动同步到磁盘最新状态：无会话草稿时强制刷新当前预览，文件树按最新工作区重绘；当前文件有会话草稿时保留草稿不自动刷新，避免覆盖用户未发送的修改。
 
 ## 预览与定位
 
@@ -81,6 +81,8 @@ Agent 必须以文件摘要和完整元素指纹共同定位。选择器不唯�
 | `image-replace` | 本地图片替换 |
 | `css` | 任意 CSS 属性和值 |
 | `sync-pages` | 静态页到运行时页的受控同步 |
+
+当元素没有可见边框（`border-style` 计算值为 `none`/`hidden`）时，仅设置 `border-width` 或 `border-color` 不会渲染；工作台会在设置非零 `border-width` 时自动追加 `border-style: solid`，设置 `border-color` 时在宽度仍为 0 的情况下追加 `border-style: solid` 与 `border-width: 1px`，使边框修改立即可见。Agent 执行此类变更包时按逐项操作如实落实即可。
 
 CSS 与样式值在预览中可自由应用；Agent 落实时必须拒绝远程 URL、`@import`、`javascript:`、`expression()`、越界路径和违反当前功能守卫的值。
 

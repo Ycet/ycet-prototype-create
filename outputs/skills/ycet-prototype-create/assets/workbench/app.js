@@ -538,6 +538,38 @@
       pushUndoEntry({ fileId: state.selection.fileId, key, fingerprint: state.selection.fingerprint, prevOperation: existing ? { ...existing } : null });
     }
     upsertOperation(state.selection.fileId, { type: "style", fingerprint: state.selection.fingerprint, property, value: next }, key);
+    // 边框可见性：元素没有可见边框（border-style 为 none/hidden）时，单独设置 border-width 或 border-color 不会渲染。
+    // 此时自动补 border-style: solid，让边框修改立即在画布可见；颜色调整且宽度仍为 0 时补 1px。
+    if ((property === "border-width" && parseFloat(next) > 0) || property === "border-color") ensureBorderVisible(property);
+  }
+
+  function effectiveBorderStyle() {
+    if (!state.selection) return "none";
+    const key = `style:${fingerprintKey(state.selection.fingerprint)}:border-style`;
+    const operation = draftFor(state.selection.fileId, false)?.operations.find((item) => item._key === key);
+    return String(operation?.value || state.selection.element?.styles?.borderStyle || "none");
+  }
+
+  function effectiveBorderWidth() {
+    if (!state.selection) return 0;
+    const key = `style:${fingerprintKey(state.selection.fingerprint)}:border-width`;
+    const operation = draftFor(state.selection.fileId, false)?.operations.find((item) => item._key === key);
+    const parsed = parseFloat(String(operation?.value ?? state.selection.element?.styles?.borderWidth ?? "0"));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function isBorderInvisible() {
+    const style = effectiveBorderStyle();
+    return style === "none" || style === "hidden";
+  }
+
+  function ensureBorderVisible(triggerProperty) {
+    if (!isBorderInvisible()) return;
+    styleOperation("border-style", "solid");
+    if (triggerProperty === "border-color" && effectiveBorderWidth() <= 0) {
+      setValue("border-width", "1");
+      styleOperation("border-width", "1px");
+    }
   }
 
   function pushUndoEntry(entry) {
@@ -729,6 +761,8 @@
         if (["position-x", "position-y"].includes(input.id) && state.selection.element.styles.position === "static") {
           return [primary, `${prefix}position`];
         }
+        // 无可见边框时调整粗细会自动补 border-style: solid，一并纳入本会话撤销目标。
+        if (input.id === "border-width" && isBorderInvisible()) return [primary, `${prefix}border-style`];
         return [primary];
       };
       // 输入框每次变更实时同步画布（逐键、键盘上下键、上下按钮）；同一聚焦会话内只记录一次撤销目标；
@@ -1000,6 +1034,16 @@
     const key = property && state.selection ? `style:${fingerprintKey(state.selection.fingerprint)}:${property}` : null;
     const draft = key ? draftFor(state.selection.fileId, false) : null;
     const operation = key ? draft?.operations.find((item) => item._key === key) : null;
+    // 边框颜色选择会自动补 border-style/border-width，取消时需一并回滚到打开对话框前的状态。
+    const borderAutoKeys = [];
+    if (property === "border-color" && state.selection) {
+      const prefix = `style:${fingerprintKey(state.selection.fingerprint)}:`;
+      for (const borderProperty of ["border-style", "border-width"]) {
+        const autoKey = `${prefix}${borderProperty}`;
+        const autoOperation = draftFor(state.selection.fileId, false)?.operations.find((item) => item._key === autoKey) || null;
+        borderAutoKeys.push({ key: autoKey, operation: autoOperation ? { ...autoOperation } : null });
+      }
+    }
     state.colorSession = {
       button,
       color: button.dataset.color || "#ffffff",
@@ -1007,6 +1051,7 @@
       fileId: state.selection?.fileId,
       key,
       operation: operation ? { ...operation } : null,
+      borderAutoKeys,
     };
     state.colorTarget = button;
     setColorDialog(button.dataset.color || "#ffffff");
@@ -1041,6 +1086,16 @@
       else draft.operations.push(session.operation);
     } else if (index >= 0) {
       draft.operations.splice(index, 1);
+    }
+    // 回滚本次颜色会话自动补充的 border-style/border-width。
+    for (const auto of session.borderAutoKeys || []) {
+      const autoIndex = draft.operations.findIndex((item) => item._key === auto.key);
+      if (auto.operation) {
+        if (autoIndex >= 0) draft.operations[autoIndex] = auto.operation;
+        else draft.operations.push(auto.operation);
+      } else if (autoIndex >= 0) {
+        draft.operations.splice(autoIndex, 1);
+      }
     }
     renderTree();
     applyDrafts();
@@ -1558,6 +1613,11 @@
     confirmAction("关闭工作台进程", copy, shutdownWorkbench, "关闭进程");
   }
 
+  function refreshPreviewAfterAgentResult() {
+    // Agent 完成一轮处理后，无会话草稿时强制刷新当前预览；有草稿时保留草稿避免覆盖未发送修改。
+    if (!hasDraft(state.currentFileId) && fileById(state.currentFileId)) selectFile(state.currentFileId, true);
+  }
+
   async function poll() {
     if (state.serviceClosed) return;
     try {
@@ -1585,7 +1645,13 @@
       renderTree();
       renderRequestStatus();
       const latest = state.results[0];
-      if (latest?.requestId && latest.requestId !== state.latestResultId) { state.latestResultId = latest.requestId; showResults(state.results); }
+      if (latest?.requestId && latest.requestId !== state.latestResultId) {
+        state.latestResultId = latest.requestId;
+        // Agent 完成一轮处理后自动同步到磁盘最新状态：无会话草稿时强制刷新当前预览，
+        // 文件树已在上方按最新工作区重绘，切回其他文件时也会加载最新内容。
+        refreshPreviewAfterAgentResult();
+        showResults(state.results);
+      }
     } catch (_error) {
       els.connectionDot.classList.add("offline"); els.connectionCopy.textContent = "服务已关闭";
     }
