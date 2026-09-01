@@ -1558,6 +1558,11 @@
     confirmAction("关闭工作台进程", copy, shutdownWorkbench, "关闭进程");
   }
 
+  function refreshPreviewAfterAgentResult() {
+    // Agent 完成一轮处理后，无会话草稿时强制刷新当前预览；有草稿时保留草稿避免覆盖未发送修改。
+    if (!hasDraft(state.currentFileId) && fileById(state.currentFileId)) selectFile(state.currentFileId, true);
+  }
+
   async function poll() {
     if (state.serviceClosed) return;
     try {
@@ -1585,7 +1590,13 @@
       renderTree();
       renderRequestStatus();
       const latest = state.results[0];
-      if (latest?.requestId && latest.requestId !== state.latestResultId) { state.latestResultId = latest.requestId; showResults(state.results); }
+      if (latest?.requestId && latest.requestId !== state.latestResultId) {
+        state.latestResultId = latest.requestId;
+        // Agent 完成一轮处理后自动同步到磁盘最新状态：无会话草稿时强制刷新当前预览，
+        // 文件树已在上方按最新工作区重绘，切回其他文件时也会加载最新内容。
+        refreshPreviewAfterAgentResult();
+        showResults(state.results);
+      }
     } catch (_error) {
       els.connectionDot.classList.add("offline"); els.connectionCopy.textContent = "服务已关闭";
     }
