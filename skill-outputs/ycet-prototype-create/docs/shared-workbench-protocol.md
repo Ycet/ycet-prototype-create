@@ -82,6 +82,8 @@ Agent 必须以文件摘要和完整元素指纹共同定位。选择器不唯�
 | `css` | 任意 CSS 属性和值 |
 | `sync-pages` | 静态页到运行时页的受控同步 |
 
+当元素没有可见边框（`border-style` 计算值为 `none`/`hidden`）时，仅设置 `border-width` 或 `border-color` 不会渲染；工作台会在设置非零 `border-width` 时自动追加 `border-style: solid`，设置 `border-color` 时在宽度仍为 0 的情况下追加 `border-style: solid` 与 `border-width: 1px`，使边框修改立即可见。Agent 执行此类变更包时按逐项操作如实落实即可。
+
 CSS 与样式值在预览中可自由应用；Agent 落实时必须拒绝远程 URL、`@import`、`javascript:`、`expression()`、越界路径和违反当前功能守卫的值。
 
 ## 会话草稿规则
