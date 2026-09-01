@@ -173,7 +173,7 @@ prototype/
 
 ## 🎬 演示预览
 
-以下动图与演示视频为实际产物效果的录制示例（iPhone 15 Pro · 逻辑画布 390×844），内容取自 `prototype/` 目录中的真实产物。
+以下动图为实际产物效果的录制示例（iPhone 15 Pro · 逻辑画布 390×844），GIF 内容取自 `prototype/` 目录中的真实产物。
 
 ### 功能一 · 高保真静态原型
 
@@ -195,11 +195,11 @@ prototype/
 
 ### 功能四 · 已有 HTML 或图片原型接管与迁移
 
-<video src="assets/demos/function-4-demo.mp4" controls></video>
+![功能四演示动画](assets/demos/function-4-demo.gif)
 
 ### 功能五 · 移动端离线单文件原型
 
-<video src="assets/demos/function-5-demo.mp4" controls></video>
+![功能五演示动画](assets/demos/function-5-demo.gif)
 
 ---
 

@@ -173,7 +173,7 @@ Packages the runtime pages of the same demo version and their enumerable CSS, Ja
 
 ## 🎬 Demo Previews
 
-The previews and videos below are recordings of actual deliverables (iPhone 15 Pro · 390×844 logical canvas), produced from the real artifacts in the `prototype/` directory.
+The animated previews below are recordings of actual deliverables (iPhone 15 Pro · 390×844 logical canvas), produced from the real artifacts in the `prototype/` directory.
 
 ### Feature 1 · High-Fidelity Static Prototype
 
@@ -195,11 +195,11 @@ The previews and videos below are recordings of actual deliverables (iPhone 15 P
 
 ### Feature 4 · Takeover & Migration of Existing HTML/Image Prototypes
 
-<video src="assets/demos/function-4-demo.mp4" controls></video>
+![Feature 4 preview animation](assets/demos/function-4-demo.gif)
 
 ### Feature 5 · Mobile Offline Single-File Prototype
 
-<video src="assets/demos/function-5-demo.mp4" controls></video>
+![Feature 5 preview animation](assets/demos/function-5-demo.gif)
 
 ---
 
