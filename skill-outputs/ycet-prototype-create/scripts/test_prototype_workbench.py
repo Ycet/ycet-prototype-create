@@ -99,11 +99,9 @@ class WorkspaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as external_root:
             external = write(Path(external_root) / "external.html", "<p>outside</p>")
             workspace = workbench.Workspace(self.root)
-            payload = workspace.scan([external])
-            record = next(item for item in payload["files"] if item["source"] == "external")
-            workspace.remove(record["id"])
+            with self.assertRaises(workbench.WorkbenchError):
+                workspace.scan([external])
             self.assertTrue(external.is_file())
-            self.assertNotIn(record["id"], {item["id"] for item in workspace.public()["files"]})
 
     def test_project_remove_hides_without_delete_and_explicit_add_restores(self) -> None:
         workspace = workbench.Workspace(self.root)
@@ -195,19 +193,6 @@ class ServiceTests(unittest.TestCase):
             self.assertIn("Content-Security-Policy", response.headers)
         self.assertEqual(digest(self.home), self.original_sha)
 
-    def test_preview_allows_the_legacy_tailwind_cdn(self) -> None:
-        """旧页面仍使用官方 Tailwind CDN 时，预览不得被工作台 CSP 拦截。"""
-        self.home.write_text(
-            "<!doctype html><script src='https://cdn.tailwindcss.com'></script><main class='hidden'>内容</main>",
-            encoding="utf-8",
-        )
-        file_id = self.running.service.workspace.data["files"][0]["id"]
-        request = urllib.request.Request(
-            f"{self.running.url}/preview/{file_id}/",
-            headers={"X-YCET-Token": self.running.token},
-        )
-        with urllib.request.urlopen(request) as response:
-            self.assertIn("https://cdn.tailwindcss.com", response.headers["Content-Security-Policy"])
 
     def test_remove_endpoint_keeps_source_html(self) -> None:
         record = self.running.service.workspace.data["files"][0]
@@ -227,7 +212,7 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(status, 200)
         paths = {item["path"] for item in payload["files"]}
         self.assertIn("prototype/pages/home.html", paths)
-        self.assertIn("docs/flows/prototype-note.html", paths)
+        self.assertNotIn("docs/flows/prototype-note.html", paths)
         self.assertTrue(nested.is_file())
 
     def test_function_four_page_loads_relative_image_from_prototype_assets(self) -> None:
@@ -647,6 +632,10 @@ class RequestTests(unittest.TestCase):
                 files.append({"fileId": record["id"], "sha256": record["sha256"], "operations": operations_by_name[record["name"]], "dependencyGroup": dependency})
         return workbench.validate_request(self.workspace, {"schemaVersion": 1, "files": files})
 
+    def test_removed_sync_operation_is_rejected(self) -> None:
+        with self.assertRaises(workbench.WorkbenchError):
+            self.package({"a.html": [{"type": "sync-pages"}]})
+
     def test_schema_rejects_dangerous_css(self) -> None:
         record = self.workspace.data["files"][0]
         with self.assertRaises(workbench.WorkbenchError):
@@ -750,55 +739,6 @@ class RequestTests(unittest.TestCase):
         self.assertEqual(summaries[0]["status"], "success")
         self.assertIsNone(workbench.active_request_summary(self.root))
 
-    def test_sync_pages_opportunity_requires_real_page_change_and_is_consumed(self) -> None:
-        runtime = write(self.root / "prototype" / "runtime-pages" / "a--prototype.html", "<p id='a'>A runtime</p><script>const type='navigate'</script>")
-        workspace = workbench.Workspace(self.root)
-        source = next(item for item in workspace.data["files"] if item["path"].endswith("pages/a.html"))
-        runtime_record = next(item for item in workspace.data["files"] if item["path"].endswith("runtime-pages/a--prototype.html"))
-        package = workbench.validate_request(workspace, {"schemaVersion": 1, "files": [{
-            "fileId": source["id"],
-            "sha256": source["sha256"],
-            "operations": [{"type": "style", "fingerprint": {"selector": "#a", "framePath": []}, "property": "color", "value": "red"}],
-        }]})
-        workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
-        with contextlib.redirect_stdout(io.StringIO()):
-            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="begin", result=None, reason=""))
-        self.first.write_text("<p id='a' style='color:red'>A</p>", encoding="utf-8")
-        result_path = self.root / "page-result.json"
-        result_path.write_text(json.dumps({"items": [{"fileId": source["id"], "status": "success"}]}), encoding="utf-8")
-        with contextlib.redirect_stdout(io.StringIO()):
-            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="complete", result=str(result_path), reason=""))
-
-        workspace.scan()
-        opportunities = workbench.sync_page_opportunities(self.root, workspace)
-        self.assertEqual(len(opportunities), 1)
-        self.assertEqual(opportunities[0]["runtimeFileId"], runtime_record["id"])
-        self.assertEqual(opportunities[0]["sourceFileId"], source["id"])
-        self.assertEqual(opportunities[0]["sourceRequestId"], package["requestId"])
-        self.assertEqual(opportunities[0]["previewOperations"][0]["property"], "color")
-
-        sync_package = workbench.validate_request(workspace, {"schemaVersion": 1, "files": [{
-            "fileId": runtime_record["id"],
-            "sha256": workbench.sha256_file(runtime),
-            "operations": [{
-                "type": "sync-pages",
-                "sourceFileId": source["id"],
-                "sourceRequestId": package["requestId"],
-                "sourceSha256": workbench.sha256_file(self.first),
-                "runtimeSha256": workbench.sha256_file(runtime),
-            }],
-        }]})
-        workbench.atomic_json(workbench.request_path(self.root, sync_package["requestId"]), sync_package)
-        with contextlib.redirect_stdout(io.StringIO()):
-            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=sync_package["requestId"], request_action="begin", result=None, reason=""))
-        runtime.write_text("<p id='a' style='color:red'>A runtime</p><script>const type='navigate'</script>", encoding="utf-8")
-        sync_result_path = self.root / "sync-result.json"
-        sync_result_path.write_text(json.dumps({"items": [{"fileId": runtime_record["id"], "status": "success"}]}), encoding="utf-8")
-        with contextlib.redirect_stdout(io.StringIO()):
-            workbench.command_request(argparse.Namespace(project_root=str(self.root), request_id=sync_package["requestId"], request_action="complete", result=str(sync_result_path), reason=""))
-
-        workspace.scan()
-        self.assertEqual(workbench.sync_page_opportunities(self.root, workspace), [])
 
     def test_independent_conflict_allows_partial_begin(self) -> None:
         package = self.package({"a.html": [{"type": "annotation", "text": "a"}], "b.html": [{"type": "annotation", "text": "b"}]})
@@ -840,30 +780,6 @@ class RequestTests(unittest.TestCase):
         self.assertEqual(workbench.load_request_state(self.root, package["requestId"])["status"], "success")
         self.assertFalse((self.root / ".ycet-editor" / "undo").exists())
 
-    def test_added_image_and_editlog_can_join_request_transaction(self) -> None:
-        package = self.package({"a.html": [{"type": "image-replace", "path": str(self.root / "source.png")}]})
-        workbench.atomic_json(workbench.request_path(self.root, package["requestId"]), package)
-        image = self.root / "prototype" / "assets" / "images" / "cover.png"
-        editlog = write(self.root / "prototype" / "docs" / "EditLog.md", "# EditLog\n")
-        begin_output = io.StringIO()
-        begin = argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="begin", result=None, reason="", include=[str(image), str(editlog)])
-        with contextlib.redirect_stdout(begin_output):
-            workbench.command_request(begin)
-        tracked = json.loads(begin_output.getvalue())["trackedFiles"]
-        extra_ids = [item["fileId"] for item in tracked if item["fileId"].startswith("extra-")]
-        self.first.write_text("<img src='../assets/images/cover.png'>", encoding="utf-8")
-        write(image, "image-bytes")
-        editlog.write_text("# EditLog\n- 替换图片\n", encoding="utf-8")
-        primary = package["files"][0]["fileId"]
-        result_path = self.root / "image-result.json"
-        result_path.write_text(json.dumps({"items": [{"fileId": primary, "status": "success", "affectedFileIds": extra_ids}]}), encoding="utf-8")
-        complete = argparse.Namespace(project_root=str(self.root), request_id=package["requestId"], request_action="complete", result=str(result_path), reason="")
-        with contextlib.redirect_stdout(io.StringIO()):
-            workbench.command_request(complete)
-        self.assertTrue(image.exists())
-        self.assertIn("替换图片", editlog.read_text(encoding="utf-8"))
-        self.assertEqual(self.first.read_text(encoding="utf-8"), "<img src='../assets/images/cover.png'>")
-        self.assertFalse((workbench.state_paths(self.root)["transactions"] / package["requestId"]).exists())
 
     def test_removed_undo_cli_is_rejected(self) -> None:
         with self.assertRaises(SystemExit) as denied:

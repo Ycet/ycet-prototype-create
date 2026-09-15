@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""从已确认的页面片段生成独立 HTML；不推断需求或代替用户确认。"""
+from __future__ import annotations
+import argparse, hashlib, html, json, os, re, tempfile
+from pathlib import Path
+from prototype_document import BuildError, ResourceBundler, safe_json_script
+
+ROOT = Path(__file__).resolve().parents[1]
+NAMES = {'pages':'prototype-pages','demo':'prototype-demo','mobile':'prototype-mobile','direction':'design-direction'}
+
+def output_path(root, kind, mode, target=None):
+    directory = root/'outputs'; stem=NAMES[kind]
+    matches=[(int(m[1] or 1),p) for p in directory.glob('*.html') if (m:=re.fullmatch(re.escape(stem)+r'(?:-v([2-9]\d*|1\d+))?\.html',p.name))]
+    if mode=='overwrite':
+        if not target: raise BuildError('覆盖必须指定现有 --target')
+        p=(directory/target).resolve()
+        if p.parent!=directory.resolve() or not p.is_file() or not any(p==q.resolve() for _,q in matches): raise BuildError('目标必须是 outputs 中对应类型的现有文件')
+        return p
+    if mode=='create' and matches: raise BuildError('该类型已存在；明确选择修改或迭代策略')
+    n=max((v for v,_ in matches),default=0)+1
+    return directory/(stem+('' if n==1 else f'-v{n}')+'.html')
+
+STYLE='''
+*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;font-family:system-ui,sans-serif;background:#f3f4f6;color:#171719}html,body,[data-ycet-scroll]{scrollbar-width:none}::-webkit-scrollbar{width:0;height:0;display:none}button{cursor:pointer;font:inherit}button:focus-visible,a:focus-visible{outline:2px solid #2563eb} [hidden]{display:none!important}
+.ycet-page{position:relative;width:var(--logical-w);height:var(--logical-h);overflow:hidden;background:white;contain:layout paint}.ycet-page [data-ycet-scroll]{overflow:auto;max-height:100%}.ycet-page{padding:var(--safe-top) 0 var(--safe-bottom)}
+.ycet-grid{display:grid;grid-template-columns:repeat(var(--columns),max-content);gap:32px;padding:32px;width:max-content;min-width:100%}.ycet-card{margin:0}.ycet-card h2{font-size:16px}.ycet-layout{height:100vh;height:100dvh;display:grid;grid-template-columns:clamp(220px,18vw,296px) minmax(0,1fr);overflow:hidden}.ycet-nav{padding:16px;overflow:auto}.ycet-nav button{display:block;width:100%;border:0;padding:12px;text-align:left;background:transparent}.ycet-nav button[aria-current=page]{background:#dbeafe;color:#1d4ed8}.ycet-stage{min-width:0;min-height:0;display:grid;place-items:center;padding:24px;overflow:hidden}.ycet-fit{position:relative}.ycet-fit-content{transform-origin:top left}.ycet-mobile .ycet-page{width:100%;height:100vh;height:100dvh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}.ycet-mobile{overflow:hidden}.ycet-menu{touch-action:none;min-width:44px;min-height:44px;position:fixed;top:max(8px,env(safe-area-inset-top));left:8px;z-index:100;border:0;border-radius:8px;padding:10px;background:#111;color:white}.ycet-drawer{position:fixed;inset:0 auto 0 0;width:min(82vw,320px);background:white;z-index:102;overflow:auto}.ycet-overlay{position:fixed;inset:0;background:#0006;z-index:101;border:0}.ycet-error{position:fixed;bottom:16px;left:16px;z-index:150;background:#991b1b;color:white;padding:12px}.ycet-image-hotspot{position:absolute;background:transparent;border:0;outline:1px dashed transparent;outline-offset:-1px;z-index:10}.ycet-image-hotspot:hover,.ycet-image-hotspot:focus-visible{outline-color:rgba(37,99,235,.72)}
+@media(max-width:1000px){.ycet-grid{grid-template-columns:repeat(2,max-content)}}@media(max-width:760px){.ycet-grid{grid-template-columns:max-content}.ycet-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.ycet-layout>.ycet-nav{max-height:120px;display:flex}.ycet-layout>.ycet-nav button{width:auto;white-space:nowrap}}
+'''
+RUNTIME='''
+// 同文档页面注册表，所有业务导航只接受已登记页面。
+(()=>{const meta=JSON.parse(document.getElementById('ycet-metadata').textContent);const interactive=['demo','mobile'].includes(meta.type);const pages=[...document.querySelectorAll('[data-ycet-page-id]')];let current=meta.initial;
+const error=document.querySelector('.ycet-error');
+function show(id){if(!meta.pages.some(p=>p.id===id)){error.hidden=false;error.textContent='未知页面：'+id;return false;}current=id;pages.forEach(p=>{p.hidden=interactive&&p.dataset.ycetPageId!==id;p.inert=p.hidden;});document.querySelectorAll('[data-ycet-tool-target]').forEach(b=>b.setAttribute('aria-current',b.dataset.ycetToolTarget===id?'page':'false'));error.hidden=true;return true;}
+function navigate(id){if(!interactive)return;const split=String(id).match(/^([a-z][a-z0-9-]*)([?#].*)?$/);if(!split||!meta.pages.some(p=>p.id===split[1])){error.hidden=false;error.textContent='无效页面目标';return;}const hash='#ycet='+encodeURIComponent(id);if(location.hash!==hash)location.hash=hash;else show(split[1]);}
+function fromHash(){let value=meta.initial;try{if(location.hash.startsWith('#ycet='))value=decodeURIComponent(location.hash.slice(6));}catch(e){}const id=value.split(/[?#]/)[0];if(show(id)){const root=pages.find(p=>p.dataset.ycetPageId===id);root.tabIndex=-1;root.focus({preventScroll:true});root.dispatchEvent(new CustomEvent('ycet-enter',{detail:{target:value}}));}}
+let dragged=false;
+const menu=document.querySelector('.ycet-menu');let drag=null;
+function clampMenu(){if(!menu)return;const rect=menu.getBoundingClientRect();menu.style.left=Math.max(0,Math.min(innerWidth-rect.width,rect.left))+'px';menu.style.top=Math.max(0,Math.min(innerHeight-rect.height,rect.top))+'px';}
+menu?.addEventListener('pointerdown',e=>{const rect=menu.getBoundingClientRect();drag={x:e.clientX,y:e.clientY,left:rect.left,top:rect.top};dragged=false;menu.setPointerCapture(e.pointerId)});
+menu?.addEventListener('pointermove',e=>{if(!drag)return;if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>5)dragged=true;if(dragged){menu.style.left=drag.left+e.clientX-drag.x+'px';menu.style.top=drag.top+e.clientY-drag.y+'px';clampMenu();}});
+menu?.addEventListener('pointerup',()=>{drag=null});menu?.addEventListener('pointercancel',()=>{drag=null});window.addEventListener('resize',clampMenu);
+function drawer(open){document.querySelectorAll('.ycet-drawer,.ycet-overlay').forEach(e=>{e.hidden=!open;e.inert=!open});document.querySelector('.ycet-menu')?.setAttribute('aria-expanded',String(open));if(open){pages.forEach(p=>p.inert=true);document.querySelector('[data-ycet-close]')?.focus();}else{pages.forEach(p=>p.inert=p.hidden);menu?.focus();}}
+document.addEventListener('click',e=>{const tool=e.target.closest('[data-ycet-tool-target]');const business=e.target.closest('[data-ycet-nav-target]');if(tool){navigate(tool.dataset.ycetToolTarget);drawer(false);}else if(business&&interactive){e.preventDefault();navigate(business.dataset.ycetNavTarget);}if(e.target.closest('.ycet-menu')){if(!dragged)drawer(true);dragged=false;};if(e.target.closest('.ycet-overlay,[data-ycet-close]'))drawer(false);if(e.target.closest('[data-ycet-back]'))history.back();});document.addEventListener('keydown',e=>{if(e.key==='Escape')drawer(false)});
+window.addEventListener('hashchange',fromHash);if(interactive){if(!location.hash.startsWith('#ycet='))history.replaceState(null,'','#ycet='+encodeURIComponent(meta.initial));fromHash();}else show(meta.initial);
+const stage=document.querySelector('.ycet-stage'),fit=document.querySelector('.ycet-fit'),content=document.querySelector('.ycet-fit-content');if(stage&&fit){new ResizeObserver(()=>{const s=Math.min(1,(stage.clientWidth-48)/meta.frame.preview.width,(stage.clientHeight-48)/meta.frame.preview.height);const scale=Math.max(0,s);fit.style.width=meta.frame.preview.width*scale+'px';fit.style.height=meta.frame.preview.height*scale+'px';content.style.transform='scale('+scale+')';}).observe(stage);}
+/* PAGE_INITIALIZERS */
+})();
+'''
+
+def render(model, root):
+    kind=model['type']; frame_id=model.get('frameId','iphone-15-pro')
+    manifest=json.loads((ROOT/'assets/frames/manifest.json').read_text())
+    frame=next((f for f in manifest['frames'] if f['id']==frame_id),None)
+    if not frame: raise BuildError('未知设备框架')
+    pages=model.get('pages',[])
+    if not pages or kind=='direction' and len(pages)!=1: raise BuildError('页面为空或设计预览不止一页')
+    ids=[p['id'] for p in pages]
+    if len(set(ids))!=len(ids) or any(not re.fullmatch('[a-z][a-z0-9-]*',i) for i in ids): raise BuildError('页面 ID 必须唯一且为 ASCII kebab-case')
+    initial=model.get('initial',ids[0])
+    if initial not in ids: raise BuildError('初始页未登记')
+    bundler=ResourceBundler(root); owner=root/'build-input.json'; fragments=[]; styles=[]; scripts=[]
+    for p in pages:
+        ident=p['id']; source=p.get('html','')
+        if re.search(r'<(?:html|head|body|script|style|link)\b',source,re.I): raise BuildError('html 只接受页面片段；CSS/JS 放入独立字段')
+        # 为普通元素补稳定标识；原文件编辑时不重新编号。
+        sequence=iter(range(1,100000))
+        source=re.sub(r'<([a-zA-Z][\w:-]*)(\s[^<>]*?)?(/?)>', lambda m: m[0] if 'data-ycet-element-id=' in m[0] else '<'+m[1]+(m[2] or '')+' data-ycet-element-id="'+ident+'-el-'+str(next(sequence))+'"'+m[3]+'>', source)
+        fragment=bundler.inline_html_text(source,owner)
+        selector=f'[data-ycet-page-id="{ident}"]'
+        css=p.get('css','')
+        # 作者显式作用域，避免自动改写复杂 CSS 导致视觉漂移。
+        if css and ':scope' not in css: raise BuildError('页面 CSS 使用 :scope 限定页面根')
+        for rule in re.finditer(r'([^{}]+)\{',re.sub(r'/\*.*?\*/','',css,flags=re.S)):
+            header=rule[1].strip()
+            if header.startswith('@'):
+                if 'keyframes' in header and not re.search(r'keyframes\s+'+re.escape(ident)+'-',header):raise BuildError('动画名必须加页面 ID 前缀')
+                continue
+            if re.fullmatch(r'(?:from|to|[\d.% ,]+)',header):continue
+            if any(':scope' not in part for part in header.split(',')):raise BuildError('每个 CSS 选择器必须限定 :scope')
+        styles.append(bundler.inline_css_text(css,owner).replace(':scope',selector))
+        js=p.get('js','')
+        if re.search(r'\b(?:document|window)\s*[.\[]|\b(?:fetch|eval|Function|import)\s*\(|\blocation\b',js): raise BuildError('页面 JS 请使用 root、navigate；动态依赖或全局访问需先重构')
+        scripts.append('(function(root,navigate){'+js+'})(document.querySelector('+json.dumps(selector)+'),navigate);')
+        attr=' data-ycet-image-prototype="true"' if p.get('imagePrototype') else ''
+        fragments.append(f'<section class="ycet-page" data-ycet-page-id="{ident}" aria-label="{html.escape(p.get("label",ident),quote=True)}"{attr}>{fragment}</section>')
+    template=(ROOT/'assets/frames'/frame['file']).read_text(); frame_css=re.search('<style>(.*?)</style>',template,re.S)[1]; template=re.sub('<style>.*?</style>','',template,flags=re.S)
+    def device(content):return template.replace('{{CONTENT}}',content)
+    nav=''.join(f'<button type="button" data-ycet-tool-target="{p["id"]}">{html.escape(p.get("label",p["id"]))}</button>' for p in pages)
+    if kind in ('pages','direction'):
+        body='<main class="ycet-grid">'+''.join(f'<article class="ycet-card"><h2>{html.escape(p.get("label",p["id"]))}</h2>'+device(frag)+'</article>' for p,frag in zip(pages,fragments))+'</main>'
+        if kind=='direction': body=bundler.inline_html_text(model.get('directionHtml',''),owner)+body
+    elif kind=='demo':body='<main class="ycet-layout"><nav class="ycet-nav">'+nav+'</nav><div class="ycet-stage"><div class="ycet-fit"><div class="ycet-fit-content">'+device(''.join(fragments))+'</div></div></div></main>'
+    else:body=''.join(fragments)+'<button class="ycet-menu" aria-label="打开页面导航" aria-expanded="false">☰</button><button class="ycet-overlay" hidden aria-label="关闭导航"></button><aside class="ycet-drawer ycet-nav" hidden inert><button data-ycet-close>关闭</button>'+nav+'</aside>'
+    meta={'schemaVersion':1,'skillVersion':'4.0.0','artifactVersion':model.get('artifactVersion',1),'type':kind,'productPort':model.get('productPort',''),'frame':frame,'initial':initial,'pages':[{'id':p['id'],'label':p.get('label',p['id'])} for p in pages]}
+    variables=f'--logical-w:{frame["logicalViewport"]["width"]}px;--logical-h:{frame["logicalViewport"]["height"]}px;--safe-top:{frame["safeArea"]["top"]}px;--safe-bottom:{frame["safeArea"]["bottom"]}px;--columns:{frame["defaultColumns"]}'
+    css=STYLE+(frame_css if kind!='mobile' else '')+'\n'.join(styles)
+    if re.search('</(?:style|script)',css+'\n'.join(scripts),re.I):raise BuildError('代码字段含结束标签')
+    document='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>'+html.escape(model.get('title','产品原型'))+'</title><style>'+css+'</style></head><body class="ycet-'+kind+'" style="'+variables+'">'+body+'<div class="ycet-error" role="status" hidden></div><script type="application/json" id="ycet-metadata">'+safe_json_script(meta)+'</script><script>'+RUNTIME.replace('/* PAGE_INITIALIZERS */','\n'.join(scripts))+'</script></body></html>'
+    return document
+
+def build(model, root, mode='create', target=None, expected_sha=None):
+    from prototype_guard import audit
+    root=root.resolve(); (root/'outputs').mkdir(parents=True,exist_ok=True)
+    output=output_path(root,model['type'],mode,target)
+    before=hashlib.sha256(output.read_bytes()).hexdigest() if output.exists() else None
+    if mode=='overwrite' and (not expected_sha or expected_sha!=before):raise BuildError('覆盖必须提供匹配的 --expected-sha')
+    version=re.search(r'-v(\d+)\.html$',output.name)
+    model={**model,'artifactVersion':int(version[1]) if version else 1}
+    document=render(model,root)
+    problems=audit(document)
+    if problems:raise BuildError('; '.join(problems))
+    temporary=None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=output.parent,suffix='.tmp',delete=False) as f:
+            temporary=Path(f.name); f.write(document); f.flush(); os.fsync(f.fileno())
+        if mode=='overwrite':
+            if hashlib.sha256(output.read_bytes()).hexdigest()!=before:raise BuildError('目标并发变化')
+            os.replace(temporary,output)
+        else:
+            # 硬链接独占创建，避免覆盖同时出现的版本文件。
+            os.link(temporary,output)
+        return output
+    finally:
+        if temporary:temporary.unlink(missing_ok=True)
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--input',type=Path,required=True);p.add_argument('--prototype-dir',type=Path,required=True);p.add_argument('--mode',choices=['create','iterate','overwrite'],default='create');p.add_argument('--target');p.add_argument('--expected-sha');a=p.parse_args()
+    try:print(build(json.loads(a.input.read_text()),a.prototype_dir,a.mode,a.target,a.expected_sha))
+    except (BuildError,ValueError,KeyError,OSError) as e:p.exit(1,str(e)+'\n')
+if __name__=='__main__':main()

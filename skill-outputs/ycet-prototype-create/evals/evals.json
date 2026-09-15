@@ -1,202 +1,365 @@
 {
   "skill_name": "ycet-prototype-create",
+  "version": "4.0.0",
   "evals": [
     {
       "id": 1,
-      "prompt": "我只有一个想法：做一个帮助门店员工快速生成促销海报的 App，请帮我从需求开始制作高保真原型。",
-      "expected_output": "路由功能一，将输入判断为不完整需求，读取功能一文档并按阶段一执行：不调用任何外部需求访谈 Skill，由当前 Agent 内置提问框一次一问；在需求完整度审计通过和 Spec 确认前不进入 UI 设计。",
+      "prompt": "我想从零制作一个图书借阅产品原型，先帮我完善需求。",
+      "expected_output": "一→二→三，阶段确认未回复时停止对应后续写入",
       "files": [],
       "assertions": [
-        {"name": "route-function-1", "description": "读取 docs/function-1-static-prototype.md"},
-        {"name": "no-external-interview-skill", "description": "不完整需求不调用任何外部需求访谈 Skill（brainstorming-solo、grill-me），使用内置提问框一次一问"},
-        {"name": "respect-spec-gate", "description": "需求梳理未完成前不生成或确认 Spec 后续产物"}
+        {
+          "name": "v4-01",
+          "description": "一→二→三，阶段确认未回复时停止对应后续写入"
+        }
       ]
     },
     {
       "id": 2,
-      "prompt": "Spec 已确认，现在进入 UI 设计阶段。请告诉我当前 Agent 有哪些 UI 设计相关 skill，我再选择。",
-      "expected_output": "混合读取会话 Skill 清单和标准本地目录，按 name、真实路径与 junction 去重，展示全部有效 UI 相关 Skill 的功能、类型、来源、调用状态和前置条件，并允许单选或不使用 Skill。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：只完善需求／只确认 UI。按 v4.0.0 规则执行。",
+      "expected_output": "完成对应功能，不擅自制作正式原型",
       "files": [],
       "assertions": [
-        {"name": "hybrid-discovery", "description": "同时考虑会话 Skill 与 ~/.agents、~/.codex、~/.claude 标准目录"},
-        {"name": "show-all-ui-skills", "description": "不按生成、品牌、审核或润色类型过滤有效 UI Skill"},
-        {"name": "single-primary-skill", "description": "一次只允许选择一个主 UI Skill"},
-        {"name": "show-callability", "description": "区分已安装与当前可调用状态"}
+        {
+          "name": "v4-02",
+          "description": "完成对应功能，不擅自制作正式原型"
+        }
       ]
     },
     {
       "id": 3,
-      "prompt": "我在 UI 设计阶段选择 UI Design System Governor。",
-      "expected_output": "读取并遵循所选 Skill，同时在回复中提供设计系统展示页链接；未经用户明确要求不自动打开浏览器。",
+      "prompt": "需求和 UI 方向已经确认，请开始制作原型。",
+      "expected_output": "不重复问已明确内容，仍通过功能三类型选择",
       "files": [],
       "assertions": [
-        {"name": "governor-link", "description": "提供 https://open-design.ai/zh/plugins/systems/"},
-        {"name": "no-auto-open", "description": "不未经明确要求自动打开网页"}
+        {
+          "name": "v4-03",
+          "description": "不重复问已明确内容，仍通过功能三类型选择"
+        }
       ]
     },
     {
       "id": 4,
-      "prompt": "我不使用任何 UI skill，继续确定设计方向。",
-      "expected_output": "每轮只问一个主题，第一问是否有参考产品或网站；之后依次为设计风格、色彩方案和其他补充。",
+      "prompt": "我选择 C，直接生成移动端演示。",
+      "expected_output": "仅生成所选类型，不产生 pages、runtime-pages、runtime-assets 或 index 入口",
       "files": [],
       "assertions": [
-        {"name": "reference-first", "description": "第一问是参考产品或网站"},
-        {"name": "one-question-per-turn", "description": "每轮只推进一个主题"}
+        {
+          "name": "v4-04",
+          "description": "仅生成所选类型，不产生 pages、runtime-pages、runtime-assets 或 index 入口"
+        }
       ]
     },
     {
       "id": 5,
-      "prompt": "产品端口是微信小程序，没有指定宿主设备。设计方向已确认，请生成首页预览和静态原型入口。",
-      "expected_output": "读取 Manifest，默认选择 iphone-15-pro；按需复制框架，生成 frame-config.json、previews/home-preview.html、design-direction.html、pages/*.html 和 index.html；框架负责系统 UI。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：设计方向预览。按 v4.0.0 规则执行。",
+      "expected_output": "内含组件及首页，outputs 落点，零 iframe，复制单文件后可用",
       "files": [],
       "assertions": [
-        {"name": "wechat-default-iphone", "description": "微信小程序默认映射 iphone-15-pro"},
-        {"name": "copy-selected-frame-only", "description": "只复制选中框架和项目配置快照"},
-        {"name": "merged-home-preview", "description": "设计方向页只有合并后的首页预览"},
-        {"name": "no-duplicate-system-ui", "description": "页面不重复绘制框架负责的系统 UI"}
+        {
+          "name": "v4-05",
+          "description": "内含组件及首页，outputs 落点，零 iframe，复制单文件后可用"
+        }
       ]
     },
     {
       "id": 6,
-      "prompt": "静态页面和 frame-config.json 已存在，请生成完整交互 Demo。页面会向父级发送 navigate 消息。",
-      "expected_output": "路由功能三，确认交互流程后读取项目框架配置；使用设备框架消息中继完成左右双向同步，校验 channel、version、event.source 和页面白名单。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：四类 HTML 结构。按 v4.0.0 规则执行。",
+      "expected_output": "所有页面直接存在；无 srcdoc、动态 iframe 或伪装的 HTML Blob 嵌套",
       "files": [],
       "assertions": [
-        {"name": "project-config-first", "description": "框架识别优先读取 frame-config.json"},
-        {"name": "nested-iframe-relay", "description": "页面消息经设备框架中继到外层 Demo"},
-        {"name": "message-validation", "description": "校验协议字段、消息来源和页面白名单"},
-        {"name": "flow-confirmation", "description": "生成前保留交互流程确认门禁"}
+        {
+          "name": "v4-06",
+          "description": "所有页面直接存在；无 srcdoc、动态 iframe 或伪装的 HTML Blob 嵌套"
+        }
       ]
     },
     {
       "id": 7,
-      "prompt": "现有项目仍使用 .phone-frame，没有 frame-config.json，请生成交互 Demo。",
-      "expected_output": "功能三在新规则无法识别后进入旧框架兼容模式，不强制迁移静态页面，并在完成说明中明确标注。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：资源边界。按 v4.0.0 规则执行。",
+      "expected_output": "CSS、JS、图片、srcset、SVG、字体、动态请求全覆盖；来源字符串与 SVG 命名空间不误报",
       "files": [],
       "assertions": [
-        {"name": "legacy-fallback", "description": "仅在新框架识别失败后检查旧 CSS 框架类"},
-        {"name": "legacy-mode-disclosed", "description": "完成说明标注旧框架兼容模式"}
+        {
+          "name": "v4-07",
+          "description": "CSS、JS、图片、srcset、SVG、字体、动态请求全覆盖；来源字符串与 SVG 命名空间不误报"
+        }
       ]
     },
     {
       "id": 8,
-      "prompt": "接管一个旧 HTML 原型：它重复绘制 iOS 状态栏、尺寸不匹配且没有项目框架配置。请规范化后再修改标题。",
-      "expected_output": "路由功能四，先询问并确认产品端口，再按 Manifest 体系审计；修复系统/产品 UI 边界和配置，迁移与用户编辑分别记录日志。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：独立分享。按 v4.0.0 规则执行。",
+      "expected_output": "只复制一个文件到含中文和空格的空目录，以 file:// 打开；断网后逐页及交互可用",
       "files": [],
       "assertions": [
-        {"name": "confirm-product-port", "description": "读取或审计旧原型前先获得产品端口明确回复"},
-        {"name": "manifest-audit", "description": "审计框架配置、逻辑画布、安全区域和系统 UI"},
-        {"name": "separate-editlog-records", "description": "迁移与用户要求的编辑分别记录"}
+        {
+          "name": "v4-08",
+          "description": "只复制一个文件到含中文和空格的空目录，以 file:// 打开；断网后逐页及交互可用"
+        }
       ]
     },
     {
       "id": 9,
-      "prompt": "CSS 选择器是 '.price input'，HTML 是 '<input class=\"price\">'，请把边框改红。",
-      "expected_output": "保持功能二直接路由与精准修改逻辑，不受新框架体系影响，并更新 EditLog。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：静态页。按 v4.0.0 规则执行。",
+      "expected_output": "多页平铺，页内交互保留；产品跨页按钮不会切换逻辑页面或离开文件",
       "files": [],
       "assertions": [
-        {"name": "function-2-unchanged", "description": "CSS 选择器 + HTML 片段 + 明确修改要求直接路由功能二"},
-        {"name": "targeted-edit", "description": "只修改目标元素并记录日志"}
+        {
+          "name": "v4-09",
+          "description": "多页平铺，页内交互保留；产品跨页按钮不会切换逻辑页面或离开文件"
+        }
       ]
     },
     {
       "id": 10,
-      "prompt": "prototype 里已有完整 runtime-pages 和 prototype.html，请生成一个能单独发到手机、断网打开的 prototype-mobile.html。",
-      "expected_output": "直接路由功能五，不重复确认现有跳转逻辑；建立全项目只读基线，调用确定性打包器生成首次手机版单文件并执行移动文件守卫。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：交互 Demo。按 v4.0.0 规则执行。",
+      "expected_output": "左右同步、返回、有效参数、非法目标处理；不跳向其他 HTML",
       "files": [],
       "assertions": [
-        {"name": "route-function-5", "description": "读取 docs/function-5-mobile-single-file.md"},
-        {"name": "no-reconfirm-complete-runtime", "description": "完整运行时页和 prototype.html 存在时不再询问跳转逻辑"},
-        {"name": "single-file-only", "description": "打包阶段只新增 prototype-mobile.html，不修改其他项目文件"},
-        {"name": "offline-builder", "description": "使用 build_mobile_prototype.py 内联全部可枚举依赖"}
+        {
+          "name": "v4-10",
+          "description": "左右同步、返回、有效参数、非法目标处理；不跳向其他 HTML"
+        }
       ]
     },
     {
       "id": 11,
-      "prompt": "项目只有 pages 和 Spec，没有 runtime-pages，但我想生成手机单文件预览。",
-      "expected_output": "路由功能五，先展示从静态输入整理的页面跳转图并请求明确确认；确认前不创建 runtime-pages 或手机版文件，确认后一次性创建完整运行时页集合且不创建 prototype.html。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：移动端。按 v4.0.0 规则执行。",
+      "expected_output": "全屏无壳；菜单／抽屉／遮罩／返回可用，横竖屏适配，产品固定区正常",
       "files": [],
       "assertions": [
-        {"name": "confirm-flow-before-runtime", "description": "完全缺失运行时页时先确认页面跳转图"},
-        {"name": "prepare-runtime-inside-function-5", "description": "确认后在功能五内部创建完整运行时页集合"},
-        {"name": "do-not-create-desktop-demo", "description": "功能五运行时准备不创建或修改 prototype.html"}
+        {
+          "name": "v4-11",
+          "description": "全屏无壳；菜单／抽屉／遮罩／返回可用，横竖屏适配，产品固定区正常"
+        }
       ]
     },
     {
       "id": 12,
-      "prompt": "runtime-pages 里只有首页，prototype.html 还登记了详情页。请直接做手机版。",
-      "expected_output": "识别为部分运行时产物和悬空目标，停止生成并列出缺失页面；不得自动补齐、覆盖已有运行时页或生成半成品。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：框架。按 v4.0.0 规则执行。",
+      "expected_output": "五种端口均匹配 Manifest；多实例无重复 ID，系统与产品 UI 不重复",
       "files": [],
       "assertions": [
-        {"name": "block-partial-runtime", "description": "部分存在的运行时页必须阻断"},
-        {"name": "no-mixed-repair", "description": "不混合新旧来源或自动修复已有运行时页"},
-        {"name": "no-partial-mobile-output", "description": "失败不留下 prototype-mobile*.html 半成品"}
+        {
+          "name": "v4-12",
+          "description": "五种端口均匹配 Manifest；多实例无重复 ID，系统与产品 UI 不重复"
+        }
       ]
     },
     {
       "id": 13,
-      "prompt": "已经有 prototype-mobile.html 和 prototype-mobile-v2.html，请再生成一个手机版本。",
-      "expected_output": "保持已有手机版本不变，选择 prototype-mobile-v3.html；生成前后复核只读输入和旧手机版本均未变化。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：DOM 隔离。按 v4.0.0 规则执行。",
+      "expected_output": "不同页同名 ID／class／动画／变量／事件不会串页；表单和弹窗作用域正确",
       "files": [],
       "assertions": [
-        {"name": "increment-mobile-version", "description": "按已有最大版本递增为 prototype-mobile-v3.html"},
-        {"name": "never-overwrite-mobile", "description": "不得覆盖或修改历史手机版本"},
-        {"name": "verify-protected-inputs", "description": "打包前后校验输入路径集合和 SHA-256"}
+        {
+          "name": "v4-13",
+          "description": "不同页同名 ID／class／动画／变量／事件不会串页；表单和弹窗作用域正确"
+        }
       ]
     },
     {
       "id": 14,
-      "prompt": "运行时页面引用了 CDN 字体、远程图片和动态 fetch 接口，也请直接打成离线手机文件。",
-      "expected_output": "说明这些依赖无法离线等价打包并阻断生成；不得下载时访问网络、保留远程依赖、删除功能或使用占位资源后声称完成。",
+      "prompt": "把 prototype/outputs/prototype-demo.html 首页按钮文字从购买改为立即购买。",
+      "expected_output": "更新目标原文件，不问版本、不额外生成迭代文件",
       "files": [],
       "assertions": [
-        {"name": "block-remote-dependencies", "description": "远程、CDN 和动态网络依赖阻断生成"},
-        {"name": "no-silent-degradation", "description": "不删除功能、不替换占位、不保留网络依赖"},
-        {"name": "no-network-in-builder", "description": "确定性打包器不访问网络"}
+        {
+          "name": "v4-14",
+          "description": "更新目标原文件，不问版本、不额外生成迭代文件"
+        }
       ]
     },
     {
       "id": 15,
-      "prompt": "使用功能二打开当前项目的可视化原型编辑器，我不想再复制 F12 选择器。",
-      "expected_output": "读取工作台协议，调用 prototype_workbench.py ensure；健康实例存在时复用并扫描 prototype HTML，空项目仍保持服务运行，自动打开失败时返回 URL。",
+      "prompt": "把所有页面的 UI 都换成深色，同时删除设置页。",
+      "expected_output": "破坏性、增删页面、全部页面同时修改各自触发版本询问；回答前不写",
       "files": [],
       "assertions": [
-        {"name": "visual-workbench-route", "description": "功能二不再要求 F12 或手工复制选择器"},
-        {"name": "reuse-project-instance", "description": "同项目健康实例复用，不重复启动"},
-        {"name": "empty-workspace-valid", "description": "缺少 prototype 和 HTML 时仍启动空工作台"}
+        {
+          "name": "v4-15",
+          "description": "破坏性、增删页面、全部页面同时修改各自触发版本询问；回答前不写"
+        }
       ]
     },
     {
       "id": 16,
-      "prompt": "请执行工作台请求 ID 123。两个独立文件中一个摘要冲突，另一个正常；正常文件仍要改。",
-      "expected_output": "以请求包为唯一事实来源，运行 request show/begin，跳过冲突文件并继续独立正常文件；完成后逐文件报告成功、冲突和原因。",
+      "prompt": "静态版已经到 v3，交互版还没有，帮我第一次生成交互版。",
+      "expected_output": "各类型最大编号独立；缺号不回填；来源旧版本不覆盖现有新版本",
       "files": [],
       "assertions": [
-        {"name": "request-is-source-of-truth", "description": "按 schemaVersion 1 请求包和元素指纹执行"},
-        {"name": "partial-success", "description": "独立文件冲突不阻断其他文件"},
-        {"name": "per-file-report", "description": "回复与结果 JSON 都逐文件说明状态和原因"}
+        {
+          "name": "v4-16",
+          "description": "各类型最大编号独立；缺号不回填；来源旧版本不覆盖现有新版本"
+        }
       ]
     },
     {
       "id": 17,
-      "prompt": "工作台里给 runtime-pages/home--prototype.html 点了同步 pages，并发送给 AI。",
-      "expected_output": "把静态源页与运行时页作为依赖组，在暂存副本受控合并，保留 navigate、set-screen、screen-changed、注册表和 prototype.html 交互；验证失败整组不写。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：覆盖选择和并发。按 v4.0.0 规则执行。",
+      "expected_output": "用户选原文件时原路径修改；目标被外部改动时冲突，不能用新基线掩盖",
       "files": [],
       "assertions": [
-        {"name": "sync-after-send-only", "description": "同步草稿只有发送后才允许实际修改"},
-        {"name": "no-runtime-overwrite", "description": "不以 pages 文件直接覆盖 runtime-pages"},
-        {"name": "preserve-demo-protocol", "description": "重新验证功能三消息协议和 Demo 交互"}
+        {
+          "name": "v4-17",
+          "description": "用户选原文件时原路径修改；目标被外部改动时冲突，不能用新基线掩盖"
+        }
       ]
     },
     {
       "id": 18,
-      "prompt": "工作台中 runtime-pages 还有未发送草稿，现在执行功能五打包。",
-      "expected_output": "lock acquire 检测到草稿后阻止打包，不自动发送或清空；草稿处理完成后获取锁，确定性打包只新增一个离线文件，finally 释放锁并增量同步新增文件。",
+      "prompt": "把这张完整页面截图制作成可演示原型，保留原图外观。",
+      "expected_output": "原图归档、HTML 内嵌、比例保持；未确认固定边界时不切图；无 OCR 重建",
       "files": [],
       "assertions": [
-        {"name": "draft-gate", "description": "相关未发送草稿阻止功能五"},
-        {"name": "package-lock", "description": "打包全程持有并最终释放工作台锁"},
-        {"name": "sync-only-new-mobile", "description": "成功后只把新增 prototype-mobile 文件加入工作台"}
+        {
+          "name": "v4-18",
+          "description": "原图归档、HTML 内嵌、比例保持；未确认固定边界时不切图；无 OCR 重建"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：图片交互。按 v4.0.0 规则执行。",
+      "expected_output": "透明热区悬停／聚焦反馈正确，随滚动／固定区定位，静态不实现业务跨页",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-19",
+          "description": "透明热区悬停／聚焦反馈正确，随滚动／固定区定位，静态不实现业务跨页"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：功能四 UI 与端口。按 v4.0.0 规则执行。",
+      "expected_output": "普通 UI 沿用；重设计经功能二；仅缺失／冲突才问端口；制作前仍选类型",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-20",
+          "description": "普通 UI 沿用；重设计经功能二；仅缺失／冲突才问端口；制作前仍选类型"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：旧原型。按 v4.0.0 规则执行。",
+      "expected_output": "按普通外部 HTML 接管，不要求旧专用 runtime 链路，不自动删除来源",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-21",
+          "description": "按普通外部 HTML 接管，不要求旧专用 runtime 链路，不自动删除来源"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台列表。按 v4.0.0 规则执行。",
+      "expected_output": "递归显示 prototype 全部 HTML 和历史版本；不误扫项目其他目录；空项目可用",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-22",
+          "description": "递归显示 prototype 全部 HTML 和历史版本；不误扫项目其他目录；空项目可用"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "prompt": "执行工作台请求，批注要求调整全部页面的主题色。",
+      "expected_output": "包括全页面批注任务，均原文件修改；不问类型／版本、不生成 vN",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-23",
+          "description": "包括全页面批注任务，均原文件修改；不问类型／版本、不生成 vN"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台同文件多页。按 v4.0.0 规则执行。",
+      "expected_output": "重复按钮文案准确定位；切页后重选正确，隐藏页不误改，草稿可撤回",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-24",
+          "description": "重复按钮文案准确定位；切页后重选正确，隐藏页不误改，草稿可撤回"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "prompt": "我有一个旧工作台 sync-pages 操作包，请执行。",
+      "expected_output": "无按钮、无草稿／机会接口；旧 sync-pages 请求明确拒绝；CLI 文件登记 sync 不受误删",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-25",
+          "description": "无按钮、无草稿／机会接口；旧 sync-pages 请求明确拒绝；CLI 文件登记 sync 不受误删"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台图片／字体。按 v4.0.0 规则执行。",
+      "expected_output": "临时 URL 不写回，新增资源内联；离开工作台后的文件仍可独立运行",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-26",
+          "description": "临时 URL 不写回，新增资源内联；离开工作台后的文件仍可独立运行"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：草稿与事务。按 v4.0.0 规则执行。",
+      "expected_output": "草稿不改源文件；摘要冲突、唯一定位失败、依赖失败如实报告；独立文件可部分成功",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-27",
+          "description": "草稿不改源文件；摘要冲突、唯一定位失败、依赖失败如实报告；独立文件可部分成功"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "prompt": "修改移动端原型上的单个标题。",
+      "expected_output": "所有路径不创建／更新 EditLog；已有文件摘要不变；工作台必要请求状态仍正常",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-28",
+          "description": "所有路径不创建／更新 EditLog；已有文件摘要不变；工作台必要请求状态仍正常"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：编辑器回归。按 v4.0.0 规则执行。",
+      "expected_output": "选择、批注边缘避让、颜色面板、撤回、缩放／平移、刷新和关闭均保留",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-29",
+          "description": "选择、批注边缘避让、颜色面板、撤回、缩放／平移、刷新和关闭均保留"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：发布一致性。按 v4.0.0 规则执行。",
+      "expected_output": "五功能引用与版本一致，无旧契约强制断言；正式包不含过程截图、缓存或运行状态",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v4-30",
+          "description": "五功能引用与版本一致，无旧契约强制断言；正式包不含过程截图、缓存或运行状态"
+        }
       ]
     }
   ]

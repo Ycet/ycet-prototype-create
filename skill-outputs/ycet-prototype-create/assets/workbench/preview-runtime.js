@@ -88,6 +88,8 @@
       ancestors.push({ tag: node.tagName.toLowerCase(), id: node.id || "", classes: [...node.classList].slice(0, 3) });
     }
     return {
+      pageId: element.closest("[data-ycet-page-id]")?.dataset.ycetPageId || null,
+      elementId: element.dataset.ycetElementId || null,
       framePath: framePathFor(doc),
       selector: uniqueSelector(element, doc),
       tag: element.tagName.toLowerCase(),
@@ -474,7 +476,12 @@
     doc ||= findContext(operation.fingerprint?.framePath || []);
     if (!doc) return null;
     try {
-      const matches = [...doc.querySelectorAll(operation.fingerprint.selector)];
+      const fp = operation.fingerprint;
+      const scope = fp.pageId ? doc.querySelector('[data-ycet-page-id="'+cssEscape(fp.pageId)+'"]') : doc;
+      if (!scope) return null;
+      const selector = fp.elementId ? '[data-ycet-element-id="'+cssEscape(fp.elementId)+'"]' : fp.selector;
+      const matches = [...scope.querySelectorAll(selector)];
+      if (scope.matches?.(selector)) matches.unshift(scope);
       if (matches.length !== 1) return null;
       return matches[0];
     } catch (_error) {

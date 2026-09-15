@@ -31,7 +31,7 @@ SCHEMA_VERSION = 1
 HOST = "127.0.0.1"
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 ASSET_ROOT = SKILL_ROOT / "assets" / "workbench"
-ALLOWED_OPERATIONS = {"annotation", "style", "text", "image-replace", "css", "sync-pages"}
+ALLOWED_OPERATIONS = {"annotation", "style", "text", "image-replace", "css"}
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
 IMAGE_UPLOAD_MAX_BYTES = 32 * 1024 * 1024
 ACTIVE_REQUEST_STATUSES = {"pending", "processing"}
@@ -138,7 +138,7 @@ class Workspace:
             return []
         candidates = [
             path.resolve()
-            for path in self.project_root.rglob("*.html")
+            for path in self.prototype_root.rglob("*.html")
             if is_within(path, self.project_root)
             and not any(part in IGNORED_PROJECT_HTML_DIRS for part in path.relative_to(self.project_root).parts)
         ]
@@ -159,9 +159,14 @@ class Workspace:
         else:
             stored_path = str(resolved)
             automatic_group = ""
-        kind = "offline" if re.fullmatch(r"prototype-mobile(?:-v\d+)?\.html", resolved.name) else (
-            "runtime" if automatic_group == "runtime-pages" or automatic_group.startswith("runtime-pages/") else "html"
-        )
+        kind = "html"
+        if resolved.is_file():
+            match = re.search(r'<script[^>]+id=[\'"]ycet-metadata[\'"][^>]*>(.*?)</script>', resolved.read_text(encoding="utf-8"), re.S)
+            if match:
+                try:
+                    kind = json.loads(match.group(1)).get("type", "html")
+                except ValueError:
+                    pass
         record.update(
             {
                 "id": file_id(resolved),
@@ -205,22 +210,19 @@ class Workspace:
             # 已登记但后来丢失的项目文件继续显示为“缺失”，直到用户主动移出工作区。
             discovered_ids = {item["id"] for item in discovered}
             for previous in existing.values():
+                if not is_within(self.record_path(previous), self.prototype_root):
+                    continue
                 if previous.get("source") != "project" or previous["id"] in discovered_ids or previous.get("path") in hidden:
                     continue
                 discovered.append(self._record(self.record_path(previous), "project", previous))
-
-            # 外部文件不会被目录扫描；仅恢复用户已经明确登记的路径。
-            for previous in existing.values():
-                if previous.get("source") != "external":
-                    continue
-                path = self.record_path(previous)
-                discovered.append(self._record(path, "external", previous))
 
             for path in explicit or []:
                 resolved = path.resolve()
                 if not resolved.is_file() or resolved.suffix.lower() != ".html":
                     raise WorkbenchError(f"不是可读取的 HTML 文件：{resolved}")
-                source = "project" if is_within(resolved, self.project_root) else "external"
+                if not is_within(resolved, self.prototype_root):
+                    raise WorkbenchError("工作台仅登记 prototype/ 内原型；外部文件请先通过功能四接管")
+                source = "project"
                 if source == "project":
                     stored = resolved.relative_to(self.project_root).as_posix()
                     hidden.discard(stored)
@@ -496,16 +498,6 @@ def validate_request(workspace: Workspace, payload: dict[str, Any]) -> dict[str,
                 value = str(operation.get("value", ""))
                 if re.search(r"url\s*\(|@import|javascript:|expression\s*\(|-moz-binding|behavior\s*:", value, re.I):
                     raise WorkbenchError("CSS 草稿包含网络、路径或危险值")
-            if operation.get("type") == "sync-pages":
-                opportunity = next((candidate for candidate in sync_page_opportunities(workspace.project_root, workspace) if candidate["runtimeFileId"] == record["id"]), None)
-                if not opportunity:
-                    raise WorkbenchError("对应静态页没有尚未同步的成功修改")
-                if (
-                    operation.get("sourceFileId") != opportunity["sourceFileId"]
-                    or operation.get("sourceRequestId") != opportunity["sourceRequestId"]
-                    or operation.get("sourceSha256") != opportunity["sourceAfterSha256"]
-                ):
-                    raise WorkbenchError("同步 pages 草稿与最近一次静态页成功修改不一致")
         normalized_files.append(
             {
                 "fileId": record["id"],
@@ -723,9 +715,9 @@ def handler_factory(service: WorkbenchService):
             parent_relative = target.parent.relative_to(allowed_root).as_posix()
             parent_route = "" if parent_relative == "." else urllib.parse.quote(parent_relative, safe="/") + "/"
             payload = inject_runtime(text, config, f"/preview/{identifier}/{parent_route}")
-            # 仅兼容历史产物使用的官方 Tailwind CDN；新生成页面必须使用本地或内联 CSS。
+            # 原型样式与脚本均内联，预览仅加载同源编辑运行时。
             csp = (
-                "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdn.tailwindcss.com; "
+                "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; "
                 "style-src 'self' 'unsafe-inline' data: blob:; img-src 'self' data: blob:; font-src 'self' data: blob:; "
                 "connect-src 'self'; frame-src 'self' data: blob:; object-src 'none'; base-uri 'self'"
             )
@@ -790,7 +782,6 @@ def handler_factory(service: WorkbenchService):
                     self._send_json({
                         "activeRequest": next((item for item in summaries if item["status"] in ACTIVE_REQUEST_STATUSES), None),
                         "requests": summaries[:20],
-                        "syncPages": sync_page_opportunities(service.workspace.project_root, service.workspace),
                         "revision": service.revision,
                     })
                 elif path == "/api/results":
@@ -1113,12 +1104,6 @@ def request_summary(project_root: Path, request_id: str) -> dict[str, Any]:
     state = load_request_state(project_root, request_id)
     files = package.get("files", [])
     locked_file_ids = {item["fileId"] for item in files}
-    for item in files:
-        locked_file_ids.update(
-            str(operation["sourceFileId"])
-            for operation in item.get("operations", [])
-            if operation.get("type") == "sync-pages" and operation.get("sourceFileId")
-        )
     return {
         "requestId": request_id,
         "status": state["status"],
@@ -1173,88 +1158,6 @@ def list_request_results(project_root: Path) -> list[dict[str, Any]]:
         if result.get("requestId") == request_id:
             results.append(result)
     return sorted(results, key=lambda item: item.get("completedAt") or "", reverse=True)
-
-
-def sync_page_opportunities(project_root: Path, workspace: Workspace) -> list[dict[str, Any]]:
-    """返回尚未同步到运行时页的最近一次真实静态页修改。"""
-    records = {item["id"]: item for item in workspace.data["files"]}
-    events = []
-    for _path, package in request_packages(project_root):
-        result_path = request_result_path(project_root, package["requestId"])
-        if not result_path.is_file():
-            continue
-        try:
-            result = json.loads(result_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if result.get("status") not in {"success", "partial"}:
-            continue
-        events.append((result.get("completedAt") or "", package, result))
-
-    latest_changes: dict[str, dict[str, Any]] = {}
-    successful_syncs: dict[tuple[str, str], tuple[str | None, str | None]] = {}
-    for _completed_at, package, result in sorted(events, key=lambda item: item[0]):
-        success_items = {str(item.get("fileId")): item for item in result.get("items", []) if item.get("status") == "success"}
-        for file_item in package.get("files", []):
-            file_id_value = str(file_item.get("fileId"))
-            result_item = success_items.get(file_id_value)
-            if not result_item:
-                continue
-            record = records.get(file_id_value)
-            if record and record.get("automaticGroup") == "pages":
-                before_sha = result_item.get("beforeSha256")
-                after_sha = result_item.get("afterSha256")
-                if before_sha and after_sha and before_sha != after_sha:
-                    preview_operations = [
-                        {key: value for key, value in operation.items() if key not in {"fileId", "_key", "previewUrl"}}
-                        for operation in file_item.get("operations", [])
-                        if operation.get("type") in {"style", "css", "text"}
-                    ]
-                    latest_changes[file_id_value] = {
-                        "sourceRequestId": package["requestId"],
-                        "sourceBeforeSha256": before_sha,
-                        "sourceAfterSha256": after_sha,
-                        "previewOperations": preview_operations,
-                    }
-                else:
-                    # 最近一次成功任务没有真实改写该静态页时，不沿用更早批次的同步入口。
-                    latest_changes.pop(file_id_value, None)
-            for operation in file_item.get("operations", []):
-                if operation.get("type") != "sync-pages":
-                    continue
-                source_id = str(operation.get("sourceFileId") or "")
-                successful_syncs[(file_id_value, source_id)] = (
-                    operation.get("sourceRequestId"),
-                    operation.get("sourceSha256"),
-                )
-
-    opportunities = []
-    pages_by_name = {
-        item["name"]: item
-        for item in workspace.data["files"]
-        if item.get("automaticGroup") == "pages" and not item.get("missing")
-    }
-    for runtime in workspace.data["files"]:
-        if runtime.get("automaticGroup") != "runtime-pages" or runtime.get("missing"):
-            continue
-        source_name = re.sub(r"--[^.]+(?=\.html$)", "", runtime["name"])
-        source = pages_by_name.get(source_name)
-        if not source:
-            continue
-        change = latest_changes.get(source["id"])
-        if not change or source.get("sha256") != change["sourceAfterSha256"]:
-            continue
-        synced_request_id, synced_source_sha = successful_syncs.get((runtime["id"], source["id"]), (None, None))
-        if synced_request_id == change["sourceRequestId"] or synced_source_sha == change["sourceAfterSha256"]:
-            continue
-        opportunities.append({
-            "runtimeFileId": runtime["id"],
-            "sourceFileId": source["id"],
-            "sourcePath": source["path"],
-            "runtimePath": runtime["path"],
-            **change,
-        })
-    return opportunities
 
 
 def active_request_summary(project_root: Path) -> dict[str, Any] | None:
@@ -1480,7 +1383,7 @@ def build_parser() -> argparse.ArgumentParser:
     request.add_argument("--project-root", required=True)
     request.add_argument("--request-id")
     request.add_argument("--result")
-    request.add_argument("--include", action="append", help="begin 时额外纳入事务的项目内文件，可用于图片资源和 EditLog")
+    request.add_argument("--include", action="append", help="begin 时额外纳入事务的项目内文件，可用于图片归档资源")
     request.add_argument("--reason", default="Agent 中止执行")
     request.set_defaults(func=command_request)
 

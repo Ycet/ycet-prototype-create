@@ -35,7 +35,6 @@
     pollTimer: null,
     serviceClosed: false,
     requestRevision: 0,
-    syncPages: [],
     dismissedRequestIds: new Set(),
     undoStack: [],
     pendingUndoBatch: null,
@@ -45,7 +44,7 @@
   const els = {
     layout: $("#layout"), sidebar: $("#sidebar"), tree: $("#file-tree"), search: $("#file-search"),
     frame: $("#preview-frame"), shell: $("#preview-shell"), viewport: $("#canvas-viewport"), empty: $("#empty-state"),
-    path: $("#current-path"), project: $("#project-name"), selectMode: $("#select-mode"), clearAnnotations: $("#clear-annotations"), sync: $("#sync-pages"),
+    path: $("#current-path"), project: $("#project-name"), selectMode: $("#select-mode"), clearAnnotations: $("#clear-annotations"),
     selectedPath: $("#selected-path"), selectedName: $("#selected-name"), zoomValue: $("#zoom-value"), zoomInput: $("#zoom-input"),
     toast: $("#toast"), tooltip: $("#tooltip"), connectionDot: $("#connection-dot"), connectionCopy: $("#connection-copy"),
     inspector: $(".inspector"), requestStatus: $("#request-status"), serviceClosed: $("#service-closed"),
@@ -118,7 +117,7 @@
   }
 
   function fingerprintKey(fingerprint) {
-    return `${(fingerprint?.framePath || []).join(".")}|${fingerprint?.selector || ""}`;
+    return `${fingerprint?.pageId || "tool"}|${fingerprint?.elementId || fingerprint?.selector || ""}`;
   }
 
   function upsertOperation(identifier, operation, key) {
@@ -147,7 +146,6 @@
 
   function operationsForPreview() {
     return [...state.drafts.values()].flatMap((draft) => draft.operations.flatMap((item) => {
-      if (item.type === "sync-pages") return item._previewOperations || [];
       return item.type === "annotation" ? [] : [item];
     }));
   }
@@ -199,7 +197,7 @@
 
   function fileRow(file) {
     const row = document.createElement("div");
-    row.className = `file-row${file.id === state.currentFileId ? " active" : ""}${hasDraft(file.id) || hasRelatedDraft(file.id) ? " pending" : ""}${syncOpportunity(file.id) ? " needs-sync" : ""}`;
+    row.className = `file-row${file.id === state.currentFileId ? " active" : ""}${hasDraft(file.id) || hasRelatedDraft(file.id) ? " pending" : ""}`;
     row.dataset.fileId = file.id;
     const name = document.createElement("span");
     name.className = "file-name";
@@ -242,19 +240,6 @@
     row.append(name, source, actions);
     row.addEventListener("click", () => selectFile(file.id));
     return row;
-  }
-
-  function syncOpportunity(identifier) {
-    return state.syncPages.find((item) => item.runtimeFileId === identifier) || null;
-  }
-
-  function renderSyncButton(identifier = state.currentFileId) {
-    const file = fileById(identifier);
-    const synced = draftFor(identifier, false)?.operations.some((item) => item.type === "sync-pages");
-    const visible = Boolean(file?.kind === "runtime" && (synced || syncOpportunity(identifier)));
-    els.sync.classList.toggle("hidden", !visible);
-    els.sync.textContent = synced ? "已同步" : "同步 pages";
-    els.sync.classList.toggle("synced", Boolean(synced));
   }
 
   function groupNode(group) {
@@ -320,7 +305,6 @@
     els.path.textContent = file.path;
     els.empty.classList.toggle("hidden", !file.missing);
     els.shell.classList.toggle("hidden", file.missing);
-    renderSyncButton(identifier);
     clearSelectionPanel();
     resizePreviewShell();
     updateZoom(false);
@@ -335,7 +319,6 @@
     els.inspector.classList.toggle("request-file-locked", locked);
     $$("input, select, textarea, button", $(".inspector-scroll", els.inspector)).forEach((control) => { control.disabled = locked; });
     $("#clear-current").disabled = locked;
-    els.sync.disabled = locked;
     els.clearAnnotations.disabled = locked || !(draftFor(state.currentFileId, false)?.annotations.length);
     updateUndoButton();
   }
@@ -1373,24 +1356,6 @@
     $("#image-file-input").value = "";
   }
 
-  function syncPages() {
-    const runtime = fileById(state.currentFileId);
-    if (!runtime || runtime.kind !== "runtime") return;
-    if (!requireEditable(runtime.id)) return;
-    const opportunity = syncOpportunity(runtime.id);
-    if (!opportunity) return toast("对应静态页没有尚未同步的成功样式修改。", "warn");
-    const source = fileById(opportunity.sourceFileId);
-    if (!source) return toast("对应静态页已不在当前工作区。", "warn");
-    const previewOperations = (opportunity.previewOperations || []).map((item) => ({ ...item, fileId: runtime.id }));
-    const operation = {
-      type: "sync-pages", fileId: runtime.id, sourceFileId: source.id, sourcePath: source.path, runtimePath: runtime.path,
-      sourceRequestId: opportunity.sourceRequestId, sourceSha256: opportunity.sourceAfterSha256,
-      runtimeSha256: runtime.sha256, dependencyGroup: `sync:${runtime.id}`, _previewOperations: previewOperations,
-    };
-    upsertOperation(runtime.id, operation, `sync:${runtime.id}`);
-    renderSyncButton(runtime.id);
-  }
-
   async function clearCurrent() {
     if (!requireEditable(state.currentFileId)) return;
     await flushActiveInput();
@@ -1403,28 +1368,18 @@
       state.staleDrafts.delete(identifier);
     }
     dropUndoForFileIds(affected.map(([identifier]) => identifier));
-    renderSyncButton(state.currentFileId);
     renderTree(); applyDrafts(); syncDirtyState();
     postPreview("refresh-selection");
-    toast("已清空当前 HTML 的样式、内容、图片、CSS 和同步草稿；批注已保留。" );
+    toast("已清空当前 HTML 的样式、内容、图片和 CSS 草稿；批注已保留。" );
   }
 
   function requestFiles() {
-    const dependencyByFile = new Map();
-    for (const [identifier, draft] of state.drafts) {
-      for (const operation of draft.operations) {
-        if (operation.type === "sync-pages") {
-          dependencyByFile.set(identifier, operation.dependencyGroup);
-          dependencyByFile.set(operation.sourceFileId, operation.dependencyGroup);
-        }
-      }
-    }
     return [...state.drafts.entries()].map(([identifier, draft]) => {
       const file = fileById(identifier);
       if (!file) return null;
       const operations = [...draft.annotations, ...draft.operations].map(({ _key, previewUrl, _previewOperations, ...operation }) => operation);
       if (!operations.length) return null;
-      return { fileId: identifier, sha256: file.sha256, operations, dependencyGroup: dependencyByFile.get(identifier) || null };
+      return { fileId: identifier, sha256: file.sha256, operations, dependencyGroup: null };
     }).filter(Boolean);
   }
 
@@ -1470,10 +1425,8 @@
     state.requestRevision = Number(listing.revision || state.requestRevision);
     state.requests = listing.requests || [];
     state.activeRequest = listing.activeRequest || null;
-    state.syncPages = listing.syncPages || [];
     renderRequestStatus();
     renderTree();
-    renderSyncButton();
   }
 
   function openRequestDialog(request, title = "变更包已生成", copy = "请将以下执行指令粘贴到当前 Agent。工作台不会直接控制 Agent 会话。") {
@@ -1608,7 +1561,7 @@
   function confirmShutdown() {
     const dirtyCount = dirtyIds().length;
     const copy = dirtyCount
-      ? `当前有 ${dirtyCount} 个 HTML 文件包含未发送修改。关闭进程后，这些批注、样式、内容、图片、CSS 和同步草稿将全部丢失；已生成的 Agent 请求不会被取消。`
+      ? `当前有 ${dirtyCount} 个 HTML 文件包含未发送修改。关闭进程后，这些批注、样式、内容、图片和 CSS 草稿将全部丢失；已生成的 Agent 请求不会被取消。`
       : "关闭后需要通过 Skill 重新启动工作台；已生成或正在执行的 Agent 请求不会被取消。";
     confirmAction("关闭工作台进程", copy, shutdownWorkbench, "关闭进程");
   }
@@ -1638,7 +1591,6 @@
         state.requestRevision = Number(requests.revision || state.requestRevision);
         state.requests = requests.requests || [];
         state.activeRequest = requests.activeRequest || null;
-        state.syncPages = requests.syncPages || [];
       }
       state.results = results.results || [];
       if (!previousSha && state.currentFileId && !fileById(state.currentFileId)) selectFile(workspace.currentFileId, true);
@@ -1731,7 +1683,7 @@
       $$(".tab").forEach((item) => item.classList.toggle("active", item === button));
       $$(".tab-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== button.dataset.tab));
     }));
-    $("#sync-pages").addEventListener("click", syncPages); $("#undo-changes").addEventListener("click", undoLast); $("#clear-current").addEventListener("click", clearCurrent);
+    $("#undo-changes").addEventListener("click", undoLast); $("#clear-current").addEventListener("click", clearCurrent);
     $("#send-ai").addEventListener("click", sendRequest);
     $("#copy-instruction").addEventListener("click", async () => {
       const copyTask = copyInstruction();
@@ -1817,7 +1769,6 @@
       state.workspace = workspace;
       state.requests = requests.requests || [];
       state.activeRequest = requests.activeRequest || null;
-      state.syncPages = requests.syncPages || [];
       state.requestRevision = Number(requests.revision || 0);
       state.results = results.results || [];
       state.latestResultId = state.results[0]?.requestId || null;

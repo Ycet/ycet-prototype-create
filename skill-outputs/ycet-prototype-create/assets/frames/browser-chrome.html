@@ -1,76 +1,14 @@
-<!doctype html>
-<html lang="zh-CN" data-ycet-frame-id="browser-chrome" data-logical-width="1440" data-logical-height="900">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Browser Chrome Frame</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
-    html, body, .inner { scrollbar-width: none; -ms-overflow-style: none; }
-    html::-webkit-scrollbar, body::-webkit-scrollbar, .inner::-webkit-scrollbar { width: 0; height: 0; display: none; }
-    .inner { overflow: hidden; }
-    body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
-    .stage { position: relative; width: 960px; height: 626px; overflow: hidden; }
-    .window { position: absolute; top: 0; left: 0; width: 1440px; height: 938px; transform: scale(.6666667); transform-origin: top left; overflow: hidden; border-radius: 18px; background: #fafaf7; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset, 0 30px 70px -20px rgba(0,0,0,.25); }
-    .toolbar { height: 38px; display: flex; align-items: center; gap: 18px; padding: 0 18px; border-bottom: 1px solid rgba(0,0,0,.1); background: linear-gradient(#ededec, #d8d8d6); }
-    .lights { display: flex; gap: 8px; }
-    .light { width: 12px; height: 12px; border-radius: 50%; }
-    .light.r { background: #ff5f57; } .light.y { background: #febc2e; } .light.g { background: #28c840; }
-    .address { flex: 1; max-width: 760px; margin: 0 auto; padding: 4px 14px; overflow: hidden; border: 1px solid rgba(0,0,0,.08); border-radius: 7px; background: #fff; color: #696864; font-size: 12px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-    .inner { display: block; width: 1440px; height: 900px; border: 0; background: #fafaf7; }
-  </style>
-</head>
-<body>
-  <div class="stage">
-    <div class="window">
-      <div class="toolbar" aria-hidden="true"><span class="lights"><span class="light r"></span><span class="light y"></span><span class="light g"></span></span><span>‹</span><span>›</span><div class="address">🔒 prototype.local</div><span>＋</span></div>
-      <iframe id="screen" class="inner" title="产品页面" sandbox="allow-scripts allow-same-origin" scrolling="no" src="about:blank"></iframe>
+<style>
+[data-ycet-frame-id="browser-chrome"] *, [data-ycet-frame-id="browser-chrome"] *::before, [data-ycet-frame-id="browser-chrome"] *::after { box-sizing: border-box; }[data-ycet-frame-id="browser-chrome"] , [data-ycet-frame-id="browser-chrome"]  { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }[data-ycet-frame-id="browser-chrome"] , [data-ycet-frame-id="browser-chrome"] , [data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-inner { scrollbar-width: none; -ms-overflow-style: none; }[data-ycet-frame-id="browser-chrome"] ::-webkit-scrollbar, [data-ycet-frame-id="browser-chrome"] ::-webkit-scrollbar, [data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-inner::-webkit-scrollbar { width: 0; height: 0; display: none; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-inner { overflow: hidden; }[data-ycet-frame-id="browser-chrome"]  { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-stage { position: relative; width: 960px; height: 626px; overflow: hidden; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-window { position: absolute; top: 0; left: 0; width: 1440px; height: 938px; transform: scale(.6666667); transform-origin: top left; overflow: hidden; border-radius: 18px; background: #fafaf7; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset, 0 30px 70px -20px rgba(0,0,0,.25); }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-toolbar { height: 38px; display: flex; align-items: center; gap: 18px; padding: 0 18px; border-bottom: 1px solid rgba(0,0,0,.1); background: linear-gradient(#ededec, #d8d8d6); }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-lights { display: flex; gap: 8px; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-light { width: 12px; height: 12px; border-radius: 50%; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-light.ycet-frame-browser-chrome-r { background: #ff5f57; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-light.ycet-frame-browser-chrome-y { background: #febc2e; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-light.ycet-frame-browser-chrome-g { background: #28c840; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-address { flex: 1; max-width: 760px; margin: 0 auto; padding: 4px 14px; overflow: hidden; border: 1px solid rgba(0,0,0,.08); border-radius: 7px; background: #fff; color: #696864; font-size: 12px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }[data-ycet-frame-id="browser-chrome"] .ycet-frame-browser-chrome-inner { display: block; width: 1440px; height: 900px; border: 0; background: #fafaf7; }
+
+
+[data-ycet-frame-id="browser-chrome"] {width:960px;height:626px;overflow:visible;}
+</style>
+<div data-ycet-frame-id="browser-chrome">
+  <div class="ycet-frame-browser-chrome-stage">
+    <div class="ycet-frame-browser-chrome-window">
+      <div class="ycet-frame-browser-chrome-toolbar" aria-hidden="true"><span class="ycet-frame-browser-chrome-lights"><span class="ycet-frame-browser-chrome-light ycet-frame-browser-chrome-r"></span><span class="ycet-frame-browser-chrome-light ycet-frame-browser-chrome-y"></span><span class="ycet-frame-browser-chrome-light ycet-frame-browser-chrome-g"></span></span><span>‹</span><span>›</span><div class="ycet-frame-browser-chrome-address">🔒 prototype.local</div><span>＋</span></div>
+      <div class="ycet-frame-browser-chrome-inner">{{CONTENT}}</div>
     </div>
   </div>
-  <script>
-    (function () {
-      const FRAME_ID = "browser-chrome";
-      const CHANNEL = "ycet-prototype";
-      const VERSION = 1;
-      const SCREEN_QUERY_PARAMETER = "screen";
-      const FRAME_PROJECT_ROOT_RELATIVE_PATH = "../../";
-      const ALLOWED_SCREEN_PREFIXES = ["pages/", "previews/", "runtime-pages/"];
-      const PROJECT_ROOT_URL = new URL(FRAME_PROJECT_ROOT_RELATIVE_PATH, location.href);
-      const inner = document.getElementById("screen");
-      let currentScreen = "about:blank";
-      // 所有页面路径都以 prototype/ 为根；兼容 file://、中文/空格旧文件名和安全的 query/hash。
-      function normalizeProjectPath(value, allowLegacyPageName) {
-        if (typeof value !== "string") throw new Error("页面路径必须是字符串");
-        let candidate = value.replace(/\\/g, "/").trim();
-        if (allowLegacyPageName && !candidate.includes("/")) candidate = "pages/" + candidate;
-        if (!candidate || /^[a-z][a-z\d+.-]*:/i.test(candidate) || candidate.startsWith("/")) throw new Error("页面路径必须是安全的项目相对路径");
-        const resolved = new URL(candidate, PROJECT_ROOT_URL);
-        if (resolved.protocol !== PROJECT_ROOT_URL.protocol || resolved.host !== PROJECT_ROOT_URL.host || !resolved.pathname.startsWith(PROJECT_ROOT_URL.pathname)) throw new Error("页面路径超出项目根目录");
-        const encodedPath = resolved.pathname.slice(PROJECT_ROOT_URL.pathname.length);
-        let decodedPath;
-        try { decodedPath = decodeURIComponent(encodedPath); } catch (_error) { throw new Error("页面路径编码无效"); }
-        const segments = decodedPath.split("/");
-        if (/[\u0000-\u001F\u007F]/.test(decodedPath) || segments.some((segment) => !segment || segment === "." || segment === "..")) throw new Error("页面路径包含非法片段");
-        if (!ALLOWED_SCREEN_PREFIXES.some((prefix) => decodedPath.startsWith(prefix)) || !decodedPath.toLowerCase().endsWith(".html")) throw new Error("页面路径只能指向 pages/、previews/ 或 runtime-pages/ 下的 HTML");
-        return encodedPath + resolved.search + resolved.hash;
-      }
-      function normalizeScreen(value) { return value === "about:blank" ? value : normalizeProjectPath(value, false); }
-      function normalizeNavigationTarget(value) { return normalizeProjectPath(value, true); }
-      function resolveScreen(screen) { return screen === "about:blank" ? screen : new URL(screen, PROJECT_ROOT_URL).toString(); }
-      function notify(type, payload) { window.parent.postMessage({ channel: CHANNEL, version: VERSION, type, frameId: FRAME_ID, ...(payload || {}) }, "*"); }
-      function setScreen(value) { try { currentScreen = normalizeScreen(value); inner.src = resolveScreen(currentScreen); } catch (error) { notify("error", { message: error.message, screen: value }); } }
-      // 框架作为双层 iframe 的受控消息中继。
-      window.addEventListener("message", function (event) {
-        const message = event.data || {};
-        if (message.channel !== CHANNEL || message.version !== VERSION) return;
-        if (event.source === inner.contentWindow && message.type === "navigate") { try { notify("navigate", { targetPage: normalizeNavigationTarget(message.targetPage) }); } catch (error) { notify("error", { message: error.message, screen: message.targetPage }); } return; }
-        if (event.source === inner.contentWindow && ["ready", "error"].includes(message.type)) { notify(message.type, { message: message.message }); return; }
-        if (event.source === window.parent && message.type === "set-screen") setScreen(message.screen);
-      });
-      inner.addEventListener("load", function () { notify("screen-changed", { screen: currentScreen }); });
-      setScreen(new URLSearchParams(location.search).get(SCREEN_QUERY_PARAMETER) || "about:blank");
-    })();
-  </script>
-</body>
-</html>
+  </div>
