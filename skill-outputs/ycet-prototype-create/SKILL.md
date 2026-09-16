@@ -3,20 +3,39 @@ name: ycet-prototype-create
 description: Refine product requirements, confirm UI direction, create self-contained static, interactive or mobile HTML prototypes, adapt existing HTML or screenshot prototypes, and edit them through a local visual workbench. Use for product prototyping, offline HTML demos, prototype modifications or workbench change requests.
 ---
 
-# YCET Prototype Creator v4.0.0
+# YCET Prototype Creator v4.0.1
 
 ## 路由
 
-| 用户任务 | 入口 |
-| --- | --- |
-| 工作台请求 ID／执行指令，打开可视化工作台 | docs/function-5-workbench.md |
-| 基于现有原型或图片制作／修改 | docs/function-4-existing-prototype-edit.md |
-| 从零制作完整原型 | 功能一 → 功能二 → 功能三，阶段间确认 |
-| 只完善需求 | docs/function-1-requirements.md |
-| 只确认 UI 方向 | docs/function-2-ui-direction.md |
-| 已有确认需求和方向，开始制作 | docs/function-3-prototype-production.md |
+按以下优先级判断触发场景，不以用户提及某个功能名或“制作原型”关键词直接跳过阶段：
 
-不能只因“单文件／离线”路由移动端。意图不明时一次只问一个路由问题，给多个答案。每个功能按需读取对应文档。
+1. 用户要求打开、预览或使用工作台，或提供工作台请求 ID／请求包／执行指令：读取 `docs/function-5-workbench.md`，进入功能五。请求内的原文件修改不经过功能三。
+2. 非工作台任务，且用户提供现有原型 HTML、图片、截图或明确要求在其基础上制作／修改：读取 `docs/function-4-existing-prototype-edit.md`，先进入功能四读取、审计并整理变更。HTML 需要整体重设计时进入功能二；沿用 UI 或图片承载时进入功能三。
+3. 非上述场景，从零提出产品想法、需求或制作原型：读取 `docs/function-1-requirements.md`，进入功能一。需求确认且用户同意继续后，读取 `docs/function-2-ui-direction.md`；方向确认且用户同意继续后，读取 `docs/function-3-prototype-production.md`。未确认时留在当前阶段完善，或按用户要求结束当前功能。
+4. 续接已有任务时，仅在当前上下文有对应阶段的明确确认和继续授权后，从下一阶段恢复；不能把“开始制作”本身当作需求和 UI 方向已经确认。
+
+```mermaid
+flowchart TD
+    S[用户任务] --> W{工作台任务或请求包？}
+    W -->|是| F5[功能五：预览或原文件修改]
+    W -->|否| E{基于现有原型或图片？}
+    E -->|是| F4[功能四：读取、审计与变更整理]
+    E -->|否，从零制作| F1[功能一：需求完善]
+    F1 --> C1{需求确认并继续？}
+    C1 -->|是| F2[功能二：UI 方向与单文件预览]
+    C1 -->|否| R1[继续完善需求或结束当前功能]
+    F2 --> C2{方向确认并继续？}
+    C2 -->|是| F3[功能三：询问 A／B／C 类型]
+    C2 -->|否| R2[调整方向或结束当前功能]
+    F4 --> U{需要整体重设计？}
+    U -->|HTML 且需要| F2
+    U -->|沿用 UI 或图片承载| F3
+    F3 --> P[确认必要交互与写入策略]
+    P --> G[仅生成所选类型到 outputs]
+    G --> V[单文件与浏览器验收]
+```
+
+不能只因“单文件／离线”路由移动端。意图不明时一次只问一个路由问题，给多个答案。每个功能按需读取对应文档；仅完成用户指定阶段时不自动制作后续产物。
 
 ## 全局契约
 

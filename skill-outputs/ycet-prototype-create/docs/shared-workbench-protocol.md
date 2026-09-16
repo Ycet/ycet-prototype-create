@@ -165,3 +165,5 @@ python <skill目录>/scripts/prototype_workbench.py request abort --project-root
 没有跨文件内容同步操作；旧 sync-pages 操作明确拒绝。CLI sync 仅登记 prototype 内文件，不启动服务。
 
 只处理 readyFileIds，保留请求状态、原子领取、事务、摘要、部分成功、关闭及源文件冲突机制。不创建或更新 EditLog。现有历史日志保持不变。
+
+属性预览不依赖 HTML 文件命名或元数据。显式 style/css 草稿使用内联 `!important` 覆盖源样式同名属性，新属性操作在请求中携带 `priority: "important"`；旧操作未提供 priority 时按 important 处理。Agent 落实操作时保持相同优先级，仅修改目标元素对应属性，不删除其他规则。撤回／清空恢复完整原始 style（包括原有优先级），预览不修改磁盘源文件。

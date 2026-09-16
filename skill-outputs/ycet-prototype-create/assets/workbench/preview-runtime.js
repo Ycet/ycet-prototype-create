@@ -493,7 +493,8 @@
     const element = findElement(operation);
     if (!element) return;
     if (operation.type === "style" || operation.type === "css") {
-      element.style.setProperty(operation.property, operation.value);
+      // 显式属性草稿应覆盖源页面的 !important；撤回仍恢复完整原始 style。
+      element.style.setProperty(operation.property, operation.value, operation.priority ?? "important");
     } else if (operation.type === "text") {
       const node = textNodes(element)[Number(operation.index)];
       if (node) {

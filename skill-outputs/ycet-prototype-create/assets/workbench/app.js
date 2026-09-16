@@ -520,7 +520,7 @@
     if (!state.suppressUndoRecord && (!existing || existing.value !== next)) {
       pushUndoEntry({ fileId: state.selection.fileId, key, fingerprint: state.selection.fingerprint, prevOperation: existing ? { ...existing } : null });
     }
-    upsertOperation(state.selection.fileId, { type: "style", fingerprint: state.selection.fingerprint, property, value: next }, key);
+    upsertOperation(state.selection.fileId, { type: "style", fingerprint: state.selection.fingerprint, property, value: next, priority: "important" }, key);
     // 边框可见性：元素没有可见边框（border-style 为 none/hidden）时，单独设置 border-width 或 border-color 不会渲染。
     // 此时自动补 border-style: solid，让边框修改立即在画布可见；颜色调整且宽度仍为 0 时补 1px。
     if ((property === "border-width" && parseFloat(next) > 0) || property === "border-color") ensureBorderVisible(property);

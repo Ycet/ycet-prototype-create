@@ -9,6 +9,7 @@ python scripts/validate_skill.py
 python scripts/test_prototype_v4.py --fixtures <空测试目录>
 node scripts/test_runtime_v4.cjs <同一测试目录>
 node scripts/test_workbench_v4.cjs <同一测试目录>
+node scripts/test_preview_priority_v4.cjs
 python scripts/release_audit.py --output <Skill目录外的发布包.skill>
 ```
 

@@ -76,6 +76,9 @@ if __name__=='__main__':
         root=Path(sys.argv[2]).resolve()/'prototype';root.mkdir(parents=True,exist_ok=True)
         for kind in ('pages','demo','mobile','direction'):
             model=fixture(kind)
+            if kind=='demo':
+                model['pages'][0]['html']+='<div style="height:1800px">长页面底部可滚动</div>'
+                model['pages'] += [{'id':f'extra-{i}','label':f'更多页面 {i}','html':'<p>页面</p>'} for i in range(40)]
             if kind=='direction':
                 model['pages']=model['pages'][:1];model['pages'][0]['html']='<h1>首页预览</h1>';model['pages'][0]['js']=''
             print(build(model,root))
