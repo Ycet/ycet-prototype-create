@@ -1,9 +1,9 @@
 ---
 name: ycet-prototype-create
-description: Refine product requirements, confirm UI direction, create self-contained static, interactive or mobile HTML prototypes, adapt existing HTML or screenshot prototypes, and edit them through a local visual workbench. Use for product prototyping, offline HTML demos, prototype modifications or workbench change requests.
+description: Refine product requirements, confirm UI direction, create self-contained static, framed interactive or frameless mobile/desktop HTML prototypes, adapt existing HTML or screenshot prototypes, and edit them through a local visual workbench. Use for product prototyping, offline HTML demos, prototype modifications or workbench change requests.
 ---
 
-# YCET Prototype Creator v4.0.1
+# YCET Prototype Creator v4.1.0
 
 ## 路由
 
@@ -32,17 +32,23 @@ flowchart TD
     U -->|沿用 UI 或图片承载| F3
     F3 --> P[确认必要交互与写入策略]
     P --> G[仅生成所选类型到 outputs]
-    G --> V[单文件与浏览器验收]
+    G --> M{是否为修改任务}
+    M -->|是| END[必要事务收尾后直接结束]
+    M -->|否，首次生成| V[单文件与浏览器验收]
 ```
 
-不能只因“单文件／离线”路由移动端。意图不明时一次只问一个路由问题，给多个答案。每个功能按需读取对应文档；仅完成用户指定阶段时不自动制作后续产物。
+产品端口与原型类型独立：C 同时适用手机和 PC，按已确认端口适配实际视口。不能只因“单文件／离线”自动选择 C。意图不明时一次只问一个路由问题，给多个答案。每个功能按需读取对应文档；仅完成用户指定阶段时不自动制作后续产物。
+
+## 修改任务的结束条件
+
+完成用户要求的原型修改并保存后，做必要事务收尾并立即回复。默认不追加静态守卫、局部／全量回归、浏览器检查、截图或其他验收；只有用户明确要求时执行指定范围。此规则适用于功能三／四／五、全部类型和修改规模，也适用于迭代与类型转换，优先于下游验收说明。读取 docs/prototype-validation.md 区分修改、首次生成及 Skill 开发。
 
 ## 全局契约
 
 - 全部生成 HTML 位于 prototype/outputs/；Spec 在 prototype/docs/Spec.md，素材归档 prototype/assets/。
 - 生成前读 docs/shared-prototype-standards.md；修改前读 docs/shared-change-policy.md。
 - 所有交付 HTML 使用直接 DOM、内联资源，无 iframe/srcdoc 和外部运行依赖，包含 design-direction.html。
-- 功能三制作前必须询问 A 静态、B 交互、C 移动，实际回答后只生成所选类型。
+- 功能三制作前必须询问 A 静态、B 交互、C 无框架交互，实际回答后只生成所选类型。
 - 破坏性变更、增删页面或全部页面同时修改，写入前询问版本策略，推荐新增迭代文件；普通局部修改直接改现有文件。
 - 工作台请求是明确例外：原文件修改，不问类型／版本，不生成迭代文件。
 - 三类原型独立维护，工作台不提供内容同步。取消自动创建／更新 EditLog，已有日志保留。
@@ -53,4 +59,4 @@ flowchart TD
 
 ## 完成
 
-列出功能、文件、类型、版本策略、页面与资源内联情况、实际验证结果、限制及继续方式。未实际测试的浏览器／真机明确标注，不宣称已更新日志。
+列出功能、文件、类型、版本策略、页面与资源内联情况、实际执行情况、限制及继续方式；未验收时不得声称验证通过。未实际测试的浏览器／真机明确标注，不宣称已更新日志。

@@ -43,7 +43,11 @@ def audit(source):
     if not d.pages or len(set(d.pages))!=len(d.pages):d.errors.append('页面 ID 缺失或重复')
     try:
         m=json.loads(d.meta)
-        if m.get('schemaVersion')!=1 or m.get('type') not in ('pages','demo','mobile','direction'):raise ValueError()
+        if m.get('schemaVersion')!=1 or m.get('type') not in ('pages','demo','nonframe','mobile','direction'):raise ValueError()
+        if m.get('type')=='nonframe':
+            routing=json.loads((Path(__file__).resolve().parents[1]/'assets/frames/manifest.json').read_text())['routing']
+            if m.get('frame') is not None or m.get('productPort') not in routing: raise ValueError()
+            if any(p.get('layout','document') not in ('document','app') for p in m['pages']): raise ValueError()
         if [p['id'] for p in m['pages']]!=d.pages or m['initial'] not in d.pages:raise ValueError()
     except (ValueError,KeyError,TypeError):d.errors.append('原型元数据无效');m={}
     if any(t not in d.pages for t in d.targets):d.errors.append('未登记页面目标')
@@ -58,6 +62,6 @@ def audit(source):
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('file',type=Path);a=p.parse_args();errors=audit(a.file.read_text())
     for e in errors:print('[FAIL]',e)
-    if not errors:print('[OK] 单文件结构与依赖静态校验通过；仍需浏览器验收')
+    if not errors:print('[OK] 单文件结构与依赖静态校验通过；浏览器结果需另行记录')
     return bool(errors)
 if __name__=='__main__':sys.exit(main())

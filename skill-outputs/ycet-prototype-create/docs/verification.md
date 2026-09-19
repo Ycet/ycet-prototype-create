@@ -1,13 +1,18 @@
-# 开发验证
+# Skill 开发验证（非日常原型修改）
+
+仅开发／发布 Skill 源码时使用下列命令。用户修改产品原型遵循 prototype-validation.md，完成即结束，不自动执行本页测试。
 
 脚本使用 Python 3.10+ 标准库。浏览器回归另需 Node.js、Playwright 和相应浏览器；使用环境现有依赖，不自动安装。
 
 ```sh
 python scripts/test_prototype_v4.py
 python scripts/test_prototype_workbench.py
+python scripts/test_nonframe_v41.py
 python scripts/validate_skill.py
 python scripts/test_prototype_v4.py --fixtures <空测试目录>
 node scripts/test_runtime_v4.cjs <同一测试目录>
+python scripts/test_nonframe_v41.py --fixtures <同一测试目录>
+node scripts/test_nonframe_v41.cjs <同一测试目录>
 node scripts/test_workbench_v4.cjs <同一测试目录>
 node scripts/test_preview_priority_v4.cjs
 python scripts/release_audit.py --output <Skill目录外的发布包.skill>

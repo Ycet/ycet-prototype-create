@@ -142,7 +142,7 @@ Agent 执行规则：
 
 1. 只处理 `begin` 返回的 `readyFileIds`。
 2. 对每个元素重新解析源 HTML 并验证指纹唯一。
-3. 在暂存内容中应用操作并运行当前功能要求的守卫。
+3. 在暂存内容中应用操作并保留摘要及原子写入保护；原型修改完成后不追加守卫或验收。
 4. 成功修改仅在结果与完成回复记录，不写 EditLog。
 5. 结果 JSON 的 `items` 逐文件包含 `fileId`、`path`、`status` 与可选 `reason`；状态为 `success`、`failed` 或 `conflict`。成功项通过 `affectedFileIds` 登记本次实际改变的附加事务文件 ID；不得漏报图片归档资源。
 6. 多个互不依赖文件允许部分成功，最终回复必须列出成功文件、失败/冲突文件和原因。
@@ -160,7 +160,7 @@ python <skill目录>/scripts/prototype_workbench.py request abort --project-root
 
 新原型使用同文件直接 DOM。指纹附带 pageId、elementId；先校验文件 SHA-256，再在页面根内唯一定位。缺失或多匹配报告冲突，不猜测。旧普通 HTML 可使用唯一 CSS 指纹，不提供旧多文件联动能力。
 
-工作台请求一律改现有文件，不走功能三类型选择或版本询问，即使是增删页面、破坏性或全页修改也不新增迭代文件。图片替换需归档且内联到 HTML，不能写入上传临时 URL。修改后运行 prototype_guard.py <HTML> 并验证受影响交互。
+工作台请求一律改现有文件，不走功能三类型选择或版本询问，即使是增删页面、破坏性或全页修改也不新增迭代文件。图片替换需归档且内联到 HTML，不能写入上传临时 URL。修改保存后及时 complete，默认不运行 prototype_guard.py 或其他验收；仅用户明确要求测试时按指定范围执行，见 prototype-validation.md。
 
 没有跨文件内容同步操作；旧 sync-pages 操作明确拒绝。CLI sync 仅登记 prototype 内文件，不启动服务。
 

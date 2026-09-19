@@ -6,13 +6,13 @@ from prototype_guard import audit
 from prototype_document import BuildError
 
 def fixture(kind='demo'):
-    return {'type':kind,'pages':[{'id':'home','label':'首页','html':'<button data-ycet-nav-target="detail">详情</button><input aria-label="姓名"><button data-ycet-element-id="count">计数</button>','css':':scope {background:#fff} :scope button {color:#2563eb}','js':'let count=0;root.querySelector("[data-ycet-element-id=count]").addEventListener("click",e=>e.target.textContent=String(++count));'},{'id':'detail','label':'详情','html':'<h1>详情</h1><button data-ycet-back>返回</button><button data-ycet-element-id="count">另一页按钮</button>'}]}
+    return {'type':kind,'productPort':'ios','pages':[{'id':'home','label':'首页','html':'<button data-ycet-nav-target="detail">详情</button><input aria-label="姓名"><button data-ycet-element-id="count">计数</button>','css':':scope {background:#fff} :scope button {color:#2563eb}','js':'let count=0;root.querySelector("[data-ycet-element-id=count]").addEventListener("click",e=>e.target.textContent=String(++count));'},{'id':'detail','label':'详情','html':'<h1>详情</h1><button data-ycet-back>返回</button><button data-ycet-element-id="count">另一页按钮</button>'}]}
 
 class BuildTests(unittest.TestCase):
     def setUp(self):self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)/'prototype';self.root.mkdir()
     def tearDown(self):self.temp.cleanup()
     def test_all_types_offline(self):
-        for k in ('pages','demo','mobile','direction'):
+        for k in ('pages','demo','nonframe','direction'):
             m=fixture(k)
             if k=='direction':m['pages']=m['pages'][:1];m['pages'][0]['html']='<h1>首页</h1>';m['pages'][0]['js']=''
             p=build(m,self.root);self.assertEqual([],audit(p.read_text()));self.assertNotIn('<iframe',p.read_text());self.assertEqual(p.parent,(self.root/'outputs').resolve())
@@ -20,7 +20,7 @@ class BuildTests(unittest.TestCase):
     def test_independent_versions(self):
         self.assertEqual(build(fixture(),self.root).name,'prototype-demo.html')
         self.assertEqual(build(fixture(),self.root,'iterate').name,'prototype-demo-v2.html')
-        self.assertEqual(build(fixture('mobile'),self.root).name,'prototype-mobile.html')
+        self.assertEqual(build(fixture('nonframe'),self.root).name,'prototype-nonframe.html')
     def test_create_does_not_overwrite(self):
         build(fixture(),self.root)
         with self.assertRaises(BuildError):build(fixture(),self.root)
@@ -74,7 +74,7 @@ if __name__=='__main__':
     import sys
     if len(sys.argv)==3 and sys.argv[1]=='--fixtures':
         root=Path(sys.argv[2]).resolve()/'prototype';root.mkdir(parents=True,exist_ok=True)
-        for kind in ('pages','demo','mobile','direction'):
+        for kind in ('pages','demo','nonframe','direction'):
             model=fixture(kind)
             if kind=='demo':
                 model['pages'][0]['html']+='<div style="height:1800px">长页面底部可滚动</div>'

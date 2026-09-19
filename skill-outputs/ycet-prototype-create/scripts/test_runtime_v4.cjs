@@ -6,11 +6,11 @@ for(const channel of ['chrome','msedge','firefox','webkit']){
  let browser;try{browser=channel==='webkit'?await webkit.launch({headless:true}):channel==='firefox'?await firefox.launch({headless:true}):await chromium.launch({channel,headless:true});}catch(e){results.push({channel,status:'unavailable',reason:e.message.split('\n')[0]});continue;}
  try{
  const context=await browser.newContext({viewport:{width:1280,height:720},offline:true});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));const network=[];page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url())});
- for(const [type,name] of [['pages','prototype-pages'],['demo','prototype-demo'],['mobile','prototype-mobile'],['direction','design-direction']]){
+ for(const [type,name] of [['pages','prototype-pages'],['demo','prototype-demo'],['nonframe','prototype-nonframe'],['direction','design-direction']]){
   const share=path.join(root,'独立 分享',name);fs.mkdirSync(share,{recursive:true});const standalone=path.join(share,name+'.html');fs.copyFileSync(path.join(root,'prototype/outputs',name+'.html'),standalone);await page.goto(pathToFileURL(standalone).href);assert.equal(await page.locator('iframe,object,embed').count(),0);
   if(type==='pages') {assert.equal(await page.locator('.ycet-page:visible').count(),2);const url=page.url();await page.locator('[data-ycet-page-id=home] [data-ycet-nav-target]').click();assert.equal(page.url(),url);}
-  if(type==='mobile'){const b=await page.locator('.ycet-menu').boundingBox();await page.mouse.move(b.x+20,b.y+20);await page.mouse.down();await page.mouse.move(b.x+220,b.y+300,{steps:8});await page.mouse.up();}
-  if(['demo','mobile'].includes(type)){
+  if(type==='nonframe'){const b=await page.locator('.ycet-menu').boundingBox();await page.mouse.move(b.x+20,b.y+20);await page.mouse.down();await page.mouse.move(b.x+220,b.y+300,{steps:8});await page.mouse.up();}
+  if(['demo','nonframe'].includes(type)){
    await page.locator('[data-ycet-page-id=home] [data-ycet-element-id=count]').click();assert.equal(await page.locator('[data-ycet-page-id=home] [data-ycet-element-id=count]').textContent(),'1');
    await page.locator('[data-ycet-page-id=home] [data-ycet-nav-target]').click();await page.waitForFunction(()=>!document.querySelector('[data-ycet-page-id=detail]').hidden);assert.equal(await page.locator('.ycet-page:visible').count(),1);
    await page.goBack();await page.waitForFunction(()=>!document.querySelector('[data-ycet-page-id=home]').hidden);assert.equal(await page.locator('[data-ycet-page-id=home] [data-ycet-element-id=count]').textContent(),'1');
@@ -28,7 +28,7 @@ for(const channel of ['chrome','msedge','firefox','webkit']){
    assert(await page.locator('[data-ycet-zoom="in"]').isVisible());await page.locator('[data-ycet-zoom="fit"]').click();
    assert.equal(await page.locator('.ycet-stage').evaluate(e=>e.scrollTop),0);
   }
-  if(type==='mobile'){await page.setViewportSize({width:390,height:844});await page.locator('.ycet-menu').click();assert(await page.locator('.ycet-drawer').isVisible());await page.locator('[data-ycet-tool-target=detail]').click();assert(await page.locator('.ycet-drawer').isHidden());await page.setViewportSize({width:844,height:390});assert.equal(await page.locator('[data-ycet-page-id=detail]').evaluate(e=>e.clientWidth),844);}
+  if(type==='nonframe'){await page.setViewportSize({width:390,height:844});await page.locator('.ycet-menu').click();assert(await page.locator('.ycet-drawer').isVisible());await page.locator('[data-ycet-tool-target=detail]').click();assert(await page.locator('.ycet-drawer').isHidden());await page.locator('[data-ycet-page-id=detail]').waitFor({state:'visible'});await page.setViewportSize({width:844,height:390});assert.equal(await page.locator('[data-ycet-page-id=detail]').evaluate(e=>e.clientWidth),844);}
   await page.screenshot({path:path.join(root,channel+'-'+type+'.png')});passed++;
  }
  assert.deepEqual(network,[]);assert.deepEqual(errors,[]);await context.close();results.push({channel,status:'passed'});

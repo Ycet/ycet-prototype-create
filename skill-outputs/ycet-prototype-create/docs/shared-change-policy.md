@@ -1,6 +1,6 @@
 # 修改与版本策略
 
-所有原型 HTML 位于 prototype/outputs/。首次分别使用 prototype-pages.html、prototype-demo.html、prototype-mobile.html；设计方向使用 design-direction.html。
+所有原型 HTML 位于 prototype/outputs/。首次分别使用 prototype-pages.html、prototype-demo.html、prototype-nonframe.html；设计方向使用 design-direction.html。
 
 ## 判断顺序
 
@@ -12,4 +12,6 @@
 
 各文件族独立扫描最大版本号，基名视为 v1，下一版本为 -vN.html，不填历史缺口。从旧版本新建也取该文件族最大号加一。设计方向独立编号。
 
-三类文件独立维护，不自动同步。外部源文件只读接管，新标准输出进入 outputs。只对目标白名单写入；修改前检查摘要、在暂存文件验证后提交，不覆盖并发变化。取消自动 EditLog，保留已有日志。
+三类文件独立维护，不自动同步。外部源文件只读接管，新标准输出进入 outputs。只对目标白名单写入；修改前检查摘要、完成暂存写入后提交，不覆盖并发变化。取消自动 EditLog，保留已有日志。
+
+nonframe 文件族独立编号，旧 prototype-mobile 文件及版本号不参与。旧文件修改保留原路径；类型转换遵循目标／版本确认，并作为修改任务使用 --purpose modify。工作台仍只改请求指定原文件。

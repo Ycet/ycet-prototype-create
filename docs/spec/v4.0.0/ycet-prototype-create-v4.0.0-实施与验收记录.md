@@ -6,9 +6,9 @@
 
 已实施五功能重组、统一单文件生成、原型类型与版本确认规则、工作台直接原文件修改、内容同步移除和自动 EditLog 取消。所有标准产物写入 `prototype/outputs/`，页面直接存在于同一 HTML，资源内联，素材可保留归档。
 
-- Skill 入口：[SKILL.md](../../skill-outputs/ycet-prototype-create/SKILL.md)
-- 交付包：[ycet-prototype-create-v4.0.0.skill](../../skill-outputs/ycet-prototype-create-v4.0.0.skill)
-- 验证命令：[verification.md](../../skill-outputs/ycet-prototype-create/docs/verification.md)
+- Skill 入口：[SKILL.md](../../../skill-outputs/ycet-prototype-create/SKILL.md)
+- 交付包：[ycet-prototype-create-v4.0.0.skill](../../../skill-outputs/ycet-prototype-create-v4.0.0.skill)
+- 验证命令：[verification.md](../../../skill-outputs/ycet-prototype-create/docs/verification.md)
 - 原方案：[执行方案](ycet-prototype-create-v4.0.0-执行方案.md)
 
 未安装到全局目录、未发布到远程、未进行 Git 提交。历史测试截图、缓存和工作台运行状态保留在开发目录，但从交付包排除。

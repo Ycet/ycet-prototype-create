@@ -180,34 +180,123 @@
   ],
   "routing": {
     "ios": {
-      "defaultFrameId": "iphone-15-pro"
+      "defaultFrameId": "iphone-15-pro",
+      "deviceCategory": "mobile"
     },
     "iphone": {
-      "defaultFrameId": "iphone-15-pro"
+      "defaultFrameId": "iphone-15-pro",
+      "deviceCategory": "mobile"
     },
     "android": {
-      "defaultFrameId": "android-pixel"
+      "defaultFrameId": "android-pixel",
+      "deviceCategory": "mobile"
     },
     "ipad": {
-      "defaultFrameId": "ipad-pro"
+      "defaultFrameId": "ipad-pro",
+      "deviceCategory": "tablet"
     },
     "web": {
-      "defaultFrameId": "browser-chrome"
+      "defaultFrameId": "browser-chrome",
+      "deviceCategory": "desktop"
     },
     "desktop": {
-      "defaultFrameId": "macbook"
+      "defaultFrameId": "macbook",
+      "deviceCategory": "desktop"
     },
     "windows": {
-      "defaultFrameId": "macbook"
+      "defaultFrameId": "macbook",
+      "deviceCategory": "desktop"
     },
     "macos": {
-      "defaultFrameId": "macbook"
+      "defaultFrameId": "macbook",
+      "deviceCategory": "desktop"
     },
     "wechat-mini-program": {
       "defaultFrameId": "iphone-15-pro",
       "hostOverrides": {
         "android": "android-pixel"
-      }
+      },
+      "deviceCategory": "mobile"
+    },
+    "h5": {
+      "defaultFrameId": "iphone-15-pro",
+      "deviceCategory": "mobile",
+      "canonicalPort": "mobile-h5"
+    },
+    "mobile-h5": {
+      "defaultFrameId": "iphone-15-pro",
+      "deviceCategory": "mobile"
+    },
+    "mobile-web": {
+      "defaultFrameId": "iphone-15-pro",
+      "deviceCategory": "mobile",
+      "canonicalPort": "mobile-h5"
+    },
+    "移动端h5": {
+      "defaultFrameId": "iphone-15-pro",
+      "deviceCategory": "mobile",
+      "canonicalPort": "mobile-h5"
+    },
+    "安卓": {
+      "defaultFrameId": "android-pixel",
+      "deviceCategory": "mobile",
+      "canonicalPort": "android"
+    },
+    "小程序": {
+      "defaultFrameId": "iphone-15-pro",
+      "hostOverrides": {
+        "android": "android-pixel"
+      },
+      "deviceCategory": "mobile",
+      "canonicalPort": "wechat-mini-program"
+    },
+    "mini-program": {
+      "defaultFrameId": "iphone-15-pro",
+      "hostOverrides": {
+        "android": "android-pixel"
+      },
+      "deviceCategory": "mobile",
+      "canonicalPort": "wechat-mini-program"
+    },
+    "desktop-app": {
+      "defaultFrameId": "macbook",
+      "deviceCategory": "desktop",
+      "canonicalPort": "desktop"
+    },
+    "browser": {
+      "defaultFrameId": "browser-chrome",
+      "deviceCategory": "desktop",
+      "canonicalPort": "web"
+    },
+    "website": {
+      "defaultFrameId": "browser-chrome",
+      "deviceCategory": "desktop",
+      "canonicalPort": "web"
+    },
+    "pc": {
+      "defaultFrameId": "browser-chrome",
+      "deviceCategory": "desktop",
+      "canonicalPort": "web"
+    },
+    "网页端": {
+      "defaultFrameId": "browser-chrome",
+      "deviceCategory": "desktop",
+      "canonicalPort": "web"
+    },
+    "桌面端app": {
+      "defaultFrameId": "macbook",
+      "deviceCategory": "desktop",
+      "canonicalPort": "desktop"
+    },
+    "tablet": {
+      "defaultFrameId": "ipad-pro",
+      "deviceCategory": "tablet",
+      "canonicalPort": "ipad"
+    },
+    "ipados": {
+      "defaultFrameId": "ipad-pro",
+      "deviceCategory": "tablet",
+      "canonicalPort": "ipad"
     }
   },
   "schemaVersion": 2

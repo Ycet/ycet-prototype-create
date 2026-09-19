@@ -1,0 +1,22 @@
+[
+  {
+    "channel": "chrome",
+    "status": "passed",
+    "checks": 16
+  },
+  {
+    "channel": "msedge",
+    "status": "unavailable",
+    "reason": "browserType.launch: Chromium distribution 'msedge' is not found at /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+  },
+  {
+    "channel": "firefox",
+    "status": "unavailable",
+    "reason": "browserType.launch: Executable doesn't exist at /Users/ycet/Library/Caches/ms-playwright/firefox-1538/firefox/Nightly.app/Contents/MacOS/firefox"
+  },
+  {
+    "channel": "webkit",
+    "status": "unavailable",
+    "reason": "browserType.launch: Executable doesn't exist at /Users/ycet/Library/Caches/ms-playwright/webkit-2336/pw_run.sh"
+  }
+]

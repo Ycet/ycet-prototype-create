@@ -16,4 +16,6 @@
 
 B/C 可以叠加 button.ycet-image-hotspot，设置 aria-label 和 data-ycet-nav-target。默认透明，hover/focus-visible 使用半透明虚线 outline。滚动区热区跟随图片，固定区热区处于对应局部容器。不遮挡未覆盖区域的滚动。A 不绑定业务跨页热区。
 
-验证资源完全内联、图片不变形、固定边界准确以及交互目标有效；完成说明列出来源和限制，不写 EditLog。
+制作时保持资源内联、图片比例、固定边界与交互目标有效；完成说明列出来源和限制，不写 EditLog。修改保存后直接结束，不追加守卫／图片／热区验收，遵循 prototype-validation.md。
+
+接管旧 mobile 文件或转为 nonframe 时保留来源，重新处理固定宽高、根裁切及滚动容器。新文件基名按类型决定，但任务仍属修改，不因首次接管、转换或新增迭代文件自动验收；确需调用构建器传 --purpose modify。
