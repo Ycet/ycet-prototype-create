@@ -1,6 +1,6 @@
 {
   "skill_name": "ycet-prototype-create",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "evals": [
     {
       "id": 1,
@@ -16,7 +16,7 @@
     },
     {
       "id": 2,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：只完善需求／只确认 UI。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：只完善需求／只确认 UI。按 v4.1.1 规则执行。",
       "expected_output": "完成对应功能，不擅自制作正式原型",
       "files": [],
       "assertions": [
@@ -52,7 +52,7 @@
     },
     {
       "id": 5,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：设计方向预览。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：设计方向预览。按 v4.1.1 规则执行。",
       "expected_output": "内含组件及首页，outputs 落点，零 iframe，复制单文件后可用",
       "files": [],
       "assertions": [
@@ -64,7 +64,7 @@
     },
     {
       "id": 6,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：四类 HTML 结构。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：四类 HTML 结构。按 v4.1.1 规则执行。",
       "expected_output": "所有页面直接存在；无 srcdoc、动态 iframe 或伪装的 HTML Blob 嵌套",
       "files": [],
       "assertions": [
@@ -76,7 +76,7 @@
     },
     {
       "id": 7,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：资源边界。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：资源边界。按 v4.1.1 规则执行。",
       "expected_output": "CSS、JS、图片、srcset、SVG、字体、动态请求全覆盖；来源字符串与 SVG 命名空间不误报",
       "files": [],
       "assertions": [
@@ -88,7 +88,7 @@
     },
     {
       "id": 8,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：独立分享。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：独立分享。按 v4.1.1 规则执行。",
       "expected_output": "只复制一个文件到含中文和空格的空目录，以 file:// 打开；断网后逐页及交互可用",
       "files": [],
       "assertions": [
@@ -100,7 +100,7 @@
     },
     {
       "id": 9,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：静态页。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：静态页。按 v4.1.1 规则执行。",
       "expected_output": "多页平铺，页内交互保留；产品跨页按钮不会切换逻辑页面或离开文件",
       "files": [],
       "assertions": [
@@ -112,7 +112,7 @@
     },
     {
       "id": 10,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：交互 Demo。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：交互 Demo。按 v4.1.1 规则执行。",
       "expected_output": "左右同步、返回、有效参数、非法目标处理；不跳向其他 HTML",
       "files": [],
       "assertions": [
@@ -124,7 +124,7 @@
     },
     {
       "id": 11,
-      "prompt": "按 v4.1.0 为手机和 PC 分别制作无框架演示。",
+      "prompt": "按 v4.1.1 为手机和 PC 分别制作无框架演示。",
       "expected_output": "使用 nonframe，按端口与实际视口布局，长内容可达，无仿真设备框架",
       "files": [],
       "assertions": [
@@ -136,7 +136,7 @@
     },
     {
       "id": 12,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：框架。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：框架。按 v4.1.1 规则执行。",
       "expected_output": "五种端口均匹配 Manifest；多实例无重复 ID，系统与产品 UI 不重复",
       "files": [],
       "assertions": [
@@ -148,7 +148,7 @@
     },
     {
       "id": 13,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：DOM 隔离。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：DOM 隔离。按 v4.1.1 规则执行。",
       "expected_output": "不同页同名 ID／class／动画／变量／事件不会串页；表单和弹窗作用域正确",
       "files": [],
       "assertions": [
@@ -196,7 +196,7 @@
     },
     {
       "id": 17,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：覆盖选择和并发。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：覆盖选择和并发。按 v4.1.1 规则执行。",
       "expected_output": "用户选原文件时原路径修改；目标被外部改动时冲突，不能用新基线掩盖",
       "files": [],
       "assertions": [
@@ -220,7 +220,7 @@
     },
     {
       "id": 19,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：图片交互。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：图片交互。按 v4.1.1 规则执行。",
       "expected_output": "透明热区悬停／聚焦反馈正确，随滚动／固定区定位，静态不实现业务跨页",
       "files": [],
       "assertions": [
@@ -232,7 +232,7 @@
     },
     {
       "id": 20,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：功能四 UI 与端口。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：功能四 UI 与端口。按 v4.1.1 规则执行。",
       "expected_output": "普通 UI 沿用；重设计经功能二；仅缺失／冲突才问端口；制作前仍选类型",
       "files": [],
       "assertions": [
@@ -244,7 +244,7 @@
     },
     {
       "id": 21,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：旧原型。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：旧原型。按 v4.1.1 规则执行。",
       "expected_output": "按普通外部 HTML 接管，不要求旧专用 runtime 链路，不自动删除来源",
       "files": [],
       "assertions": [
@@ -256,7 +256,7 @@
     },
     {
       "id": 22,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台列表。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台列表。按 v4.1.1 规则执行。",
       "expected_output": "递归显示 prototype 全部 HTML 和历史版本；不误扫项目其他目录；空项目可用",
       "files": [],
       "assertions": [
@@ -280,7 +280,7 @@
     },
     {
       "id": 24,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台同文件多页。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台同文件多页。按 v4.1.1 规则执行。",
       "expected_output": "重复按钮文案准确定位；切页后重选正确，隐藏页不误改，草稿可撤回",
       "files": [],
       "assertions": [
@@ -304,7 +304,7 @@
     },
     {
       "id": 26,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台图片／字体。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：工作台图片／字体。按 v4.1.1 规则执行。",
       "expected_output": "临时 URL 不写回，新增资源内联；离开工作台后的文件仍可独立运行",
       "files": [],
       "assertions": [
@@ -316,7 +316,7 @@
     },
     {
       "id": 27,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：草稿与事务。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：草稿与事务。按 v4.1.1 规则执行。",
       "expected_output": "草稿不改源文件；摘要冲突、唯一定位失败、依赖失败如实报告；独立文件可部分成功",
       "files": [],
       "assertions": [
@@ -340,7 +340,7 @@
     },
     {
       "id": 29,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：编辑器回归。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：编辑器回归。按 v4.1.1 规则执行。",
       "expected_output": "选择、批注边缘避让、颜色面板、撤回、缩放／平移、刷新和关闭均保留",
       "files": [],
       "assertions": [
@@ -352,7 +352,7 @@
     },
     {
       "id": 30,
-      "prompt": "请使用 ycet-prototype-create 处理以下场景：发布一致性。按 v4.1.0 规则执行。",
+      "prompt": "请使用 ycet-prototype-create 处理以下场景：发布一致性。按 v4.1.1 规则执行。",
       "expected_output": "五功能引用与版本一致，无旧契约强制断言；正式包不含过程截图、缓存或运行状态",
       "files": [],
       "assertions": [
@@ -388,7 +388,7 @@
     },
     {
       "id": 33,
-      "prompt": "把旧移动演示转换为无框架 PC 原型，类型和版本策略已确认。",
+      "prompt": "已交付原型的后续修改：把旧移动演示转换为无框架 PC 原型，类型和版本策略已确认。",
       "expected_output": "输出 nonframe；构建器使用 purpose=modify，不因新基名调用默认 audit",
       "files": [],
       "assertions": [
@@ -455,6 +455,18 @@
         {
           "name": "v41-38",
           "description": "保留并发保护，不覆盖冲突或宣称完成；免验收不等于绕过写入保护"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "prompt": "基于提供的 HTML 或图片，通过功能四首次生成目标原型文件。",
+      "expected_output": "进入功能三完成选型；首次目标交付保留验收，构建使用 create/initial；后续修改或迭代才适用保存即结束。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "v41-39",
+          "description": "不因来源已存在而跳过首次目标交付验收；不因后续迭代新建文件而恢复验收。"
         }
       ]
     }

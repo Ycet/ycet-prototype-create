@@ -64,7 +64,7 @@ CSS、JS、图片、srcset、SVG、图标、字体均内联；网络 URL 仅可�
 
 ## 无框架构建与修改用途
 
-C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，残留值会提示并忽略。支持 ios/iphone/android/mobile-h5/h5/wechat-mini-program、ipad/tablet、web/desktop/desktop-app/windows/macos 等 Manifest routing 端口。未知端口先澄清。元数据 frame=null，skillVersion=4.1.0，schemaVersion 仍为 1。
+C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，残留值会提示并忽略。支持 ios/iphone/android/mobile-h5/h5/wechat-mini-program、ipad/tablet、web/desktop/desktop-app/windows/macos 等 Manifest routing 端口。未知端口先澄清。元数据 frame=null，skillVersion=4.1.1，schemaVersion 仍为 1。
 
 页面可选 layout=document（默认，自然长页面）或 app（占满视口，内部滚动）。app 的直接子节点 data-ycet-scroll 自动占据剩余高度，固定头尾为其兄弟节点；嵌套布局自行提供 min-width/min-height:0 和滚动区域。page CSS 不得把根重新固定为设备尺寸。图片按比例适宽；热区坐标跟随同一图片容器。
 
@@ -72,6 +72,6 @@ C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，�
 {"type":"nonframe","productPort":"web","initial":"home","pages":[{"id":"home","layout":"document","html":"<h1>首页</h1>","css":"","js":""}]}
 ```
 
-写入 mode 与任务 purpose 分开：create 默认 initial；iterate/overwrite 默认 modify。现有原型转成新类型文件名即使使用 create，也必须传 --purpose modify。修改模式不自动调用 audit；--validate 仅用于用户明确要求的验收。输入、资源内联和原子写入保护始终保留；命令返回文件路径表示写入成功，不等于浏览器验收通过。
+写入 mode 与任务 purpose 分开：create 默认 initial；iterate/overwrite 默认 modify。已交付目标原型后续转成新类型文件名即使使用 create，也必须传 --purpose modify。功能四首次基于 HTML／图片生成目标文件使用 create 和 --purpose initial，保留首次交付验收。修改模式不自动调用 audit；--validate 仅用于用户明确要求的验收。输入、资源内联和原子写入保护始终保留；命令返回文件路径表示写入成功，不等于浏览器验收通过。
 
 旧 type=mobile 输入作为兼容别名转为 nonframe 并提示，需明确有效端口；旧 HTML 元数据仍可由守卫读取。历史 mobile 文件不改名、不占用 nonframe 编号。旧源码的局部修改直接编辑，不从旧 JSON 重建覆盖。

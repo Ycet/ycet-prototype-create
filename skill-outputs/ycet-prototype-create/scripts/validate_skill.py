@@ -8,7 +8,7 @@ def main():
     required=['docs/prototype-validation.md','assets/nonframe.css','VERSION','SKILL.md','agents/openai.yaml','docs/function-1-requirements.md','docs/function-2-ui-direction.md','docs/function-3-prototype-production.md','docs/function-4-existing-prototype-edit.md','docs/function-5-workbench.md','docs/shared-change-policy.md','docs/shared-prototype-standards.md','docs/shared-workbench-protocol.md','docs/prototype-types.md','scripts/build_prototype.py','scripts/prototype_document.py','scripts/prototype_guard.py']
     for name in required:
         if not (ROOT/name).is_file():errors.append('缺少 '+name)
-    if (ROOT/'VERSION').read_text().strip()!='4.1.0':errors.append('版本不匹配')
+    if (ROOT/'VERSION').read_text().strip()!='4.1.1':errors.append('版本不匹配')
     version=(ROOT/'VERSION').read_text().strip()
     if ('v'+version) not in (ROOT/'SKILL.md').read_text():errors.append('入口版本不匹配')
     if "'skillVersion':'"+version+"'" not in (ROOT/'scripts/build_prototype.py').read_text():errors.append('元数据版本不匹配')

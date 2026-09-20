@@ -3,7 +3,7 @@ name: ycet-prototype-create
 description: Refine product requirements, confirm UI direction, create self-contained static, framed interactive or frameless mobile/desktop HTML prototypes, adapt existing HTML or screenshot prototypes, and edit them through a local visual workbench. Use for product prototyping, offline HTML demos, prototype modifications or workbench change requests.
 ---
 
-# YCET Prototype Creator v4.1.0
+# YCET Prototype Creator v4.1.1
 
 ## 路由
 
@@ -34,14 +34,14 @@ flowchart TD
     P --> G[仅生成所选类型到 outputs]
     G --> M{是否为修改任务}
     M -->|是| END[必要事务收尾后直接结束]
-    M -->|否，首次生成| V[单文件与浏览器验收]
+    M -->|否，含功能四首次生成目标文件| V[单文件与浏览器验收]
 ```
 
 产品端口与原型类型独立：C 同时适用手机和 PC，按已确认端口适配实际视口。不能只因“单文件／离线”自动选择 C。意图不明时一次只问一个路由问题，给多个答案。每个功能按需读取对应文档；仅完成用户指定阶段时不自动制作后续产物。
 
 ## 修改任务的结束条件
 
-完成用户要求的原型修改并保存后，做必要事务收尾并立即回复。默认不追加静态守卫、局部／全量回归、浏览器检查、截图或其他验收；只有用户明确要求时执行指定范围。此规则适用于功能三／四／五、全部类型和修改规模，也适用于迭代与类型转换，优先于下游验收说明。读取 docs/prototype-validation.md 区分修改、首次生成及 Skill 开发。
+完成用户要求的原型修改并保存后，做必要事务收尾并立即回复。默认不追加静态守卫、局部／全量回归、浏览器检查、截图或其他验收；只有用户明确要求时执行指定范围。此规则适用于功能三／四／五、全部类型和修改规模，也适用于迭代与类型转换，优先于下游验收说明。功能四首次基于 HTML 或图片生成目标原型文件属于首次交付，保留验收，不适用修改免验收规则。读取 docs/prototype-validation.md 区分修改、首次生成及 Skill 开发。
 
 ## 全局契约
 
