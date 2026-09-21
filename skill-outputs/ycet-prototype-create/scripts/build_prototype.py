@@ -3,7 +3,8 @@
 from __future__ import annotations
 import argparse, hashlib, html, json, os, re, tempfile, warnings
 from pathlib import Path
-from prototype_document import BuildError, ResourceBundler, safe_json_script
+from prototype_document import BuildError, ResourceBundler, safe_json_script, assign_element_ids
+from prototype_syntax import split_selectors, script_problem
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMES = {'pages':'prototype-pages','demo':'prototype-demo','nonframe':'prototype-nonframe','direction':'design-direction'}
@@ -119,8 +120,7 @@ def render(model, root):
         if p.get('layout','document') not in ('document','app'): raise BuildError('未知页面 layout')
         if re.search(r'<(?:html|head|body|script|style|link)\b',source,re.I): raise BuildError('html 只接受页面片段；CSS/JS 放入独立字段')
         # 为普通元素补稳定标识；原文件编辑时不重新编号。
-        sequence=iter(range(1,100000))
-        source=re.sub(r'<([a-zA-Z][\w:-]*)(\s[^<>]*?)?(/?)>', lambda m: m[0] if 'data-ycet-element-id=' in m[0] else '<'+m[1]+(m[2] or '')+' data-ycet-element-id="'+ident+'-el-'+str(next(sequence))+'"'+m[3]+'>', source)
+        source=assign_element_ids(source,ident)
         fragment=bundler.inline_html_text(source,owner)
         selector=f'[data-ycet-page-id="{ident}"]'
         css=p.get('css','')
@@ -132,10 +132,11 @@ def render(model, root):
                 if 'keyframes' in header and not re.search(r'keyframes\s+'+re.escape(ident)+'-',header):raise BuildError('动画名必须加页面 ID 前缀')
                 continue
             if re.fullmatch(r'(?:from|to|[\d.% ,]+)',header):continue
-            if any(':scope' not in part for part in header.split(',')):raise BuildError('每个 CSS 选择器必须限定 :scope')
+            if any(':scope' not in part for part in split_selectors(header)):raise BuildError('每个 CSS 选择器必须限定 :scope')
         styles.append(bundler.inline_css_text(css,owner).replace(':scope',selector))
         js=p.get('js','')
-        if re.search(r'\b(?:document|window)\s*[.\[]|\b(?:fetch|eval|Function|import)\s*\(|\blocation\b',js): raise BuildError('页面 JS 请使用 root、navigate；动态依赖或全局访问需先重构')
+        problem=script_problem(js,page=True)
+        if problem: raise BuildError(problem)
         scripts.append('(function(root,navigate){'+js+'})(document.querySelector('+json.dumps(selector)+'),navigate);')
         attr=' data-ycet-image-prototype="true"' if p.get('imagePrototype') else ''
         fragments.append(f'<section class="ycet-page" data-ycet-page-id="{ident}" data-ycet-layout="{p.get("layout","document")}" aria-label="{html.escape(p.get("label",ident),quote=True)}"{attr}>{fragment}</section>')
@@ -151,7 +152,7 @@ def render(model, root):
         if kind=='direction': body=bundler.inline_html_text(model.get('directionHtml',''),owner)+body
     elif kind=='demo':body='<main class="ycet-layout"><nav class="ycet-nav" aria-label="页面导航" tabindex="0">'+nav+'</nav><div class="ycet-viewer"><div class="ycet-toolbar" role="group" aria-label="原型缩放"><button data-ycet-zoom="out" aria-label="缩小原型">−</button><output data-ycet-zoom-value aria-live="polite">100%</output><button data-ycet-zoom="in" aria-label="放大原型">＋</button><button data-ycet-zoom="fit">适应窗口</button></div><div class="ycet-stage" tabindex="0" aria-label="原型展示区"><div class="ycet-stage-inner"><div class="ycet-fit"><div class="ycet-fit-content">'+device(''.join(fragments))+'</div></div></div></div></div></main>'
     else:body=''.join(fragments)+'<button class="ycet-menu" aria-label="打开页面导航" aria-expanded="false">☰</button><button class="ycet-overlay" hidden aria-label="关闭导航"></button><aside class="ycet-drawer ycet-nav" role="dialog" aria-modal="true" aria-label="页面导航" hidden inert><button data-ycet-close>关闭</button>'+nav+'</aside>'
-    meta={'schemaVersion':1,'skillVersion':'4.1.1','artifactVersion':model.get('artifactVersion',1),'type':kind,'productPort':model.get('productPort',''),'frame':frame,'initial':initial,'pages':[{'id':p['id'],'label':p.get('label',p['id']),'layout':p.get('layout','document')} for p in pages]}
+    meta={'schemaVersion':1,'skillVersion':'4.2.1','artifactVersion':model.get('artifactVersion',1),'type':kind,'productPort':model.get('productPort',''),'frame':frame,'initial':initial,'pages':[{'id':p['id'],'label':p.get('label',p['id']),'layout':p.get('layout','document')} for p in pages]}
     variables='' if frame is None else f'--logical-w:{frame["logicalViewport"]["width"]}px;--logical-h:{frame["logicalViewport"]["height"]}px;--safe-top:{frame["safeArea"]["top"]}px;--safe-bottom:{frame["safeArea"]["bottom"]}px;--columns:{frame["defaultColumns"]}'
     css=((ROOT/'assets/nonframe.css').read_text() if kind=='nonframe' else STYLE+frame_css)+'\n'.join(styles)
     if re.search('</(?:style|script)',css+'\n'.join(scripts),re.I):raise BuildError('代码字段含结束标签')

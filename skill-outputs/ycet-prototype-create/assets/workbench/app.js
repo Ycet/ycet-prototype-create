@@ -329,6 +329,8 @@
     state.effects = [];
     state.effectBase = { boxShadow: "", filter: "", backdropFilter: "" };
     els.selectedPath.textContent = "尚未选择元素";
+    els.selectedPath.removeAttribute("title");
+    els.selectedName.removeAttribute("title");
     els.selectedName.textContent = "选择预览中的组件";
     $("#text-fields").innerHTML = '<p class="muted">选择包含文本的元素后显示。</p>';
     $("#image-preview").removeAttribute("src");
@@ -425,6 +427,8 @@
     const rect = selection.element.rect;
     els.selectedPath.textContent = selection.path || selection.fingerprint.selector;
     els.selectedName.textContent = selection.element.name;
+    els.selectedPath.title = els.selectedPath.textContent;
+    els.selectedName.title = selection.element.name;
     setValue("position-x", rect.x); setValue("position-y", rect.y);
     setValue("width", number(style.width, rect.width)); setValue("height", number(style.height, rect.height));
     // 宽高联动基准：把本次实际宽高记入各自输入框的上一次值；联动比例始终取另一侧的实时显示值。
@@ -725,6 +729,12 @@
           applyLinkedSize(input);
           return;
         }
+        // 四角联动在同一监听器内应用，保证一次修改只有一个撤销批次。
+        if (input.closest(".corner-grid") && $("#link-radius").getAttribute("aria-pressed") === "true") {
+          ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => { if (id !== input.id) setValue(id, input.value); });
+          ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${input.value}px`));
+          return;
+        }
         if (input.type === "number") {
           if (input.id === "opacity") value = String(number(value) / 100);
           else if (input.id === "line-height") value = String(value);
@@ -736,6 +746,7 @@
         if (!state.selection) return [];
         const prefix = `style:${fingerprintKey(state.selection.fingerprint)}:`;
         const primary = `${prefix}${input.dataset.css}`;
+        if (input.closest(".corner-grid") && $("#link-radius").getAttribute("aria-pressed") === "true") return radiusKeys();
         // 宽高联动时同一手势会同步修改两个属性，两个键都纳入本会话撤销目标。
         if ((input.id === "width" || input.id === "height") && $("#link-size")?.getAttribute("aria-pressed") === "true") {
           return [primary, `${prefix}${input.id === "width" ? "height" : "width"}`];
@@ -787,13 +798,6 @@
         state.sizeRatio = shownHeight > 0 ? shownWidth / shownHeight : 0;
       }
     });
-    $$(".corner-grid input").forEach((input) => input.addEventListener("input", () => {
-      if ($("#link-radius").getAttribute("aria-pressed") !== "true") return;
-      applyFieldChange(input, radiusKeys(), () => {
-        ["radius-tl", "radius-tr", "radius-bl", "radius-br"].forEach((id) => { if (id !== input.id) setValue(id, input.value); });
-        ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"].forEach((property) => styleOperation(property, `${input.value}px`));
-      });
-    }));
     $$(".alignment button").forEach((button) => button.addEventListener("click", () => {
       $$(".alignment button").forEach((item) => item.classList.toggle("active", item === button));
       styleOperation("text-align", button.dataset.align);
@@ -1679,10 +1683,26 @@
     });
     els.selectMode.addEventListener("click", () => updateSelectMode(!state.selectMode));
     els.clearAnnotations.addEventListener("click", clearCurrentAnnotations);
-    $$(".tab").forEach((button) => button.addEventListener("click", () => {
-      $$(".tab").forEach((item) => item.classList.toggle("active", item === button));
-      $$(".tab-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== button.dataset.tab));
-    }));
+    // 标签状态与键盘焦点同步；切换只影响面板，不清空草稿。
+    const inspectorTabs = $$(".tabs .tab");
+    inspectorTabs.forEach((button, index) => {
+      button.addEventListener("click", () => {
+        inspectorTabs.forEach((item) => {
+          const active = item === button;
+          item.classList.toggle("active", active);
+          item.setAttribute("aria-selected", String(active));
+          item.tabIndex = active ? 0 : -1;
+        });
+        $$(".tab-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== button.dataset.tab));
+      });
+      button.addEventListener("keydown", (event) => {
+        const target = event.key === "Home" ? 0 : event.key === "End" ? inspectorTabs.length - 1 : event.key === "ArrowRight" ? (index + 1) % inspectorTabs.length : event.key === "ArrowLeft" ? (index + inspectorTabs.length - 1) % inspectorTabs.length : null;
+        if (target === null) return;
+        event.preventDefault();
+        inspectorTabs[target].click();
+        inspectorTabs[target].focus();
+      });
+    });
     $("#undo-changes").addEventListener("click", undoLast); $("#clear-current").addEventListener("click", clearCurrent);
     $("#send-ai").addEventListener("click", sendRequest);
     $("#copy-instruction").addEventListener("click", async () => {

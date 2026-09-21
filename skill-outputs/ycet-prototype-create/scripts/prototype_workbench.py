@@ -96,6 +96,7 @@ class Workspace:
         self.paths = state_paths(self.project_root)
         self.paths["root"].mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self._file_cache = {}
         self.data = self._load()
         self.scan()
 
@@ -159,14 +160,29 @@ class Workspace:
         else:
             stored_path = str(resolved)
             automatic_group = ""
-        kind = "html"
+        kind, digest, stat = "html", None, None
         if resolved.is_file():
-            match = re.search(r'<script[^>]+id=[\'"]ycet-metadata[\'"][^>]*>(.*?)</script>', resolved.read_text(encoding="utf-8"), re.S)
-            if match:
-                try:
-                    kind = json.loads(match.group(1)).get("type", "html")
-                except ValueError:
-                    pass
+            stat = resolved.stat()
+            signature = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+            cached = self._file_cache.get(resolved)
+            if cached and cached[0] == signature:
+                kind, digest = cached[1:]
+            else:
+                # 同一份字节同时提取元数据和摘要，避免重复读取大 HTML。
+                payload = resolved.read_bytes()
+                digest = hashlib.sha256(payload).hexdigest()
+                match = re.search(rb'<script[^>]+id=[\'"]ycet-metadata[\'"][^>]*>(.*?)</script>', payload, re.S)
+                if match:
+                    try:
+                        kind = json.loads(match.group(1)).get("type", "html")
+                    except (ValueError, UnicodeError):
+                        pass
+                if resolved.stat() == stat:
+                    self._file_cache[resolved] = (signature, kind, digest)
+                else:
+                    self._file_cache.pop(resolved, None)
+        else:
+            self._file_cache.pop(resolved, None)
         record.update(
             {
                 "id": file_id(resolved),
@@ -178,9 +194,8 @@ class Workspace:
                 "missing": not resolved.is_file(),
             }
         )
-        if resolved.is_file():
-            stat = resolved.stat()
-            record["sha256"] = sha256_file(resolved)
+        if stat is not None:
+            record["sha256"] = digest
             record["mtimeNs"] = stat.st_mtime_ns
         else:
             record["sha256"] = None
@@ -232,6 +247,8 @@ class Workspace:
 
             order = {item["id"]: index for index, item in enumerate(self.data.get("files", []))}
             discovered.sort(key=lambda item: (item.get("manualGroup") or item["automaticGroup"], order.get(item["id"], 10**9), item["name"].casefold()))
+            registered_ids = {item["id"] for item in discovered}
+            self._file_cache = {path: value for path, value in self._file_cache.items() if file_id(path) in registered_ids}
             self.data["files"] = discovered
             self.data["hiddenProjectPaths"] = sorted(hidden)
             ids = {item["id"] for item in discovered}
@@ -527,7 +544,7 @@ def request_instruction(project_root: Path, request_id: str) -> str:
     return (
         "请调用 $ycet-prototype-create 执行原型工作台变更包。"
         f"项目根目录：{project_root}；请求 ID：{request_id}。"
-        "先读取 docs/shared-workbench-protocol.md，再用 prototype_workbench.py request show/begin/complete 执行并逐文件报告结果。"
+        "先读取 docs/workbench-request.md，再用 prototype_workbench.py request show/begin/complete 执行并逐文件报告结果。"
     )
 
 
@@ -1283,8 +1300,27 @@ def command_request(args: argparse.Namespace) -> int:
         result_path = Path(args.result).resolve()
         result = json.loads(result_path.read_text(encoding="utf-8"))
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(result, dict) or not isinstance(result.get("items"), list) or any(not isinstance(item, dict) or not isinstance(item.get("fileId"), str) for item in result["items"]):
+            raise WorkbenchError("结果必须包含逐文件 items 数组和字符串 fileId")
         reported = {item.get("fileId") for item in result.get("items", [])}
         result.setdefault("items", []).extend(item for item in manifest.get("conflicts", []) if item.get("fileId") not in reported)
+        requested = {item["fileId"]: item for item in package["files"]}
+        items = result.get("items", [])
+        identifiers = [item.get("fileId") for item in items]
+        if len(set(identifiers)) != len(identifiers) or set(identifiers) != set(requested):
+            raise WorkbenchError("结果必须恰好覆盖原请求的每个文件，不能缺项、重复或添加其他文件")
+        blocked = {item["fileId"] for item in manifest.get("conflicts", [])}
+        for item in items:
+            if item.get("status") not in {"success", "failed", "conflict"}:
+                raise WorkbenchError("逐文件结果状态无效")
+            if item["fileId"] in blocked and item["status"] != "conflict":
+                raise WorkbenchError("领取时冲突的文件只能报告 conflict")
+            expected_path = requested[item["fileId"]]["path"]
+            if item.get("path") and Path(item["path"]).resolve() != Path(expected_path).resolve():
+                # 兼容服务自己补入的显示路径。
+                if item["path"] != requested[item["fileId"]]["displayPath"]:
+                    raise WorkbenchError("逐文件结果路径与请求不一致")
+            item["path"] = expected_path
         transaction_entries = {item["fileId"]: item for item in manifest["files"]}
         success_items = [item for item in result.get("items", []) if item.get("status") == "success"]
         affected_ids = set()

@@ -1,0 +1,26 @@
+{
+  "checks": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "status": "passed"
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "status": "passed"
+    },
+    {
+      "width": 1000,
+      "height": 640,
+      "status": "passed"
+    }
+  ],
+  "keyboardTabs": true,
+  "undo": true,
+  "cornerLabels": true,
+  "cornerLink": true,
+  "sizeLink": true,
+  "sourceUnchanged": true,
+  "pageErrors": []
+}

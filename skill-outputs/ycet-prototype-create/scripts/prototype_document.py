@@ -32,6 +32,7 @@ from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 
 from urllib.parse import unquote, urlsplit
+from prototype_syntax import script_problem
 
 
 
@@ -327,7 +328,11 @@ class InlineHTMLParser(HTMLParser):
                 rewritten.append((name, self.bundler.inline_css_text(value, self.owner)))
                 continue
             if lowered.startswith("on"):
-                rewritten.append((name, self.bundler.rewrite_script(value, self.owner, is_module=False)))
+                # 事件属性与页面 JS 共用隔离规则；保留 this/event 的本地交互。
+                problem = script_problem(value, page=True)
+                if problem:
+                    raise BuildError(problem)
+                rewritten.append((name, value))
                 continue
             if lowered == "srcset":
                 if value.strip().startswith("data:"):
@@ -428,6 +433,46 @@ class InlineHTMLParser(HTMLParser):
             self.script_chunks.append(target)
         else:
             self.output.append(target)
+
+def assign_element_ids(source: str, page_id: str) -> str:
+    """先保留显式标识，再给未标识元素分配唯一 ID；不重写原始标签。"""
+    class Tags(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.tags = []
+        def handle_starttag(self, tag, attrs):
+            self.tags.append((self.getpos(), self.get_starttag_text(), attrs))
+        handle_startendtag = handle_starttag
+    parser = Tags()
+    parser.feed(source)
+    used = set()
+    for _position, _tag, attrs in parser.tags:
+        values = [value for name, value in attrs if name == 'data-ycet-element-id']
+        if len(values) > 1 or values and (not values[0] or values[0] in used):
+            raise BuildError('页面内元素 ID 缺失或重复：' + page_id)
+        used.update(values)
+    offsets = [0]
+    for line in source.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    changes = []
+    number = 1
+    for (line, column), tag, attrs in parser.tags:
+        if any(name == 'data-ycet-element-id' for name, _value in attrs):
+            continue
+        while f'{page_id}-el-{number}' in used:
+            number += 1
+        identifier = f'{page_id}-el-{number}'
+        used.add(identifier)
+        number += 1
+        end = offsets[line - 1] + column + len(tag) - (2 if tag.endswith('/>') else 1)
+        changes.append((end, ' data-ycet-element-id="' + identifier + '"'))
+    # 一次拼接，避免大图片内联页面被每个标签反复复制。
+    chunks, cursor = [], 0
+    for offset, value in changes:
+        chunks.extend((source[cursor:offset], value))
+        cursor = offset
+    chunks.append(source[cursor:])
+    return ''.join(chunks)
 
 def safe_json_script(value: object) -> str:
     serialized = json.dumps(value, ensure_ascii=False, separators=(",", ":"))

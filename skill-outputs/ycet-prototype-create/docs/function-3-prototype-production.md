@@ -1,12 +1,12 @@
 # 功能三：原型制作
 
-读取 shared-prototype-standards.md、shared-change-policy.md、prototype-types.md 与 prototype-validation.md。完整需求与 UI 已确认后，必须先问用户选择：
+读取 shared-prototype-standards.md、shared-change-policy.md、prototype-types.md 与 prototype-validation.md。完整需求与 UI 已确认后，先检查当前上下文的明确选型；缺失或冲突才问用户选择：
 
 - A：静态原型页面 prototype-pages.html
 - B：可交互原型 Demo prototype-demo.html
 - C：无框架交互原型 Demo prototype-nonframe.html
 
-等待实际回答，不自动选择。只生成所选类型；B/C 不要求静态中间产物。缺少页面逻辑时一次一问补齐并确认。已有明确结论不重复访谈。
+需要提问时等待实际回答，不自动选择；已有明确回答直接沿用。已有标准原型普通修改沿用元数据类型，不重新选型。只生成所选类型；B/C 不要求静态中间产物。缺少页面逻辑时一次一问补齐并确认。已有明确结论不重复访谈。
 
 ## 执行
 

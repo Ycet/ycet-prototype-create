@@ -3,11 +3,19 @@
 import argparse,json,re,sys,base64
 from html.parser import HTMLParser
 from pathlib import Path
+from prototype_syntax import script_problem
 class Document(HTMLParser):
     def __init__(self):
-        super().__init__();self.errors=[];self.ids=[];self.pages=[];self.targets=[];self.meta='';self.scripts=[];self.styles=[];self.mode=None;self.kind=''
+        super().__init__();self.errors=[];self.ids=[];self.pages=[];self.targets=[];self.meta='';self.scripts=[];self.styles=[];self.mode=None;self.kind='';self.stack=[];self.element_ids=set()
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
+        page=a.get('data-ycet-page-id') or (self.stack[-1][1] if self.stack else None)
+        if page and 'data-ycet-element-id' in a:
+            key=(page,a['data-ycet-element-id'])
+            if not key[1] or key in self.element_ids:self.errors.append('页面内元素 ID 缺失或重复')
+            self.element_ids.add(key)
+        if tag not in ('area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'):
+            self.stack.append((tag,page))
         if tag in ('iframe','object','embed','base') or 'srcdoc' in a:self.errors.append('禁止页面嵌套或 base')
         if 'id' in a:self.ids.append(a['id'])
         if 'data-ycet-page-id' in a:self.pages.append(a['data-ycet-page-id'])
@@ -17,7 +25,7 @@ class Document(HTMLParser):
             v=(v or '').strip()
             if k in ('src','poster','data') or k in ('href','xlink:href') and tag!='a':
                 if not v.startswith(('data:','#')):self.errors.append('资源未内联：'+v[:80])
-            if k=='href' and tag=='a' and v and not v.startswith('#'):self.errors.append('跨文件链接')
+            if k=='href' and tag=='a' and v and not v.lower().startswith(('#','mailto:','tel:')):self.errors.append('跨文件链接')
             if k in ('action','formaction') and v and not v.startswith('#'):self.errors.append('外部表单提交')
             if k=='srcset' and (not v.startswith('data:') or re.search(r'(?:https?:|file:|\.\./)',v)):self.errors.append('srcset 未完全内联')
             if v.startswith('data:image/svg+xml;base64,'):
@@ -26,15 +34,24 @@ class Document(HTMLParser):
                     self.styles.extend(nested.styles);self.scripts.extend(nested.scripts)
                 except (ValueError,UnicodeError):self.errors.append('SVG 数据无效')
             if k=='style':self.styles.append(v)
-            if k.startswith('on'):self.scripts.append(v)
+            if k.startswith('on'):
+                self.scripts.append(v)
+                problem=script_problem(v,page=True)
+                if problem:self.errors.append(problem)
         if tag=='script':self.mode='meta' if a.get('id')=='ycet-metadata' else 'script' if a.get('type') not in ('application/json','application/ld+json') else None
         if tag=='style':self.mode='style'
-    handle_startendtag=handle_starttag
+    def handle_startendtag(self,tag,attrs):
+        self.handle_starttag(tag,attrs)
+        self.handle_endtag(tag)
     def handle_data(self,data):
         if self.mode=='meta':self.meta+=data
         if self.mode=='script':self.scripts.append(data)
         if self.mode=='style':self.styles.append(data)
     def handle_endtag(self,tag):
+        for index in range(len(self.stack)-1,-1,-1):
+            if self.stack[index][0]==tag:
+                del self.stack[index:]
+                break
         if tag in ('script','style'):self.mode=None
 
 def audit(source):
@@ -56,7 +73,8 @@ def audit(source):
         for match in re.finditer(r'url\(\s*[\'"]?([^\)]+)',css):
             if not match[1].startswith(('data:','#')):d.errors.append('CSS 资源未内联')
     for script in d.scripts:
-        if re.search(r'\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|importScripts)\b|\bimport\s*\(|\.srcdoc\b|createElement\s*\(\s*[\'"](?:iframe|object|embed)[\'"]|location\.(?:href|assign|replace)|window\.open|sendBeacon',script):d.errors.append('脚本包含外部请求或页面嵌套／离开文档行为')
+        problem=script_problem(script)
+        if problem:d.errors.append(problem)
     return list(dict.fromkeys(d.errors))
 
 def main():
