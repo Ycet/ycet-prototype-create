@@ -17,6 +17,7 @@
   let annotations = [];
   let canvasPanning = false;
   let overlayFrame = 0;
+  let editorTheme = "light";
   const originalText = new WeakMap();
 
   function emit(type, payload = {}) {
@@ -212,6 +213,7 @@
   function overlay(className) {
     const node = document.createElement("div");
     node.className = `ycet-editor-overlay ${className}`;
+    node.dataset.ycetEditorTheme = editorTheme;
     document.documentElement.appendChild(node);
     return node;
   }
@@ -231,6 +233,9 @@
       .ycet-editor-note-actions{display:flex;gap:6px;margin-top:8px}
       .ycet-editor-note-action{display:grid;width:28px;height:28px;padding:0;place-items:center;border:1px solid #dbeafe;border-radius:4px;color:#31577f;background:#fff;cursor:pointer}
       .ycet-editor-note-action:hover{color:#2563eb;border-color:#93c5fd;background:#eff6ff}
+      .ycet-editor-overlay[data-ycet-editor-theme="dark"] .ycet-editor-note{color:#e5edf7;background:#202b3c;border-color:#3b4a60;box-shadow:0 12px 30px #0005}
+      .ycet-editor-overlay[data-ycet-editor-theme="dark"] .ycet-editor-note-action{color:#cbd8ed;background:#29364b;border-color:#43536c}
+      .ycet-editor-overlay[data-ycet-editor-theme="dark"] .ycet-editor-note-action:hover{color:#a4c5ff;background:#344767}
       .ycet-editor-note-action svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
     `;
     document.head.appendChild(style);
@@ -240,6 +245,7 @@
     annotateButton = document.createElement("button");
     annotateButton.type = "button";
     annotateButton.className = "ycet-editor-overlay ycet-editor-annotate";
+    annotateButton.dataset.ycetEditorTheme = editorTheme;
     annotateButton.textContent = "批注";
     annotateButton.addEventListener("click", () => selected && emit("annotation-request", { selection: selectionPayload(selected) }));
     document.documentElement.appendChild(annotateButton);
@@ -561,6 +567,7 @@
       const marker = document.createElement("button");
       marker.type = "button";
       marker.className = "ycet-editor-overlay ycet-editor-marker";
+      marker.dataset.ycetEditorTheme = editorTheme;
       marker.style.left = `${rect.left + rect.width - 12}px`;
       marker.style.top = `${rect.top - 12}px`;
       const number = document.createTextNode(String(index + 1));
@@ -612,7 +619,10 @@
     if (event.origin !== window.location.origin || event.source !== window.parent) return;
     const message = event.data || {};
     if (message.channel !== CHANNEL) return;
-    if (message.type === "select-mode") {
+    if (message.type === "theme") {
+      editorTheme = message.theme === "dark" ? "dark" : "light";
+      document.querySelectorAll(".ycet-editor-overlay").forEach((node) => { node.dataset.ycetEditorTheme = editorTheme; });
+    } else if (message.type === "select-mode") {
       selectMode = Boolean(message.active);
       if (hoverBox) {
         // 关闭选择模式时保留 selected（仅隐藏覆盖层），使工作台的“刷新选区”消息（清空修改、撤回等）

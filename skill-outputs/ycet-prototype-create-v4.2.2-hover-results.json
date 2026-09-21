@@ -1,0 +1,42 @@
+{
+  "checks": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "height": 900,
+      "dialogs": 6
+    },
+    {
+      "theme": "light",
+      "width": 1000,
+      "height": 640,
+      "dialogs": 6
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "height": 900,
+      "dialogs": 6
+    },
+    {
+      "theme": "dark",
+      "width": 1000,
+      "height": 640,
+      "dialogs": 6
+    }
+  ],
+  "colorCancel": true,
+  "shadowCancel": true,
+  "resizePopover": true,
+  "colorEscape": true,
+  "priorUndoPreserved": true,
+  "colorApplySingleUndo": true,
+  "borderTransaction": true,
+  "collapseCancelsColor": true,
+  "bothPanelsAndHover": true,
+  "folderIcons": true,
+  "themeIsolated": true,
+  "defaults": true,
+  "sourceUnchanged": true,
+  "pageErrors": []
+}

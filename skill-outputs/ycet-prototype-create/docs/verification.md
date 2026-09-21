@@ -17,6 +17,7 @@ node scripts/test_nonframe_v41.cjs <同一测试目录>
 node scripts/test_workbench_v4.cjs <同一测试目录>
 node scripts/test_preview_priority_v4.cjs
 node scripts/test_inspector_v421.cjs <截图与结果目录>
+node scripts/test_workbench_v422.cjs <截图与结果目录>
 python scripts/release_audit.py --output <Skill目录外的发布包.skill>
 ```
 

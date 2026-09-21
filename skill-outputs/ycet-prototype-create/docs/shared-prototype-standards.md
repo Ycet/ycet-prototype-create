@@ -64,7 +64,7 @@ CSS、JS、图片、srcset、SVG、图标、字体均内联；网络 URL 仅可�
 
 ## 无框架构建与修改用途
 
-C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，残留值会提示并忽略。支持 ios/iphone/android/mobile-h5/h5/wechat-mini-program、ipad/tablet、web/desktop/desktop-app/windows/macos 等 Manifest routing 端口。未知端口先澄清。元数据 frame=null，skillVersion=4.2.1，schemaVersion 仍为 1。
+C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，残留值会提示并忽略。支持 ios/iphone/android/mobile-h5/h5/wechat-mini-program、ipad/tablet、web/desktop/desktop-app/windows/macos 等 Manifest routing 端口。未知端口先澄清。元数据 frame=null，skillVersion=4.2.2，schemaVersion 仍为 1。
 
 页面可选 layout=document（默认，自然长页面）或 app（占满视口，内部滚动）。app 的直接子节点 data-ycet-scroll 自动占据剩余高度，固定头尾为其兄弟节点；嵌套布局自行提供 min-width/min-height:0 和滚动区域。page CSS 不得把根重新固定为设备尺寸。图片按比例适宽；热区坐标跟随同一图片容器。
 

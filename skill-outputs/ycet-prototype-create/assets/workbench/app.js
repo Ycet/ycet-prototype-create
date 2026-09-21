@@ -16,6 +16,9 @@
     collapsedGroupIds: new Set(),
     sidebarCollapsed: false,
     temporarySidebar: false,
+    inspectorCollapsed: false,
+    temporaryInspector: false,
+    theme: "light",
     colorTarget: null,
     editingAnnotation: null,
     latestResultId: null,
@@ -251,13 +254,20 @@
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "group-toggle";
-    toggle.innerHTML = '<span class="group-label"><svg aria-hidden="true"><use href="/assets/icons.svg#folder"></use></svg><span></span></span><span class="group-count"></span>';
+    toggle.innerHTML = '<span class="group-label"><svg aria-hidden="true"><use href="/assets/icons.svg#folder-open"></use></svg><span></span></span><span class="group-count"></span>';
+    const updateFolder = () => {
+      const collapsed = state.collapsedGroupIds.has(group.id);
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.querySelector("use").setAttribute("href", `/assets/icons.svg#${collapsed ? "folder-closed" : "folder-open"}`);
+    };
+    updateFolder();
     toggle.querySelector(".group-label span").textContent = group.name;
     toggle.querySelector(".group-count").textContent = group.files.length;
     toggle.addEventListener("click", () => {
       const collapsed = section.classList.toggle("collapsed");
       if (collapsed) state.collapsedGroupIds.add(group.id);
       else state.collapsedGroupIds.delete(group.id);
+      updateFolder();
     });
     row.append(toggle);
     const files = document.createElement("div");
@@ -629,6 +639,7 @@
   }
 
   async function undoLast() {
+    closeAnchoredPopovers();
     // 先提交输入框中尚未失焦的修改（其撤销批次在微任务中入栈），等待一次宏任务后再弹栈，
     // 保证“刚输入但未移开”的修改成为被撤回的最近一步。
     await flushActiveInput();
@@ -968,6 +979,7 @@
   }
 
   function closeAnchoredPopovers() {
+    rollbackColor();
     [$("#color-dialog"), $("#effect-dialog")].forEach((dialog) => { if (dialog?.open) dialog.close(); });
     state.colorTarget = null;
     state.activeEffectId = null;
@@ -999,7 +1011,7 @@
     $("em", button).textContent = value;
   }
 
-  function renderColorDialog() {
+  function renderColorDialog(preview = true) {
     const rgb = hsvToRgb(state.color.h, state.color.s, state.color.v);
     const hex = rgbHex(rgb);
     $("#color-r").value = rgb.r; $("#color-g").value = rgb.g; $("#color-b").value = rgb.b;
@@ -1008,15 +1020,17 @@
     $("#color-sv").style.backgroundColor = `hsl(${state.color.h} 100% 50%)`;
     $("#color-sv-handle").style.left = `${state.color.s}%`;
     $("#color-sv-handle").style.top = `${100 - state.color.v}%`;
-    applyColor();
+    if (preview) applyColor();
   }
 
-  function setColorDialog(color) {
+  function setColorDialog(color, preview = true) {
     state.color = rgbToHsv(parseColor(color));
-    renderColorDialog();
+    renderColorDialog(preview);
   }
 
   function openColor(button) {
+    // 同步结束旧会话，避免延迟 close 事件回滚新打开的颜色。
+    rollbackColor();
     const property = button.dataset.colorProperty;
     const key = property && state.selection ? `style:${fingerprintKey(state.selection.fingerprint)}:${property}` : null;
     const draft = key ? draftFor(state.selection.fileId, false) : null;
@@ -1039,20 +1053,27 @@
       key,
       operation: operation ? { ...operation } : null,
       borderAutoKeys,
+      fingerprint: state.selection?.fingerprint,
+      previewed: false,
     };
     state.colorTarget = button;
-    setColorDialog(button.dataset.color || "#ffffff");
+    setColorDialog(button.dataset.color || "#ffffff", false);
     showAnchored($("#color-dialog"), button);
   }
 
   function applyColor() {
-    if (!state.colorTarget) return;
+    if (!state.colorTarget || !state.colorSession) return;
+    state.colorSession.previewed = true;
     const value = rgbHex(hsvToRgb(state.color.h, state.color.s, state.color.v));
     updateColorField(state.colorTarget, value);
     if (state.colorTarget.id === "shadow-color") {
       if (state.effectDraft) state.effectDraft.color = value;
     } else {
-      styleOperation(state.colorTarget.dataset.colorProperty, value);
+      // 调色只是可取消的预览；应用时才写入一批撤回记录。
+      const previous = state.suppressUndoRecord;
+      state.suppressUndoRecord = true;
+      try { styleOperation(state.colorTarget.dataset.colorProperty, value); }
+      finally { state.suppressUndoRecord = previous; }
     }
   }
 
@@ -1060,6 +1081,7 @@
     const session = state.colorSession;
     if (!session) return;
     state.colorSession = null;
+    state.colorTarget = null;
     updateColorField(session.button, session.color);
     if (session.button.id === "shadow-color") {
       if (state.effectDraft) state.effectDraft.color = session.effectColor;
@@ -1076,6 +1098,11 @@
     }
     // 回滚本次颜色会话自动补充的 border-style/border-width。
     for (const auto of session.borderAutoKeys || []) {
+      const property = auto.key.endsWith(":border-width") ? "border-width" : "border-style";
+      const original = auto.operation?.value ?? state.selection?.element.styles[property === "border-width" ? "borderWidth" : "borderStyle"];
+      if (original != null) setValue(property, property === "border-width" ? number(original) : original);
+    }
+    for (const auto of session.borderAutoKeys || []) {
       const autoIndex = draft.operations.findIndex((item) => item._key === auto.key);
       if (auto.operation) {
         if (autoIndex >= 0) draft.operations[autoIndex] = auto.operation;
@@ -1091,12 +1118,38 @@
 
   function commitColor(event) {
     event.preventDefault();
-    state.colorSession = null;
+    const session = state.colorSession;
+    if (!session) return;
+    const value = session.button.dataset.color;
+    const before = parseColor(session.color), after = parseColor(value);
+    const unchanged = !session.previewed || ["r", "g", "b", "a"].every((key) => before[key] === after[key]);
+    if (unchanged) rollbackColor();
+    else {
+      if (session.key) {
+        const draft = draftFor(session.fileId, false);
+        const snapshots = [{ key: session.key, operation: session.operation }, ...session.borderAutoKeys];
+        for (const snapshot of snapshots) {
+          const current = draft?.operations.find((item) => item._key === snapshot.key);
+          if ((current?.value ?? null) !== (snapshot.operation?.value ?? null)) {
+            pushUndoEntry({ fileId: session.fileId, key: snapshot.key, fingerprint: session.fingerprint, prevOperation: snapshot.operation });
+          }
+        }
+      }
+      state.colorSession = null;
+      state.colorTarget = null;
+    }
     $("#color-dialog").close("apply");
   }
 
   function bindColors() {
-    $("#color-dialog").addEventListener("close", () => rollbackColor());
+    // 取消按钮提交时立即回滚，不等待异步 close，避免随后应用效果读取预览色。
+    $("#color-dialog form").addEventListener("submit", (event) => {
+      if (event.submitter?.id !== "apply-color") rollbackColor();
+    });
+    $("#color-dialog").addEventListener("close", () => { if (!$("#color-dialog").open) rollbackColor(); });
+    $("#color-dialog").addEventListener("keydown", (event) => {
+      if (event.key === "Escape") { event.preventDefault(); rollbackColor(); $("#color-dialog").close("cancel"); }
+    });
     [...$$("[data-color-property]"), $("#shadow-color")].forEach((button) => button.addEventListener("click", () => openColor(button)));
     let draggingSv = false;
     const updateSv = (event) => {
@@ -1361,6 +1414,7 @@
   }
 
   async function clearCurrent() {
+    closeAnchoredPopovers();
     if (!requireEditable(state.currentFileId)) return;
     await flushActiveInput();
     const affected = [...state.drafts.entries()].filter(([identifier, draft]) => (
@@ -1498,6 +1552,7 @@
   }
 
   async function sendRequest() {
+    closeAnchoredPopovers();
     await flushActiveInput();
     if (state.staleDrafts.size) return toast("源文件已在外部变化，请刷新后重新编辑再发送。", "error");
     if (isActiveRequest()) return toast("当前 Agent 请求尚未完成，暂时不能再次发送。", "warn");
@@ -1661,15 +1716,56 @@
       finally { button.disabled = false; }
     });
     els.search.addEventListener("input", renderTree);
-    $("#collapse-sidebar").addEventListener("click", () => {
-      state.sidebarCollapsed = !state.sidebarCollapsed; state.temporarySidebar = false; els.layout.classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
-    });
-    $("#edge-reveal").addEventListener("mouseenter", () => { if (state.sidebarCollapsed) { state.temporarySidebar = true; els.layout.classList.remove("sidebar-collapsed"); } });
-    let sidebarTimer;
-    els.sidebar.addEventListener("mouseenter", () => clearTimeout(sidebarTimer));
-    els.sidebar.addEventListener("mouseleave", () => {
-      if (!state.sidebarCollapsed || !state.temporarySidebar) return;
-      sidebarTimer = setTimeout(() => { state.temporarySidebar = false; els.layout.classList.add("sidebar-collapsed"); }, 200);
+    // 两侧共享折叠规则；默认展开，边缘悬停临时展开，点击固定展开。
+    const bindPanel = (panel, button, edge, collapsedKey, temporaryKey, className, label) => {
+      let timer;
+      const render = () => {
+        const collapsed = state[collapsedKey] && !state[temporaryKey];
+        els.layout.classList.toggle(className, collapsed);
+        button.setAttribute("aria-expanded", String(!collapsed));
+        const text = state[temporaryKey] ? `保持${label}展开` : `${collapsed ? "展开" : "折叠"}${label}`;
+        button.setAttribute("aria-label", text);
+        button.dataset.tooltip = text;
+      };
+      const hideTemporary = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (!state[collapsedKey] || !state[temporaryKey] || panel.matches(":hover") || edge.matches(":hover") || (panel.contains(document.activeElement) && document.activeElement !== button) || $(".anchored-popover[open]")) return;
+          state[temporaryKey] = false;
+          render();
+        }, 200);
+      };
+      button.addEventListener("click", () => {
+        clearTimeout(timer);
+        if (panel === els.inspector) closeAnchoredPopovers();
+        state[collapsedKey] = !state[collapsedKey];
+        state[temporaryKey] = false;
+        render();
+      });
+      // 边缘热区和侧栏视为同一悬停区域，重新进入时取消旧收起任务。
+      const revealTemporary = () => {
+        clearTimeout(timer);
+        if (state[collapsedKey] && !state[temporaryKey]) { state[temporaryKey] = true; render(); }
+      };
+      edge.addEventListener("mouseenter", revealTemporary);
+      edge.addEventListener("mouseleave", hideTemporary);
+      panel.addEventListener("mouseenter", revealTemporary);
+      panel.addEventListener("mouseleave", hideTemporary);
+      panel.addEventListener("focusout", hideTemporary);
+      $$(".anchored-popover").forEach((dialog) => dialog.addEventListener("close", hideTemporary));
+      render();
+    };
+    bindPanel(els.sidebar, $("#collapse-sidebar"), $("#edge-reveal"), "sidebarCollapsed", "temporarySidebar", "sidebar-collapsed", "文件栏");
+    bindPanel(els.inspector, $("#collapse-inspector"), $("#edge-reveal-right"), "inspectorCollapsed", "temporaryInspector", "inspector-collapsed", "属性栏");
+    $("#toggle-theme").addEventListener("click", () => {
+      state.theme = state.theme === "light" ? "dark" : "light";
+      document.documentElement.dataset.theme = state.theme;
+      const button = $("#toggle-theme"), dark = state.theme === "dark";
+      button.setAttribute("aria-pressed", String(dark));
+      button.setAttribute("aria-label", dark ? "切换浅色模式" : "切换深色模式");
+      button.dataset.tooltip = button.getAttribute("aria-label");
+      $("use", button).setAttribute("href", `/assets/icons.svg#${dark ? "sun" : "moon"}`);
+      postPreview("theme", { theme: state.theme });
     });
     $("#refresh-preview").addEventListener("click", () => {
       if (state.staleDrafts.has(state.currentFileId)) {
@@ -1747,6 +1843,7 @@
     const message = event.data || {};
     if (message.channel !== CHANNEL) return;
     if (message.type === "ready") {
+      postPreview("theme", { theme: state.theme });
       postPreview("select-mode", { active: state.selectMode }); applyDrafts();
     } else if (message.type === "metrics") {
       state.previewMetrics = message.metrics;
@@ -1784,6 +1881,15 @@
     if (!token) return toast("缺少工作台实例令牌，请通过 ensure 命令重新打开。", "error");
     bindChrome(); bindCanvas(); bindPropertyInputs(); bindColors(); bindEffects();
     new ResizeObserver(() => resizePreviewShell()).observe(els.viewport);
+    // 窗口缩小时将已打开的浮层收回视口，避免沿用旧坐标被裁切。
+    window.addEventListener("resize", () => {
+      els.tooltip.classList.add("hidden");
+      $$(".anchored-popover[open]").forEach((dialog) => {
+        const rect = dialog.getBoundingClientRect();
+        dialog.style.left = `${clamp(rect.left, 8, innerWidth - rect.width - 8)}px`;
+        dialog.style.top = `${clamp(rect.top, 8, innerHeight - rect.height - 8)}px`;
+      });
+    });
     try {
       const [workspace, requests, results] = await Promise.all([api("/api/workspace"), api("/api/requests"), api("/api/results")]);
       state.workspace = workspace;
