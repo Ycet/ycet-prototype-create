@@ -1,0 +1,19 @@
+/* 仅装饰展示壳；不改设备尺寸、安全区、缩放容器及产品页面选择器。 */
+body.ycet-pages,body.ycet-demo,body.ycet-direction{background:var(--ycet-shell-background)}
+.ycet-nav,.ycet-toolbar,.ycet-menu,.ycet-direction-summary,.ycet-card>h2{font-family:var(--ycet-shell-font-family);color:var(--ycet-shell-text);color-scheme:var(--ycet-shell-color-scheme)}
+.ycet-layout>.ycet-nav,.ycet-drawer{background:var(--ycet-shell-surface);box-shadow:var(--ycet-shell-shadow)}
+.ycet-layout>.ycet-nav{border-right:1px solid var(--ycet-shell-border)}
+.ycet-nav button{color:var(--ycet-shell-text);border-radius:var(--ycet-shell-radius)}
+.ycet-nav button:hover{background:var(--ycet-shell-background)}
+.ycet-nav button[aria-current=page]{background:var(--ycet-shell-active-background);color:var(--ycet-shell-active-text)}
+.ycet-toolbar{background:var(--ycet-shell-surface);border-bottom:1px solid var(--ycet-shell-border)}
+.ycet-toolbar output{color:var(--ycet-shell-muted)}
+.ycet-toolbar button,.ycet-direction-summary button{color:var(--ycet-shell-text);background:var(--ycet-shell-surface);border:1px solid var(--ycet-shell-border);border-radius:var(--ycet-shell-radius)}
+.ycet-toolbar button:hover:not(:disabled),.ycet-direction-summary button:hover:not(:disabled){color:var(--ycet-shell-active-text);background:var(--ycet-shell-active-background)}
+.ycet-toolbar button:disabled{opacity:.45;cursor:not-allowed}
+.ycet-nav button:focus-visible,.ycet-toolbar button:focus-visible,.ycet-menu:focus-visible,.ycet-direction-summary :is(a,button):focus-visible{outline:2px solid var(--ycet-shell-accent);outline-offset:2px}
+.ycet-menu{background:var(--ycet-shell-accent);color:var(--ycet-shell-on-accent);border-radius:var(--ycet-shell-radius);box-shadow:var(--ycet-shell-shadow)}
+.ycet-card>h2,.ycet-direction-summary :is(h1,h2,h3){font-family:var(--ycet-shell-heading-font-family);color:var(--ycet-shell-text)}
+.ycet-direction-summary{padding:24px 32px;background:var(--ycet-shell-surface);border-bottom:1px solid var(--ycet-shell-border)}
+.ycet-direction-summary :is(p,small){color:var(--ycet-shell-muted)}
+.ycet-direction-summary a{color:var(--ycet-shell-accent)}

@@ -9,6 +9,9 @@ python scripts/test_prototype_v4.py
 python scripts/test_prototype_workbench.py
 python scripts/test_nonframe_v41.py
 python scripts/test_prototype_v42.py
+python scripts/test_shell_theme_v423.py
+python scripts/test_shell_theme_v423.py --fixtures <空主题测试目录>
+node scripts/test_shell_theme_v423.cjs <同一主题测试目录>
 python scripts/validate_skill.py
 python scripts/test_prototype_v4.py --fixtures <空测试目录>
 node scripts/test_runtime_v4.cjs <同一测试目录>

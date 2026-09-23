@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse, hashlib, html, json, os, re, tempfile, warnings
 from pathlib import Path
 from prototype_document import BuildError, ResourceBundler, safe_json_script, assign_element_ids
+from shell_theme import shell_theme
 from prototype_syntax import split_selectors, script_problem
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,6 +93,7 @@ if(typeof ResizeObserver!=='undefined')new ResizeObserver(resize).observe(stage)
 
 def render(model, root):
     model=normalize_model(model); kind=model['type']
+    theme, theme_css = shell_theme(model.get('shellTheme'))
     manifest=json.loads((ROOT/'assets/frames/manifest.json').read_text())
     port=str(model.get('productPort','')).strip().lower()
     route=manifest['routing'].get(port)
@@ -149,12 +151,15 @@ def render(model, root):
     nav=''.join(f'<button type="button" data-ycet-tool-target="{p["id"]}">{html.escape(p.get("label",p["id"]))}</button>' for p in pages)
     if kind in ('pages','direction'):
         body='<main class="ycet-grid">'+''.join(f'<article class="ycet-card"><h2>{html.escape(p.get("label",p["id"]))}</h2>'+device(frag)+'</article>' for p,frag in zip(pages,fragments))+'</main>'
-        if kind=='direction': body=bundler.inline_html_text(model.get('directionHtml',''),owner)+body
+        if kind=='direction':
+            direction=bundler.inline_html_text(model.get('directionHtml',''),owner)
+            body=(('<header class="ycet-direction-summary">'+direction+'</header>') if theme and direction else direction)+body
     elif kind=='demo':body='<main class="ycet-layout"><nav class="ycet-nav" aria-label="页面导航" tabindex="0">'+nav+'</nav><div class="ycet-viewer"><div class="ycet-toolbar" role="group" aria-label="原型缩放"><button data-ycet-zoom="out" aria-label="缩小原型">−</button><output data-ycet-zoom-value aria-live="polite">100%</output><button data-ycet-zoom="in" aria-label="放大原型">＋</button><button data-ycet-zoom="fit">适应窗口</button></div><div class="ycet-stage" tabindex="0" aria-label="原型展示区"><div class="ycet-stage-inner"><div class="ycet-fit"><div class="ycet-fit-content">'+device(''.join(fragments))+'</div></div></div></div></div></main>'
     else:body=''.join(fragments)+'<button class="ycet-menu" aria-label="打开页面导航" aria-expanded="false">☰</button><button class="ycet-overlay" hidden aria-label="关闭导航"></button><aside class="ycet-drawer ycet-nav" role="dialog" aria-modal="true" aria-label="页面导航" hidden inert><button data-ycet-close>关闭</button>'+nav+'</aside>'
-    meta={'schemaVersion':1,'skillVersion':'4.2.2','artifactVersion':model.get('artifactVersion',1),'type':kind,'productPort':model.get('productPort',''),'frame':frame,'initial':initial,'pages':[{'id':p['id'],'label':p.get('label',p['id']),'layout':p.get('layout','document')} for p in pages]}
+    meta={'schemaVersion':1,'skillVersion':'4.2.3','artifactVersion':model.get('artifactVersion',1),'type':kind,'productPort':model.get('productPort',''),'frame':frame,'initial':initial,'pages':[{'id':p['id'],'label':p.get('label',p['id']),'layout':p.get('layout','document')} for p in pages]}
+    if theme: meta['shellTheme'] = theme
     variables='' if frame is None else f'--logical-w:{frame["logicalViewport"]["width"]}px;--logical-h:{frame["logicalViewport"]["height"]}px;--safe-top:{frame["safeArea"]["top"]}px;--safe-bottom:{frame["safeArea"]["bottom"]}px;--columns:{frame["defaultColumns"]}'
-    css=((ROOT/'assets/nonframe.css').read_text() if kind=='nonframe' else STYLE+frame_css)+'\n'.join(styles)
+    css=((ROOT/'assets/nonframe.css').read_text() if kind=='nonframe' else STYLE+frame_css)+theme_css+'\n'.join(styles)
     if re.search('</(?:style|script)',css+'\n'.join(scripts),re.I):raise BuildError('代码字段含结束标签')
     runtime=RUNTIME
     if kind=='nonframe':

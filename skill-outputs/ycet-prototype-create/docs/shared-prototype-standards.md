@@ -17,6 +17,7 @@
   "frameId": "iphone-15-pro",
   "productPort": "ios",
   "initial": "home",
+  "shellTheme": {"background":"#edf4f2","surface":"#ffffff","text":"#183a35","muted":"#526d67","accent":"#147d64","onAccent":"#ffffff","border":"#c5d8d2","radius":"12px","fontFamily":"system-ui, sans-serif","colorScheme":"light"},
   "pages": [
     {"id":"home","label":"首页","html":"<button data-ycet-nav-target=\"detail\">详情</button>","css":":scope button { color: #2563eb; }","js":""},
     {"id":"detail","label":"详情","html":"<h1>详情</h1><button data-ycet-back>返回</button>","css":"","js":""}
@@ -64,7 +65,7 @@ CSS、JS、图片、srcset、SVG、图标、字体均内联；网络 URL 仅可�
 
 ## 无框架构建与修改用途
 
-C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，残留值会提示并忽略。支持 ios/iphone/android/mobile-h5/h5/wechat-mini-program、ipad/tablet、web/desktop/desktop-app/windows/macos 等 Manifest routing 端口。未知端口先澄清。元数据 frame=null，skillVersion=4.2.2，schemaVersion 仍为 1。
+C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，残留值会提示并忽略。支持 ios/iphone/android/mobile-h5/h5/wechat-mini-program、ipad/tablet、web/desktop/desktop-app/windows/macos 等 Manifest routing 端口。未知端口先澄清。元数据 frame=null，skillVersion=4.2.3，schemaVersion 仍为 1。
 
 页面可选 layout=document（默认，自然长页面）或 app（占满视口，内部滚动）。app 的直接子节点 data-ycet-scroll 自动占据剩余高度，固定头尾为其兄弟节点；嵌套布局自行提供 min-width/min-height:0 和滚动区域。page CSS 不得把根重新固定为设备尺寸。图片按比例适宽；热区坐标跟随同一图片容器。
 
@@ -75,3 +76,23 @@ C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，�
 写入 mode 与任务 purpose 分开：create 默认 initial；iterate/overwrite 默认 modify。已交付目标原型后续转成新类型文件名即使使用 create，也必须传 --purpose modify。功能四首次基于 HTML／图片生成目标文件使用 create 和 --purpose initial，保留首次交付验收。修改模式不自动调用 audit；--validate 仅用于用户明确要求的验收。输入、资源内联和原子写入保护始终保留；命令返回文件路径表示写入成功，不等于浏览器验收通过。
 
 旧 type=mobile 输入作为兼容别名转为 nonframe 并提示，需明确有效端口；旧 HTML 元数据仍可由守卫读取。历史 mobile 文件不改名、不占用 nonframe 编号。旧源码的局部修改直接编辑，不从旧 JSON 重建覆盖。
+
+
+## 展示壳与产品风格（v4.2.3）
+
+新生成 design-direction、prototype-pages、prototype-demo 时，外围页面背景、导航及选中态、页面标题、方向说明和缩放工具栏沿用产品的配色、字体、圆角与阴影。功能二先从当前设计方向提取一份 shellTheme；功能三复用已确认方向的同一份参数，避免各文件另选一套浅灰／蓝色风格。若手工编写 HTML，也遵守此视觉一致性要求。C 无框架只为辅助菜单／抽屉套用参数，不增加展示壳或限制产品视口。
+
+构建输入 shellTheme 的必填项为 background、surface、text、muted、accent、onAccent（页面背景、面板、正文、次级文字、强调色、强调色上文字）。颜色接受 #RGB、#RGBA、#RRGGBB 或 #RRGGBBAA。可选项：
+
+| 字段 | 用途／默认 |
+| --- | --- |
+| border | 分隔线；默认 muted |
+| activeBackground、activeText | 导航选中态；默认 accent、onAccent |
+| fontFamily、headingFontFamily | 已确认的字体栈；默认系统字体、与正文字体相同 |
+| radius | 控件圆角；默认 8px，接受非负 px/rem/em 或 0 |
+| shadow | 面板阴影；默认 none，或 2–4 个带单位长度加十六进制颜色，如 0px 4px 18px #c5d8d2 |
+| colorScheme | 控件浅／深色；light（默认）或 dark，按产品主题指定 |
+
+直接复用产品设计变量的最终值，不让脚本猜测任意 CSS；同一文件有多种页面主题时采用已确认的品牌主主题，导航切页不自动换肤。核对选中态、正文和背景的可读性。字体遵守内联资源契约：参数只指定字体栈，不会自动下载或嵌入字体；沿用已内嵌的字体，或使用已确认系统回退字体。方向说明中的内联样式也应使用同一组设计参数。
+
+构建器内联 shell-theme.css，将解析后的参数保存到元数据 shellTheme，不增加运行时文件请求或依赖。参数仅控制外壳装饰，不调整设备模板／系统栏、产品 CSS、业务 DOM、布局尺寸、导航、缩放和滚动逻辑，也不改变工作台独立主题。为兼容旧构建输入，省略 shellTheme 时保留原默认样式；这不是新产物的默认设计策略。局部修改旧原型时保留原风格，只有新建或用户要求风格同步／重设计时才补充，禁止从旧 JSON 重建覆盖工作台编辑。
