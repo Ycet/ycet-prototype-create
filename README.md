@@ -3,16 +3,20 @@
 [![简体中文](https://img.shields.io/badge/简体中文-red?style=for-the-badge)](README.md)
 [![English](https://img.shields.io/badge/English-blue?style=for-the-badge)](README_en.md)
 
-[![Version](https://img.shields.io/badge/version-v4.1.0-2563eb)](skill-outputs/ycet-prototype-create/VERSION)
+把产品想法变成可独立分享的 HTML 原型，并通过本地工作台预览和修改。
+
+[![Version](https://img.shields.io/badge/version-v4.2.4-2563eb)](skill-outputs/ycet-prototype-create/VERSION)
 [![Agent Skill](https://img.shields.io/badge/type-Agent%20Skill-0f766e)](skill-outputs/ycet-prototype-create/SKILL.md)
 [![License](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
 
-用于把产品需求整理为可独立分享的 HTML 原型的 Agent Skill：覆盖需求完善、UI 方向确认、静态/带框架交互/无框架交互原型制作、既有原型重构和本地工作台。
+![ycet-prototype-create 封面](assets/images/prototype-cover.png)
+
+覆盖需求完善、UI 方向确认、静态/带框架交互/无框架交互原型制作、既有原型重构和本地工作台。设计方向页与原型外围展示壳根据已确认的产品风格生成，不固定套用同一套视觉样式。
 
 ## 目录
 
 - [快速开始](#快速开始)
-- [v4.1.0 工作流](#v410-工作流)
+- [功能与演示](#功能与演示)
 - [交付物与独立性](#交付物与独立性)
 - [修改与迭代规则](#修改与迭代规则)
 - [目录结构](#目录结构)
@@ -27,8 +31,9 @@
 git clone https://github.com/Ycet/ycet-prototype-create.git
 cd ycet-prototype-create
 
-# 将 Skill 目录复制到所使用 Agent 的技能目录
-cp -R skill-outputs/ycet-prototype-create <agent-skill-directory>/ycet-prototype-create
+# 以 Codex 为例，将 Skill 目录复制到本机技能目录
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+cp -R skill-outputs/ycet-prototype-create "${CODEX_HOME:-$HOME/.codex}/skills/"
 ~~~
 
 安装后，以自然语言描述任务，或直接调用：
@@ -39,7 +44,7 @@ $ycet-prototype-create
 
 对于从零开始的需求，Skill 按“需求完善 → UI 方向确认 → 原型制作”执行。每个阶段完成后都会等待用户确认，再进入下一阶段。已有原型或图片的修改任务进入功能四流程。
 
-## v4.1.0 工作流
+## 功能与演示
 
 | 功能 | 职责 | 主要输出 |
 | --- | --- | --- |
@@ -48,6 +53,50 @@ $ycet-prototype-create
 | 功能三 | 选择并制作原型 | 静态、带框架交互或无框架交互 HTML 原型 |
 | 功能四 | 基于现有原型或图片重构、修改 | 更新后的原型文件与相关文档 |
 | 功能五 | 启动本地原型工作台 | 可浏览和编辑当前 prototype/ 下原型的工作台 |
+
+下列演示图展示各功能效果。动图较大，按需展开查看。
+
+<details>
+<summary>功能二 · 设计方向预览</summary>
+
+![功能二：设计方向预览](assets/images/功能二--设计方向预览.gif)
+
+</details>
+
+<details>
+<summary>功能三 · 静态页面</summary>
+
+![功能三：静态页面](assets/images/功能三--静态页面.gif)
+
+</details>
+
+<details>
+<summary>功能三 · 带框架交互 Demo</summary>
+
+![功能三：可交互 Demo](assets/images/功能三--可交互demo.gif)
+
+</details>
+
+<details>
+<summary>功能三 · 无框架交互 Demo</summary>
+
+![功能三：无框架交互 Demo](assets/images/功能三--无边框交互demo.gif)
+
+</details>
+
+<details>
+<summary>功能四 · 图片转 HTML 原型</summary>
+
+![功能四：图片转 HTML 原型](assets/images/功能四--图片转原型html.gif)
+
+</details>
+
+<details>
+<summary>功能五 · 原型工作台</summary>
+
+![功能五：原型工作台](assets/images/功能五--工作台.gif)
+
+</details>
 
 功能三会先要求选择原型类型：
 
@@ -86,7 +135,7 @@ skill-outputs/
 │   ├── VERSION
 │   ├── docs/
 │   └── scripts/
-└── ycet-prototype-create-v4.1.0.skill # 打包发布物
+└── ycet-prototype-create-v4.2.4.skill # 打包发布物
 ~~~
 
 用户任务执行时，项目内的 prototype/ 目录用于保存需求、素材和所有原型输出。
@@ -112,7 +161,7 @@ node scripts/test_workbench_v4.cjs <empty-test-directory>
 发布前可生成发布审计报告：
 
 ~~~bash
-python scripts/release_audit.py --output <output-directory>/ycet-prototype-create-v4.1.0.skill
+python scripts/release_audit.py --output <output-directory>/ycet-prototype-create-v4.2.4.skill
 ~~~
 
 ## 文档
@@ -132,4 +181,4 @@ python scripts/release_audit.py --output <output-directory>/ycet-prototype-creat
 
 原型修改完成并保存后直接结束，默认不追加静态守卫、浏览器检查或局部／全量回归。仅用户明确要求测试时执行指定范围。工作台保留必要请求收尾；首次生成和 Skill 开发使用各自的验收要求。
 
-执行约定见 [原型验证边界](skill-outputs/ycet-prototype-create/docs/prototype-validation.md)，v4.1.0 设计见 [优化执行方案](docs/spec/v4.1.0/优化执行方案.md)。历史方案位于 [v4.0.0 归档](docs/spec/v4.0.0/)。
+执行约定见 [原型验证边界](skill-outputs/ycet-prototype-create/docs/prototype-validation.md)。[v4.2.4 验证记录](skill-outputs/ycet-prototype-create-v4.2.4-validation.md)说明了本版展示设计与验证范围；历史方案位于 [v4.1.0 归档](docs/spec/v4.1.0/优化执行方案.md)。
