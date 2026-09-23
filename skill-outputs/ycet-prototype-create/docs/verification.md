@@ -10,6 +10,9 @@ python scripts/test_prototype_workbench.py
 python scripts/test_nonframe_v41.py
 python scripts/test_prototype_v42.py
 python scripts/test_shell_theme_v423.py
+python scripts/test_presentation_v424.py
+python scripts/test_presentation_v424.py --fixtures <空展板测试目录>
+node scripts/test_presentation_v424.cjs <同一展板测试目录>
 python scripts/test_shell_theme_v423.py --fixtures <空主题测试目录>
 node scripts/test_shell_theme_v423.cjs <同一主题测试目录>
 python scripts/validate_skill.py

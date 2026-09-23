@@ -1,0 +1,46 @@
+{
+  "results": [
+    {
+      "style": "journal",
+      "kind": "direction",
+      "status": "passed"
+    },
+    {
+      "style": "journal",
+      "kind": "pages",
+      "status": "passed"
+    },
+    {
+      "style": "journal",
+      "kind": "demo",
+      "status": "passed"
+    },
+    {
+      "style": "journal",
+      "kind": "nonframe",
+      "status": "passed"
+    },
+    {
+      "style": "studio",
+      "kind": "direction",
+      "status": "passed"
+    },
+    {
+      "style": "studio",
+      "kind": "pages",
+      "status": "passed"
+    },
+    {
+      "style": "studio",
+      "kind": "demo",
+      "status": "passed"
+    },
+    {
+      "style": "studio",
+      "kind": "nonframe",
+      "status": "passed"
+    }
+  ],
+  "errors": [],
+  "requests": []
+}

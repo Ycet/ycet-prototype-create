@@ -1,0 +1,51 @@
+/* 展示壳共享布局；产品根 .ycet-page 与设备模板均不进入这些选择器。 */
+.ycet-presented{--ycet-shell-gap:28px;--ycet-shell-control-padding:12px 16px}
+.ycet-presented[data-density=compact]{--ycet-shell-gap:18px;--ycet-shell-control-padding:9px 12px}
+.ycet-shell-heading{font-family:var(--ycet-shell-font-family);color:var(--ycet-shell-text);padding:0;margin-bottom:var(--ycet-shell-gap)}
+.ycet-shell-heading>small,.ycet-nav-group{font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--ycet-shell-muted)}
+.ycet-shell-heading>h1{font-family:var(--ycet-shell-heading-font-family);font-size:clamp(26px,3vw,40px);font-weight:var(--ycet-shell-heading-weight);letter-spacing:-.035em;line-height:1.2;color:var(--ycet-shell-accent);margin:12px 0 16px;overflow-wrap:anywhere}
+.ycet-shell-heading>p{font-size:14px;line-height:1.8;max-width:68ch;margin:0;color:var(--ycet-shell-muted)}
+.ycet-pages.ycet-presented>.ycet-shell-heading{padding:32px 32px 0;margin-bottom:0}
+.ycet-presented .ycet-card>h2{font-size:16px;margin:0 0 8px;color:var(--ycet-shell-accent)}
+.ycet-card-description{font:12px/1.65 var(--ycet-shell-font-family);color:var(--ycet-shell-muted);max-width:var(--logical-w);margin:0 0 16px;overflow-wrap:anywhere}
+.ycet-presented .ycet-grid{gap:var(--ycet-shell-gap)}
+.ycet-presented .ycet-nav{padding:24px 16px}
+.ycet-presented .ycet-nav>.ycet-shell-heading{padding:0 8px;margin:0 0 30px}
+.ycet-presented .ycet-nav>.ycet-shell-heading h1{font-size:24px;margin:10px 0;letter-spacing:-.025em}
+.ycet-presented .ycet-nav>.ycet-shell-heading p{font-size:12px;line-height:1.65}
+.ycet-presented .ycet-nav-group{margin:24px 8px 10px}
+.ycet-presented .ycet-nav button{padding:var(--ycet-shell-control-padding);margin:4px 0;line-height:1.4;transition:background var(--ycet-shell-motion),color var(--ycet-shell-motion),box-shadow var(--ycet-shell-motion)}
+.ycet-presented .ycet-nav button[aria-current=page]{box-shadow:var(--ycet-shell-shadow)}
+.ycet-presented .ycet-nav button>span{font-weight:600;font-size:14px}
+.ycet-presented .ycet-nav button>small{display:block;font-size:11px;margin-top:5px;opacity:.8}
+.ycet-presented .ycet-nav-hint{font:11px/1.8 var(--ycet-shell-font-family);color:var(--ycet-shell-muted);border-top:1px var(--ycet-shell-line-style) var(--ycet-shell-border);padding:20px 8px 0;margin-top:32px}
+.ycet-presented .ycet-toolbar{padding:12px 20px;gap:8px}
+.ycet-presented .ycet-toolbar button{padding:8px 14px;transition:background var(--ycet-shell-motion),transform var(--ycet-shell-motion)}
+.ycet-presented .ycet-toolbar button:active:not(:disabled){transform:scale(.97)}
+/* 方向页是一张可阅读、可操作的设计展板，保留真实设备尺寸与页面内交互。 */
+.ycet-direction.ycet-presented>.ycet-direction-summary{width:min(1120px,100%);margin:0 auto;padding:48px 32px 8px;background:transparent;border:0}
+.ycet-direction.ycet-presented>.ycet-grid{width:max-content;min-width:0;margin:0 auto;padding-top:28px}
+.ycet-board-section{margin:0 0 38px}
+.ycet-board-section>h2{font-size:18px;line-height:1.4;font-weight:var(--ycet-shell-heading-weight);color:var(--ycet-shell-accent);border-bottom:1px var(--ycet-shell-line-style) var(--ycet-shell-border);padding-bottom:12px;margin:0 0 20px}
+.ycet-palette{display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:16px}
+.ycet-swatch{display:grid;grid-template-rows:64px auto auto 1fr;gap:7px;min-width:0;padding:12px;background:var(--ycet-shell-surface);border:1px var(--ycet-shell-line-style) var(--ycet-shell-border);border-radius:var(--ycet-shell-radius);box-shadow:var(--ycet-shell-shadow)}
+.ycet-swatch>span{border-radius:var(--ycet-shell-radius);border:1px solid var(--ycet-shell-border)}
+.ycet-swatch>b{font-size:12px;margin-top:4px}.ycet-swatch>code{font:11px/1.5 ui-monospace,monospace;color:var(--ycet-shell-muted)}.ycet-swatch>small{font-size:11px;line-height:1.6;color:var(--ycet-shell-muted)}
+.ycet-type-grid,.ycet-specimens{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.ycet-type-card,.ycet-specimen{min-width:0;padding:24px;background:var(--ycet-shell-surface);border:1px var(--ycet-shell-line-style) var(--ycet-shell-border);border-radius:var(--ycet-shell-radius);box-shadow:var(--ycet-shell-shadow)}
+.ycet-type-card>small{display:block;color:var(--ycet-shell-muted);font-size:11px;line-height:1.6;overflow-wrap:anywhere;margin-bottom:16px}
+.ycet-type-card>strong{display:block;font:var(--ycet-shell-heading-weight) 28px/1.4 var(--ycet-shell-heading-font-family);color:var(--ycet-shell-text)}
+.ycet-type-card>p{font-size:16px;line-height:1.8;margin:0 0 12px;color:var(--ycet-shell-text)}.ycet-type-card>span{font-size:12px;color:var(--ycet-shell-muted)}
+.ycet-specimen>h3{margin:0 0 20px;font-size:14px;color:var(--ycet-shell-text)}
+.ycet-specimen-stage{min-height:100px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;overflow-wrap:anywhere}
+.ycet-specimen>p{font-size:12px;line-height:1.7;margin:20px 0 0;color:var(--ycet-shell-muted)}
+/* 可复用样本控件：支持 hover、焦点、按下、禁用和原生 details 状态。 */
+.ycet-specimen-stage :where(button,input,select,textarea){font:inherit;max-width:100%;min-width:0;border:1px solid var(--ycet-shell-border);border-radius:var(--ycet-shell-radius);padding:var(--ycet-shell-control-padding);color:var(--ycet-shell-text);background:var(--ycet-shell-surface)}
+.ycet-specimen-stage button{min-height:40px;transition:background var(--ycet-shell-motion),transform var(--ycet-shell-motion)}
+.ycet-specimen-stage button[data-variant=primary]{background:var(--ycet-shell-accent);color:var(--ycet-shell-on-accent);border-color:var(--ycet-shell-accent)}
+.ycet-specimen-stage button:disabled{opacity:.45;cursor:not-allowed}.ycet-specimen-stage button:active:not(:disabled){transform:scale(.97)}
+.ycet-specimen-stage :is(button,input,select,textarea,summary):focus-visible{outline:2px solid var(--ycet-shell-accent);outline-offset:3px}
+.ycet-specimen-stage details{width:100%;padding:16px;border:1px var(--ycet-shell-line-style) var(--ycet-shell-border);border-radius:var(--ycet-shell-radius)}
+.ycet-specimen-stage summary{cursor:pointer;font-weight:600}.ycet-specimen-stage details[open]>summary{margin-bottom:12px}
+@media(max-width:760px){.ycet-direction.ycet-presented>.ycet-direction-summary{padding:28px 20px 0}.ycet-type-grid,.ycet-specimens{grid-template-columns:1fr}.ycet-presented .ycet-layout>.ycet-nav{padding:8px 12px}.ycet-presented .ycet-nav>.ycet-shell-heading{margin:0 0 12px}.ycet-presented .ycet-nav>.ycet-shell-heading h1{font-size:18px}.ycet-presented .ycet-nav>.ycet-shell-heading p,.ycet-presented .ycet-nav-hint{display:none}}
+@media(prefers-reduced-motion:reduce){.ycet-presented{--ycet-shell-motion:0ms}}

@@ -1,0 +1,121 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>拾光手记</title><style>/* 无框架页面使用实际浏览器尺寸，不继承设备模板的裁切与缩放。 */
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;min-height:100%;font-family:system-ui,sans-serif;color:#171719;background:white}
+:root{--ycet-view-height:100vh;--ycet-safe-top:env(safe-area-inset-top,0px);--ycet-safe-right:env(safe-area-inset-right,0px);--ycet-safe-bottom:env(safe-area-inset-bottom,0px);--ycet-safe-left:env(safe-area-inset-left,0px)}
+@supports(height:100dvh){:root{--ycet-view-height:100dvh}}
+[hidden]{display:none!important}
+html,body,[data-ycet-scroll],.ycet-drawer{scrollbar-width:none}
+::-webkit-scrollbar{display:none;width:0;height:0}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:2px solid #2563eb}
+.ycet-page{position:relative;width:100%;min-width:0;min-height:var(--ycet-view-height);height:auto;background:white;padding:var(--ycet-safe-top) var(--ycet-safe-right) var(--ycet-safe-bottom) var(--ycet-safe-left)}
+.ycet-page[data-ycet-layout=app]{height:var(--ycet-view-height);display:flex;flex-direction:column;overflow:hidden}
+.ycet-page[data-ycet-layout=app]>[data-ycet-scroll]{flex:1 1 0;min-height:0;min-width:0;overflow:auto}
+[data-ycet-scroll]{overflow:auto;min-width:0;min-height:0}
+.ycet-page img,.ycet-page video{max-width:100%;height:auto}
+.ycet-page[data-ycet-image-prototype=true] img{display:block;width:100%;height:auto}
+.ycet-menu{touch-action:none;position:fixed;left:max(8px,var(--ycet-safe-left));top:max(8px,var(--ycet-safe-top));z-index:100;min-width:44px;min-height:44px;border:0;border-radius:8px;background:#111;color:white;padding:10px}
+.ycet-drawer{position:fixed;top:0;left:0;width:min(82%,320px);height:var(--ycet-view-height);padding:max(16px,var(--ycet-safe-top)) 16px max(16px,var(--ycet-safe-bottom));background:white;z-index:102;overflow:auto;overscroll-behavior:contain}
+.ycet-nav button{display:block;width:100%;border:0;padding:12px;text-align:left;background:transparent}
+.ycet-nav button[aria-current=page]{background:#dbeafe;color:#1d4ed8}
+.ycet-overlay{position:fixed;inset:0;background:#0006;z-index:101;border:0}
+.ycet-error{position:fixed;bottom:16px;left:16px;z-index:150;background:#991b1b;color:white;padding:12px}
+.ycet-image-hotspot{position:absolute;background:transparent;border:0;outline:1px dashed transparent;outline-offset:-1px;z-index:10}
+.ycet-image-hotspot:hover,.ycet-image-hotspot:focus-visible{outline-color:rgba(37,99,235,.72)}
+:root{--ycet-shell-border:#e6decc;--ycet-shell-active-background:#92400e;--ycet-shell-active-text:#ffffff;--ycet-shell-font-family:Georgia, "Songti SC", serif;--ycet-shell-radius:12px;--ycet-shell-shadow:0px 3px 0px #e6decc66;--ycet-shell-color-scheme:light;--ycet-shell-heading-weight:600;--ycet-shell-line-style:dashed;--ycet-shell-motion:180ms;--ycet-shell-background:#faf7ed;--ycet-shell-surface:#fffdf6;--ycet-shell-text:#302a25;--ycet-shell-muted:#7b7569;--ycet-shell-accent:#92400e;--ycet-shell-on-accent:#ffffff;--ycet-shell-heading-font-family:Georgia, "Songti SC", serif}
+/* 仅装饰展示壳；不改设备尺寸、安全区、缩放容器及产品页面选择器。 */
+body.ycet-pages,body.ycet-demo,body.ycet-direction{background:var(--ycet-shell-background)}
+.ycet-nav,.ycet-toolbar,.ycet-menu,.ycet-direction-summary,.ycet-card>h2{font-family:var(--ycet-shell-font-family);color:var(--ycet-shell-text);color-scheme:var(--ycet-shell-color-scheme)}
+.ycet-layout>.ycet-nav,.ycet-drawer{background:var(--ycet-shell-surface);box-shadow:var(--ycet-shell-shadow)}
+.ycet-layout>.ycet-nav{border-right:1px solid var(--ycet-shell-border)}
+.ycet-nav button{color:var(--ycet-shell-text);border-radius:var(--ycet-shell-radius)}
+.ycet-nav button:hover{background:var(--ycet-shell-background)}
+.ycet-nav button[aria-current=page]{background:var(--ycet-shell-active-background);color:var(--ycet-shell-active-text)}
+.ycet-toolbar{background:var(--ycet-shell-surface);border-bottom:1px solid var(--ycet-shell-border)}
+.ycet-toolbar output{color:var(--ycet-shell-muted)}
+.ycet-toolbar button,.ycet-direction-summary button{color:var(--ycet-shell-text);background:var(--ycet-shell-surface);border:1px solid var(--ycet-shell-border);border-radius:var(--ycet-shell-radius)}
+.ycet-toolbar button:hover:not(:disabled),.ycet-direction-summary button:hover:not(:disabled){color:var(--ycet-shell-active-text);background:var(--ycet-shell-active-background)}
+.ycet-toolbar button:disabled{opacity:.45;cursor:not-allowed}
+.ycet-nav button:focus-visible,.ycet-toolbar button:focus-visible,.ycet-menu:focus-visible,.ycet-direction-summary :is(a,button):focus-visible{outline:2px solid var(--ycet-shell-accent);outline-offset:2px}
+.ycet-menu{background:var(--ycet-shell-accent);color:var(--ycet-shell-on-accent);border-radius:var(--ycet-shell-radius);box-shadow:var(--ycet-shell-shadow)}
+.ycet-card>h2,.ycet-direction-summary :is(h1,h2,h3){font-family:var(--ycet-shell-heading-font-family);color:var(--ycet-shell-text)}
+.ycet-direction-summary{padding:24px 32px;background:var(--ycet-shell-surface);border-bottom:1px solid var(--ycet-shell-border)}
+.ycet-direction-summary :is(p,small){color:var(--ycet-shell-muted)}
+.ycet-direction-summary a{color:var(--ycet-shell-accent)}
+
+[data-ycet-page-id="home"]{background:#fffdf6;color:#302a25;font-family:Georgia, "Songti SC", serif;padding:72px 24px 32px}
+[data-ycet-page-id="home"] header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e6decc;padding-bottom:18px}
+[data-ycet-page-id="home"] header b{font-size:18px;color:#92400e}[data-ycet-page-id="home"] small{font-size:11px;color:#7b7569}
+[data-ycet-page-id="home"] h1{font-size:28px;line-height:1.4;margin:28px 0 10px}[data-ycet-page-id="home"] p{font-size:13px;line-height:1.8;color:#7b7569}
+[data-ycet-page-id="home"] .entry{background:#faf7ed;border:1px solid #e6decc;border-radius:12px;padding:18px;margin:20px 0}
+[data-ycet-page-id="home"] .entry h2{font-size:18px;margin:10px 0}[data-ycet-page-id="home"] .entry p{margin-bottom:0}
+[data-ycet-page-id="home"] button{font:inherit;padding:12px 18px;border:0;border-radius:12px;background:#92400e;color:#ffffff;cursor:pointer}
+[data-ycet-page-id="home"] .foot{display:flex;justify-content:space-between;border-top:1px solid #e6decc;margin-top:28px;padding-top:18px;font-size:12px;color:#92400e}
+
+
+[data-ycet-page-id="detail"]{background:#fffdf6;color:#302a25;font-family:Georgia, "Songti SC", serif;padding:72px 24px 32px}
+[data-ycet-page-id="detail"] header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e6decc;padding-bottom:18px}
+[data-ycet-page-id="detail"] header b{font-size:18px;color:#92400e}[data-ycet-page-id="detail"] small{font-size:11px;color:#7b7569}
+[data-ycet-page-id="detail"] h1{font-size:28px;line-height:1.4;margin:28px 0 10px}[data-ycet-page-id="detail"] p{font-size:13px;line-height:1.8;color:#7b7569}
+[data-ycet-page-id="detail"] .entry{background:#faf7ed;border:1px solid #e6decc;border-radius:12px;padding:18px;margin:20px 0}
+[data-ycet-page-id="detail"] .entry h2{font-size:18px;margin:10px 0}[data-ycet-page-id="detail"] .entry p{margin-bottom:0}
+[data-ycet-page-id="detail"] button{font:inherit;padding:12px 18px;border:0;border-radius:12px;background:#92400e;color:#ffffff;cursor:pointer}
+[data-ycet-page-id="detail"] .foot{display:flex;justify-content:space-between;border-top:1px solid #e6decc;margin-top:28px;padding-top:18px;font-size:12px;color:#92400e}
+
+
+[data-ycet-page-id="settings"]{background:#fffdf6;color:#302a25;font-family:Georgia, "Songti SC", serif;padding:72px 24px 32px}
+[data-ycet-page-id="settings"] header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e6decc;padding-bottom:18px}
+[data-ycet-page-id="settings"] header b{font-size:18px;color:#92400e}[data-ycet-page-id="settings"] small{font-size:11px;color:#7b7569}
+[data-ycet-page-id="settings"] h1{font-size:28px;line-height:1.4;margin:28px 0 10px}[data-ycet-page-id="settings"] p{font-size:13px;line-height:1.8;color:#7b7569}
+[data-ycet-page-id="settings"] .entry{background:#faf7ed;border:1px solid #e6decc;border-radius:12px;padding:18px;margin:20px 0}
+[data-ycet-page-id="settings"] .entry h2{font-size:18px;margin:10px 0}[data-ycet-page-id="settings"] .entry p{margin-bottom:0}
+[data-ycet-page-id="settings"] button{font:inherit;padding:12px 18px;border:0;border-radius:12px;background:#92400e;color:#ffffff;cursor:pointer}
+[data-ycet-page-id="settings"] .foot{display:flex;justify-content:space-between;border-top:1px solid #e6decc;margin-top:28px;padding-top:18px;font-size:12px;color:#92400e}
+</style></head><body class="ycet-nonframe" data-density="comfortable" style=""><section class="ycet-page" data-ycet-page-id="home" data-ycet-layout="document" aria-label="全部记录"><header data-ycet-element-id="home-el-1"><b data-ycet-element-id="home-el-2">拾光手记</b><small data-ycet-element-id="home-el-3">9 月 23 日 · 周三</small></header><h1 data-ycet-element-id="home-el-4">今天，有什么值得记下？</h1><p data-ycet-element-id="home-el-5">把生活里的小事，慢慢记下来。</p><button type="button" data-record data-ycet-element-id="home-el-6">写一条记录</button><article class="entry" data-ycet-element-id="home-el-7"><small data-ycet-element-id="home-el-8">生活片段 · 08:40</small><h2 data-ycet-element-id="home-el-9">给自己一点慢下来的时间</h2><p data-ycet-element-id="home-el-10">早晨经过熟悉的街角，买了一杯热咖啡。今天想把注意力留给真正重要的事。</p></article><article class="entry" data-ycet-element-id="home-el-11"><small data-ycet-element-id="home-el-12">小小进展 · 昨天</small><h2 data-ycet-element-id="home-el-13">把想法变成第一步</h2><p data-ycet-element-id="home-el-14">整理了这一周的记录，也终于开始了搁置很久的计划。</p></article><p data-count role="status" data-ycet-element-id="home-el-15">已记录 12 天</p><div class="foot" data-ycet-element-id="home-el-16"><span data-ycet-element-id="home-el-17">全部记录</span><span data-ycet-element-id="home-el-18">回顾</span><span data-ycet-element-id="home-el-19">我的</span></div></section><section class="ycet-page" data-ycet-page-id="detail" data-ycet-layout="document" aria-label="记录详情"><header data-ycet-element-id="detail-el-1"><b data-ycet-element-id="detail-el-2">拾光手记</b><small data-ycet-element-id="detail-el-3">9 月 23 日 · 周三</small></header><h1 data-ycet-element-id="detail-el-4">今天，有什么值得记下？</h1><p data-ycet-element-id="detail-el-5">把生活里的小事，慢慢记下来。</p><button type="button" data-record data-ycet-element-id="detail-el-6">写一条记录</button><article class="entry" data-ycet-element-id="detail-el-7"><small data-ycet-element-id="detail-el-8">生活片段 · 08:40</small><h2 data-ycet-element-id="detail-el-9">给自己一点慢下来的时间</h2><p data-ycet-element-id="detail-el-10">早晨经过熟悉的街角，买了一杯热咖啡。今天想把注意力留给真正重要的事。</p></article><article class="entry" data-ycet-element-id="detail-el-11"><small data-ycet-element-id="detail-el-12">小小进展 · 昨天</small><h2 data-ycet-element-id="detail-el-13">把想法变成第一步</h2><p data-ycet-element-id="detail-el-14">整理了这一周的记录，也终于开始了搁置很久的计划。</p></article><p data-count role="status" data-ycet-element-id="detail-el-15">已记录 12 天</p><div class="foot" data-ycet-element-id="detail-el-16"><span data-ycet-element-id="detail-el-17">全部记录</span><span data-ycet-element-id="detail-el-18">回顾</span><span data-ycet-element-id="detail-el-19">我的</span></div></section><section class="ycet-page" data-ycet-page-id="settings" data-ycet-layout="document" aria-label="阅读偏好"><header data-ycet-element-id="settings-el-1"><b data-ycet-element-id="settings-el-2">拾光手记</b><small data-ycet-element-id="settings-el-3">9 月 23 日 · 周三</small></header><h1 data-ycet-element-id="settings-el-4">今天，有什么值得记下？</h1><p data-ycet-element-id="settings-el-5">把生活里的小事，慢慢记下来。</p><button type="button" data-record data-ycet-element-id="settings-el-6">写一条记录</button><article class="entry" data-ycet-element-id="settings-el-7"><small data-ycet-element-id="settings-el-8">生活片段 · 08:40</small><h2 data-ycet-element-id="settings-el-9">给自己一点慢下来的时间</h2><p data-ycet-element-id="settings-el-10">早晨经过熟悉的街角，买了一杯热咖啡。今天想把注意力留给真正重要的事。</p></article><article class="entry" data-ycet-element-id="settings-el-11"><small data-ycet-element-id="settings-el-12">小小进展 · 昨天</small><h2 data-ycet-element-id="settings-el-13">把想法变成第一步</h2><p data-ycet-element-id="settings-el-14">整理了这一周的记录，也终于开始了搁置很久的计划。</p></article><p data-count role="status" data-ycet-element-id="settings-el-15">已记录 12 天</p><div class="foot" data-ycet-element-id="settings-el-16"><span data-ycet-element-id="settings-el-17">全部记录</span><span data-ycet-element-id="settings-el-18">回顾</span><span data-ycet-element-id="settings-el-19">我的</span></div></section><button class="ycet-menu" aria-label="打开页面导航" aria-expanded="false">☰</button><button class="ycet-overlay" hidden aria-label="关闭导航"></button><aside class="ycet-drawer ycet-nav" role="dialog" aria-modal="true" aria-label="页面导航" hidden inert><button data-ycet-close>关闭</button><button type="button" data-ycet-tool-target="home">全部记录</button><button type="button" data-ycet-tool-target="detail">记录详情</button><button type="button" data-ycet-tool-target="settings">阅读偏好</button></aside><div class="ycet-error" role="status" hidden></div><script type="application/json" id="ycet-metadata">{"schemaVersion":1,"skillVersion":"4.2.4","artifactVersion":1,"type":"nonframe","productPort":"ios","frame":null,"initial":"home","pages":[{"id":"home","label":"全部记录","layout":"document"},{"id":"detail","label":"记录详情","layout":"document"},{"id":"settings","label":"阅读偏好","layout":"document"}],"shellTheme":{"border":"#e6decc","activeBackground":"#92400e","activeText":"#ffffff","fontFamily":"Georgia, \"Songti SC\", serif","radius":"12px","shadow":"0px 3px 0px #e6decc66","colorScheme":"light","headingWeight":"600","lineStyle":"dashed","motion":"180ms","background":"#faf7ed","surface":"#fffdf6","text":"#302a25","muted":"#7b7569","accent":"#92400e","onAccent":"#ffffff","headingFontFamily":"Georgia, \"Songti SC\", serif"}}</script><script>
+// 同文档页面注册表，所有业务导航只接受已登记页面。
+(()=>{const meta=JSON.parse(document.getElementById('ycet-metadata').textContent);const interactive=['demo','nonframe'].includes(meta.type);const pages=[...document.querySelectorAll('[data-ycet-page-id]')];let current=meta.initial;
+const error=document.querySelector('.ycet-error');
+const frameless=meta.type==='nonframe';const scrolls=new Map();let shown=false,drawerOpen=false,returnFocus=null,bodyState=null;
+if(frameless&&'scrollRestoration' in history)history.scrollRestoration='manual';
+function viewport(){const v=window.visualViewport;if(!v||Math.abs(v.scale-1)<.01)document.documentElement.style.setProperty('--ycet-view-height',(v?v.height:innerHeight)+'px');clampMenu();}
+if(frameless){window.addEventListener('resize',viewport);window.visualViewport?.addEventListener('resize',viewport);window.visualViewport?.addEventListener('scroll',clampMenu);}
+
+function show(id){if(!meta.pages.some(p=>p.id===id)){error.hidden=false;error.textContent='未知页面：'+id;return false;}if(frameless&&shown&&current!==id)scrolls.set(current,[scrollX,scrollY]);
+const changed=current!==id;current=id;pages.forEach(p=>{p.hidden=interactive&&p.dataset.ycetPageId!==id;p.inert=p.hidden;});document.querySelectorAll('[data-ycet-tool-target]').forEach(b=>b.setAttribute('aria-current',b.dataset.ycetToolTarget===id?'page':'false'));error.hidden=true;
+if(frameless&&(!shown||changed)){const position=scrolls.get(id)||[0,0];window.scrollTo(...position);}
+shown=true;return true;}
+function navigate(id){if(!interactive)return;const split=String(id).match(/^([a-z][a-z0-9-]*)([?#].*)?$/);if(!split||!meta.pages.some(p=>p.id===split[1])){error.hidden=false;error.textContent='无效页面目标';return;}const hash='#ycet='+encodeURIComponent(id);if(location.hash!==hash)location.hash=hash;else show(split[1]);}
+function fromHash(){let value=meta.initial;try{if(location.hash.startsWith('#ycet='))value=decodeURIComponent(location.hash.slice(6));}catch(e){}const id=value.split(/[?#]/)[0];if(show(id)){const root=pages.find(p=>p.dataset.ycetPageId===id);root.tabIndex=-1;root.focus({preventScroll:true});root.dispatchEvent(new CustomEvent('ycet-enter',{detail:{target:value}}));}}
+let dragged=false;
+const menu=document.querySelector('.ycet-menu');let drag=null;
+function clampMenu(){if(!menu)return;const rect=menu.getBoundingClientRect(),v=window.visualViewport,style=getComputedStyle(document.documentElement);
+const safe=name=>parseFloat(style.getPropertyValue('--ycet-safe-'+name))||0;
+const x=v?v.offsetLeft:0,y=v?v.offsetTop:0,w=v?v.width:innerWidth,h=v?v.height:innerHeight;
+menu.style.left=Math.max(x+safe('left'),Math.min(x+w-rect.width-safe('right'),rect.left))+'px';
+menu.style.top=Math.max(y+safe('top'),Math.min(y+h-rect.height-safe('bottom'),rect.top))+'px';}
+menu?.addEventListener('pointerdown',e=>{const rect=menu.getBoundingClientRect();drag={x:e.clientX,y:e.clientY,left:rect.left,top:rect.top};dragged=false;menu.setPointerCapture(e.pointerId)});
+menu?.addEventListener('pointermove',e=>{if(!drag)return;if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>5)dragged=true;if(dragged){menu.style.left=drag.left+e.clientX-drag.x+'px';menu.style.top=drag.top+e.clientY-drag.y+'px';clampMenu();}});
+menu?.addEventListener('pointerup',()=>{drag=null});menu?.addEventListener('pointercancel',()=>{drag=null});window.addEventListener('resize',clampMenu);
+function drawer(open){
+const panel=document.querySelector('.ycet-drawer');if(!panel||open===drawerOpen)return;
+drawerOpen=open;
+if(open){returnFocus=document.activeElement;bodyState={style:document.body.getAttribute('style'),x:scrollX,y:scrollY};
+document.body.style.position='fixed';document.body.style.top=-bodyState.y+'px';document.body.style.left=-bodyState.x+'px';document.body.style.width='100%';}
+document.querySelectorAll('.ycet-drawer,.ycet-overlay').forEach(e=>{e.hidden=!open;e.inert=!open});menu?.setAttribute('aria-expanded',String(open));if(menu)menu.inert=open;
+pages.forEach(p=>p.inert=open||p.hidden);
+if(open)panel.querySelector('[data-ycet-close]')?.focus();
+else{if(bodyState.style===null)document.body.removeAttribute('style');else document.body.setAttribute('style',bodyState.style);window.scrollTo(bodyState.x,bodyState.y);returnFocus?.focus({preventScroll:true});}}
+document.addEventListener('click',e=>{const tool=e.target.closest('[data-ycet-tool-target]'),business=e.target.closest('[data-ycet-nav-target]');
+if(tool){drawer(false);navigate(tool.dataset.ycetToolTarget);}else if(business&&interactive){e.preventDefault();navigate(business.dataset.ycetNavTarget);}
+if(e.target.closest('.ycet-menu')){if(!dragged)drawer(true);dragged=false;}
+if(e.target.closest('.ycet-overlay,[data-ycet-close]'))drawer(false);
+if(e.target.closest('[data-ycet-back]'))history.back();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')drawer(false);
+if(e.key==='Tab'&&drawerOpen){const nodes=[...document.querySelector('.ycet-drawer').querySelectorAll('button,a[href],input,[tabindex]')].filter(n=>!n.disabled&&n.tabIndex>=0&&!n.hidden);
+const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}});
+window.addEventListener('hashchange',()=>{drawer(false);fromHash();});if(frameless)viewport();if(interactive){if(!location.hash.startsWith('#ycet='))history.replaceState(null,'','#ycet='+encodeURIComponent(meta.initial));fromHash();}else show(meta.initial);
+(function(root,navigate){root.querySelector('[data-record]').addEventListener('click',()=>root.querySelector('[data-count]').textContent='新记录已创建');})(document.querySelector("[data-ycet-page-id=\"home\"]"),navigate);
+(function(root,navigate){root.querySelector('[data-record]').addEventListener('click',()=>root.querySelector('[data-count]').textContent='新记录已创建');})(document.querySelector("[data-ycet-page-id=\"detail\"]"),navigate);
+(function(root,navigate){root.querySelector('[data-record]').addEventListener('click',()=>root.querySelector('[data-count]').textContent='新记录已创建');})(document.querySelector("[data-ycet-page-id=\"settings\"]"),navigate);
+})();
+</script></body></html>

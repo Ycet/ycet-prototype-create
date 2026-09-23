@@ -3,7 +3,7 @@ name: ycet-prototype-create
 description: Refine product requirements, confirm UI direction, create self-contained static, framed interactive or frameless mobile/desktop HTML prototypes, adapt existing HTML or screenshot prototypes, and edit them through a local visual workbench. Use for product prototyping, offline HTML demos, prototype modifications or workbench change requests.
 ---
 
-# YCET Prototype Creator v4.2.3
+# YCET Prototype Creator v4.2.4
 
 ## 路由
 

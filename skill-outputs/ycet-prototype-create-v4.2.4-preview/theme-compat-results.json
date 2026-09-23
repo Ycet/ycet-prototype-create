@@ -1,0 +1,46 @@
+{
+  "results": [
+    {
+      "theme": "light",
+      "kind": "pages",
+      "status": "passed"
+    },
+    {
+      "theme": "light",
+      "kind": "demo",
+      "status": "passed"
+    },
+    {
+      "theme": "light",
+      "kind": "direction",
+      "status": "passed"
+    },
+    {
+      "theme": "light",
+      "kind": "nonframe",
+      "status": "passed"
+    },
+    {
+      "theme": "dark",
+      "kind": "pages",
+      "status": "passed"
+    },
+    {
+      "theme": "dark",
+      "kind": "demo",
+      "status": "passed"
+    },
+    {
+      "theme": "dark",
+      "kind": "direction",
+      "status": "passed"
+    },
+    {
+      "theme": "dark",
+      "kind": "nonframe",
+      "status": "passed"
+    }
+  ],
+  "errors": [],
+  "network": []
+}

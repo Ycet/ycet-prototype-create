@@ -65,7 +65,7 @@ CSS、JS、图片、srcset、SVG、图标、字体均内联；网络 URL 仅可�
 
 ## 无框架构建与修改用途
 
-C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，残留值会提示并忽略。支持 ios/iphone/android/mobile-h5/h5/wechat-mini-program、ipad/tablet、web/desktop/desktop-app/windows/macos 等 Manifest routing 端口。未知端口先澄清。元数据 frame=null，skillVersion=4.2.3，schemaVersion 仍为 1。
+C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，残留值会提示并忽略。支持 ios/iphone/android/mobile-h5/h5/wechat-mini-program、ipad/tablet、web/desktop/desktop-app/windows/macos 等 Manifest routing 端口。未知端口先澄清。元数据 frame=null，skillVersion=4.2.4，schemaVersion 仍为 1。
 
 页面可选 layout=document（默认，自然长页面）或 app（占满视口，内部滚动）。app 的直接子节点 data-ycet-scroll 自动占据剩余高度，固定头尾为其兄弟节点；嵌套布局自行提供 min-width/min-height:0 和滚动区域。page CSS 不得把根重新固定为设备尺寸。图片按比例适宽；热区坐标跟随同一图片容器。
 
@@ -78,7 +78,9 @@ C 使用 type=nonframe，必须指定有效 productPort；frameId 可省略，�
 旧 type=mobile 输入作为兼容别名转为 nonframe 并提示，需明确有效端口；旧 HTML 元数据仍可由守卫读取。历史 mobile 文件不改名、不占用 nonframe 编号。旧源码的局部修改直接编辑，不从旧 JSON 重建覆盖。
 
 
-## 展示壳与产品风格（v4.2.3）
+## 展示壳与产品风格（v4.2.4）
+
+生成外围展示壳时读取 presentation-design.md，复用内置展板和导航结构，不必重新编写通用布局。
 
 新生成 design-direction、prototype-pages、prototype-demo 时，外围页面背景、导航及选中态、页面标题、方向说明和缩放工具栏沿用产品的配色、字体、圆角与阴影。功能二先从当前设计方向提取一份 shellTheme；功能三复用已确认方向的同一份参数，避免各文件另选一套浅灰／蓝色风格。若手工编写 HTML，也遵守此视觉一致性要求。C 无框架只为辅助菜单／抽屉套用参数，不增加展示壳或限制产品视口。
 

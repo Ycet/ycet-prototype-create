@@ -5,7 +5,8 @@ import argparse, hashlib, html, json, os, re, tempfile, warnings
 from pathlib import Path
 from prototype_document import BuildError, ResourceBundler, safe_json_script, assign_element_ids
 from shell_theme import shell_theme
-from prototype_syntax import split_selectors, script_problem
+from prototype_syntax import script_problem
+from presentation import heading, navigation, direction, scoped_css
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMES = {'pages':'prototype-pages','demo':'prototype-demo','nonframe':'prototype-nonframe','direction':'design-direction'}
@@ -94,6 +95,13 @@ if(typeof ResizeObserver!=='undefined')new ResizeObserver(resize).observe(stage)
 def render(model, root):
     model=normalize_model(model); kind=model['type']
     theme, theme_css = shell_theme(model.get('shellTheme'))
+    presentation = model.get('presentation', {})
+    if not isinstance(presentation, dict) or presentation.get('density', 'comfortable') not in ('comfortable', 'compact'):
+        raise BuildError('presentation 需要对象，density 为 comfortable 或 compact')
+    presented = bool(theme) and kind != 'nonframe'
+    if presented: theme_css += (ROOT/'assets/presentation.css').read_text()
+    if kind == 'direction' and (model.get('directionCss') or model.get('directionJs') or model.get('direction')) and not theme:
+        raise BuildError('结构化设计展板与局部样式需要 shellTheme')
     manifest=json.loads((ROOT/'assets/frames/manifest.json').read_text())
     port=str(model.get('productPort','')).strip().lower()
     route=manifest['routing'].get(port)
@@ -126,16 +134,8 @@ def render(model, root):
         fragment=bundler.inline_html_text(source,owner)
         selector=f'[data-ycet-page-id="{ident}"]'
         css=p.get('css','')
-        # 作者显式作用域，避免自动改写复杂 CSS 导致视觉漂移。
-        if css and ':scope' not in css: raise BuildError('页面 CSS 使用 :scope 限定页面根')
-        for rule in re.finditer(r'([^{}]+)\{',re.sub(r'/\*.*?\*/','',css,flags=re.S)):
-            header=rule[1].strip()
-            if header.startswith('@'):
-                if 'keyframes' in header and not re.search(r'keyframes\s+'+re.escape(ident)+'-',header):raise BuildError('动画名必须加页面 ID 前缀')
-                continue
-            if re.fullmatch(r'(?:from|to|[\d.% ,]+)',header):continue
-            if any(':scope' not in part for part in split_selectors(header)):raise BuildError('每个 CSS 选择器必须限定 :scope')
-        styles.append(bundler.inline_css_text(css,owner).replace(':scope',selector))
+        # 页面样式与设计展板样式分别限定作用域，保持产品 DOM 隔离。
+        styles.append(bundler.inline_css_text(scoped_css(css,selector,ident),owner))
         js=p.get('js','')
         problem=script_problem(js,page=True)
         if problem: raise BuildError(problem)
@@ -149,15 +149,24 @@ def render(model, root):
         template=re.sub('<style>.*?</style>','',template,flags=re.S)
     def device(content):return template.replace('{{CONTENT}}',content)
     nav=''.join(f'<button type="button" data-ycet-tool-target="{p["id"]}">{html.escape(p.get("label",p["id"]))}</button>' for p in pages)
+    if presented and kind == 'demo': nav=navigation(model,pages)
     if kind in ('pages','direction'):
-        body='<main class="ycet-grid">'+''.join(f'<article class="ycet-card"><h2>{html.escape(p.get("label",p["id"]))}</h2>'+device(frag)+'</article>' for p,frag in zip(pages,fragments))+'</main>'
+        body='<main class="ycet-grid">'+''.join(f'<article class="ycet-card"><h2>{html.escape(p.get("label",p["id"]))}</h2>'+((f'<p class="ycet-card-description">{html.escape(p.get("description",""))}</p>') if presented and p.get('description') else '')+device(frag)+'</article>' for p,frag in zip(pages,fragments))+'</main>'
         if kind=='direction':
-            direction=bundler.inline_html_text(model.get('directionHtml',''),owner)
-            body=(('<header class="ycet-direction-summary">'+direction+'</header>') if theme and direction else direction)+body
+            if presented:
+                body=direction(model,theme,bundler,owner)+body
+                styles.append(bundler.inline_css_text(scoped_css(model.get('directionCss',''),'.ycet-direction-summary','direction'),owner))
+                js=model.get('directionJs','')
+                problem=script_problem(js,page=True)
+                if problem: raise BuildError(problem)
+                if js: scripts.append('(function(root){'+js+'})(document.querySelector(".ycet-direction-summary"));')
+            else: body=bundler.inline_html_text(model.get('directionHtml',''),owner)+body
+        elif presented: body=heading(model,kind,len(pages))+body
     elif kind=='demo':body='<main class="ycet-layout"><nav class="ycet-nav" aria-label="页面导航" tabindex="0">'+nav+'</nav><div class="ycet-viewer"><div class="ycet-toolbar" role="group" aria-label="原型缩放"><button data-ycet-zoom="out" aria-label="缩小原型">−</button><output data-ycet-zoom-value aria-live="polite">100%</output><button data-ycet-zoom="in" aria-label="放大原型">＋</button><button data-ycet-zoom="fit">适应窗口</button></div><div class="ycet-stage" tabindex="0" aria-label="原型展示区"><div class="ycet-stage-inner"><div class="ycet-fit"><div class="ycet-fit-content">'+device(''.join(fragments))+'</div></div></div></div></div></main>'
     else:body=''.join(fragments)+'<button class="ycet-menu" aria-label="打开页面导航" aria-expanded="false">☰</button><button class="ycet-overlay" hidden aria-label="关闭导航"></button><aside class="ycet-drawer ycet-nav" role="dialog" aria-modal="true" aria-label="页面导航" hidden inert><button data-ycet-close>关闭</button>'+nav+'</aside>'
-    meta={'schemaVersion':1,'skillVersion':'4.2.3','artifactVersion':model.get('artifactVersion',1),'type':kind,'productPort':model.get('productPort',''),'frame':frame,'initial':initial,'pages':[{'id':p['id'],'label':p.get('label',p['id']),'layout':p.get('layout','document')} for p in pages]}
+    meta={'schemaVersion':1,'skillVersion':'4.2.4','artifactVersion':model.get('artifactVersion',1),'type':kind,'productPort':model.get('productPort',''),'frame':frame,'initial':initial,'pages':[{'id':p['id'],'label':p.get('label',p['id']),'layout':p.get('layout','document')} for p in pages]}
     if theme: meta['shellTheme'] = theme
+    if presented: meta['presentation'] = presentation
     variables='' if frame is None else f'--logical-w:{frame["logicalViewport"]["width"]}px;--logical-h:{frame["logicalViewport"]["height"]}px;--safe-top:{frame["safeArea"]["top"]}px;--safe-bottom:{frame["safeArea"]["bottom"]}px;--columns:{frame["defaultColumns"]}'
     css=((ROOT/'assets/nonframe.css').read_text() if kind=='nonframe' else STYLE+frame_css)+theme_css+'\n'.join(styles)
     if re.search('</(?:style|script)',css+'\n'.join(scripts),re.I):raise BuildError('代码字段含结束标签')
@@ -166,7 +175,9 @@ def render(model, root):
         start=runtime.index('// 仅缩放设备内容')
         end=runtime.index('/* PAGE_INITIALIZERS */',start)
         runtime=runtime[:start]+runtime[end:]
-    document='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>'+html.escape(model.get('title','产品原型'))+'</title><style>'+css+'</style></head><body class="ycet-'+kind+'" style="'+variables+'">'+body+'<div class="ycet-error" role="status" hidden></div><script type="application/json" id="ycet-metadata">'+safe_json_script(meta)+'</script><script>'+runtime.replace('/* PAGE_INITIALIZERS */','\n'.join(scripts))+'</script></body></html>'
+    body_class='ycet-'+kind+(' ycet-presented' if presented else '')
+    density=html.escape(presentation.get('density','comfortable'),quote=True)
+    document='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>'+html.escape(model.get('title','产品原型'))+'</title><style>'+css+'</style></head><body class="'+body_class+'" data-density="'+density+'" style="'+variables+'">'+body+'<div class="ycet-error" role="status" hidden></div><script type="application/json" id="ycet-metadata">'+safe_json_script(meta)+'</script><script>'+runtime.replace('/* PAGE_INITIALIZERS */','\n'.join(scripts))+'</script></body></html>'
     return document
 
 def build(model, root, mode='create', target=None, expected_sha=None, *, purpose=None, validate=False):

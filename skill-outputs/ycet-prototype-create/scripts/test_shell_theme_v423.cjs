@@ -17,15 +17,15 @@ const {pathToFileURL}=require('node:url');
    assert.equal(await style('[data-ycet-page-id=home]','backgroundColor'),rgb(theme.surface));
    assert.equal(await style('[data-ycet-page-id=home]','color'),rgb(theme.text));
    if(kind!=='nonframe')assert.equal(await style('body','backgroundColor'),rgb(theme.background));
-   if(kind==='direction'){assert.equal(await style('.ycet-direction-summary','backgroundColor'),rgb(theme.surface));assert.equal(await style('.ycet-direction-summary p','color'),rgb(theme.muted));}
-   if(['pages','direction'].includes(kind)){assert.equal(await style('.ycet-card>h2','color'),rgb(theme.text));assert.equal(await page.locator('.ycet-page:visible').count(),kind==='pages'?2:1);}
+   if(kind==='direction'){assert.equal(await style('.ycet-direction-summary','backgroundColor'),'rgba(0, 0, 0, 0)');assert.equal(await style('.ycet-direction-custom p','color'),rgb(theme.muted));}
+   if(['pages','direction'].includes(kind)){assert.equal(await style('.ycet-card>h2','color'),rgb(theme.accent));assert.equal(await page.locator('.ycet-page:visible').count(),kind==='pages'?2:1);}
    if(kind==='demo'){
     assert.equal(await style('.ycet-nav','backgroundColor'),rgb(theme.surface));assert.equal(await style('.ycet-toolbar button','borderRadius'),theme.radius);
     assert.equal(await style('[aria-current=page]','backgroundColor'),rgb(theme.activeBackground));
     const width=(await page.locator('.ycet-nav').boundingBox()).width;
     const before=(await page.locator('.ycet-fit').boundingBox()).width;
     await page.locator('[data-ycet-zoom=in]').click();assert((await page.locator('.ycet-fit').boundingBox()).width>before);assert.equal((await page.locator('.ycet-nav').boundingBox()).width,width);
-    await page.locator('[data-ycet-tool-target=detail]').click();await page.locator('[data-ycet-page-id=detail]').waitFor({state:'visible'});assert.equal(await style('[data-ycet-tool-target=detail]','backgroundColor'),rgb(theme.activeBackground));
+    await page.locator('[data-ycet-tool-target=detail]').click();await page.locator('[data-ycet-page-id=detail]').waitFor({state:'visible'});await page.waitForFunction(color=>getComputedStyle(document.querySelector('[data-ycet-tool-target=detail]')).backgroundColor===color,rgb(theme.activeBackground));
     await page.goBack();await page.locator('[data-ycet-page-id=home]').waitFor({state:'visible'});
     await page.locator('[data-ycet-element-id=count]').first().click();assert.equal(await page.locator('[data-ycet-element-id=count]').first().innerText(),'1');
     for(const viewport of [{width:1280,height:800},{width:390,height:844}]){

@@ -36,6 +36,6 @@
 
 ## 设计方向预览
 
-读取 shared-prototype-standards.md。生成 prototype/outputs/design-direction.html，内联色彩、字体、按钮、反馈组件与一个首页预览。全部使用直接 DOM，不生成首页独立文件，不使用 iframe。可使用 build_prototype.py 的 direction 类型；首页 fragment 放入 pages，设计组件放入 directionHtml。外围展示壳与首页共用同一视觉方向，按 shared-prototype-standards.md 提供 shellTheme，并将其沿用到正式产物。用户确认方向并继续后，进入功能三询问 A/B/C。重新设计按 shared-change-policy.md 决定文件策略。
+读取 shared-prototype-standards.md 与 presentation-design.md。生成 prototype/outputs/design-direction.html，内联色彩、字体、按钮、反馈组件与一个首页预览。全部使用直接 DOM，不生成首页独立文件，不使用 iframe。可使用 build_prototype.py 的 direction 类型；首页 fragment 放入 pages，设计展板使用 direction 对象，特色组件以片段提供，局部样式／交互放入 directionCss／directionJs；directionHtml 只作兼容补充。外围展示壳与首页共用同一视觉方向，按 shared-prototype-standards.md 提供 shellTheme，并将其沿用到正式产物。用户确认方向并继续后，进入功能三询问 A/B/C。重新设计按 shared-change-policy.md 决定文件策略。
 
 方向预览中的设备尺寸是展示参考。后续选择 C 无框架类型时按产品端口和实际浏览器视口重排，不能把预览尺寸写成产品根宽高。修改已有方向预览同样遵守 prototype-validation.md：完成修改即结束，用户未要求时不追加验收。
