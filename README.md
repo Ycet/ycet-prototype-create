@@ -54,44 +54,44 @@ $ycet-prototype-create
 | 功能四 | 基于现有原型或图片重构、修改 | 更新后的原型文件与相关文档 |
 | 功能五 | 启动本地原型工作台 | 可浏览和编辑当前 prototype/ 下原型的工作台 |
 
-下列演示图展示各功能效果。动图较大，按需展开查看。
+下列演示图展示各功能效果。演示默认展开，可按需收起。
 
-<details>
+<details open>
 <summary>功能二 · 设计方向预览</summary>
 
 ![功能二：设计方向预览](assets/images/功能二--设计方向预览.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>功能三 · 静态页面</summary>
 
 ![功能三：静态页面](assets/images/功能三--静态页面.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>功能三 · 带框架交互 Demo</summary>
 
 ![功能三：可交互 Demo](assets/images/功能三--可交互demo.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>功能三 · 无框架交互 Demo</summary>
 
 ![功能三：无框架交互 Demo](assets/images/功能三--无边框交互demo.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>功能四 · 图片转 HTML 原型</summary>
 
 ![功能四：图片转 HTML 原型](assets/images/功能四--图片转原型html.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>功能五 · 原型工作台</summary>
 
 ![功能五：原型工作台](assets/images/功能五--工作台.gif)

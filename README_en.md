@@ -54,44 +54,44 @@ For a new product request, the Skill follows “requirement refinement → UI di
 | Feature 4 | Reconstruct or edit an existing prototype or image | Updated prototype files and related documents |
 | Feature 5 | Start the local prototype workbench | A workbench for browsing and editing prototypes under prototype/ |
 
-The following GIFs demonstrate the features. They are large, so expand only the ones you want to view.
+The following GIFs demonstrate the features. Demos are expanded by default and can be collapsed as needed.
 
-<details>
+<details open>
 <summary>Feature 2 · UI direction preview</summary>
 
 ![Feature 2: UI direction preview](assets/images/功能二--设计方向预览.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>Feature 3 · Static pages</summary>
 
 ![Feature 3: static pages](assets/images/功能三--静态页面.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>Feature 3 · Framed interactive demo</summary>
 
 ![Feature 3: framed interactive demo](assets/images/功能三--可交互demo.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>Feature 3 · Frameless interactive demo</summary>
 
 ![Feature 3: frameless interactive demo](assets/images/功能三--无边框交互demo.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>Feature 4 · Image to HTML prototype</summary>
 
 ![Feature 4: image to HTML prototype](assets/images/功能四--图片转原型html.gif)
 
 </details>
 
-<details>
+<details open>
 <summary>Feature 5 · Prototype workbench</summary>
 
 ![Feature 5: prototype workbench](assets/images/功能五--工作台.gif)
